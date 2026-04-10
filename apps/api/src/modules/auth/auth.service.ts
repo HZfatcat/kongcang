@@ -143,6 +143,11 @@ export class AuthService {
     if (resp.data.errcode !== 0) {
       throw new UnauthorizedException(`企业微信 code 校验失败: ${resp.data.errmsg ?? 'unknown'}`);
     }
+    if (!resp.data.UserId && resp.data.OpenId) {
+      throw new UnauthorizedException(
+        '企业微信仅返回 OpenId，未返回 UserId。请确认扫码账号为企业内部成员，并检查应用授权范围与可见范围配置。',
+      );
+    }
     return resp.data.UserId ?? null;
   }
 

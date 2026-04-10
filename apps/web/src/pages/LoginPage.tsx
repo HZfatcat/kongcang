@@ -33,7 +33,8 @@ function getOauthUrl(corp: 'corp' | 'csdn', state: string) {
   const redirectUri = encodeURIComponent(
     `${window.location.origin}/login/verify?corp=${corp}&redirect=${encodeURIComponent('/')}`,
   );
-  return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appid}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_privateinfo&agentid=${agentid}&state=${state}#wechat_redirect`;
+  // Use snsapi_base for internal member auth to reliably obtain UserId.
+  return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appid}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&agentid=${agentid}&state=${state}#wechat_redirect`;
 }
 
 export function LoginPage() {
