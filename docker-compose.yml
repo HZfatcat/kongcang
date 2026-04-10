@@ -25,8 +25,8 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://kefu:kefu_pass@postgres:5432/kefumonitor?schema=public}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: postgresql://kefu:kefu_pass@postgres:5432/kefumonitor?schema=public
+      REDIS_URL: redis://redis:6379
       PORT: 3000
       CORS_ORIGIN: http://localhost:8080
     depends_on:
