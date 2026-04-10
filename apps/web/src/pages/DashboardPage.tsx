@@ -21,6 +21,7 @@ import {
   Popconfirm,
   Tag,
   Progress,
+  Select,
   Switch,
   Tree,
   Typography,
@@ -30,6 +31,13 @@ import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
 import { fetchDemandOverview } from '../api/kpi';
+import {
+  deleteOpportunity,
+  fetchOpportunityList,
+  fetchOpportunitySummary,
+  updateOpportunityStatus,
+  upsertOpportunity,
+} from '../api/opportunity';
 import {
   deleteAgent,
   fetchAgents,
@@ -61,6 +69,8 @@ import type {
   UdescTreeNode,
 } from '../types/udesc';
 import type { DemandOverview } from '../types/kpi';
+import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
+import { clearSession, getLoginUser } from '../auth/session';
 
 const { RangePicker } = DatePicker;
 
@@ -84,10 +94,12 @@ function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, 
 }
 
 export function DashboardPage() {
+  const loginUser = getLoginUser();
   const [activeMenuKey, setActiveMenuKey] = useState<
-    'satisfaction' | 'demand' | 'sync' | 'agents'
+    'satisfaction' | 'demand' | 'opportunity' | 'sync' | 'agents'
   >('satisfaction');
   const [agentForm] = Form.useForm();
+  const [opportunityForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [overview, setOverview] = useState<UdescOverview | null>(null);
@@ -101,6 +113,18 @@ export function DashboardPage() {
   const [treeData, setTreeData] = useState<UdescTreeNode[]>([]);
   const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
+  const [opportunityLoading, setOpportunityLoading] = useState(false);
+  const [opportunitySummary, setOpportunitySummary] = useState<OpportunitySummary | null>(null);
+  const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([]);
+  const [opportunityTotal, setOpportunityTotal] = useState(0);
+  const [opportunityPage, setOpportunityPage] = useState(1);
+  const [opportunityPageSize, setOpportunityPageSize] = useState(20);
+  const [opportunityStatusFilter, setOpportunityStatusFilter] = useState<string | undefined>(undefined);
+  const [opportunitySourceFilter, setOpportunitySourceFilter] = useState<string | undefined>(undefined);
+  const [opportunityKeyword, setOpportunityKeyword] = useState('');
+  const [opportunityModalOpen, setOpportunityModalOpen] = useState(false);
+  const [savingOpportunity, setSavingOpportunity] = useState(false);
+  const [editingOpportunityId, setEditingOpportunityId] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([]);
   const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
@@ -200,6 +224,35 @@ export function DashboardPage() {
     }
   };
 
+  const loadOpportunities = async (nextPage?: number, nextPageSize?: number) => {
+    const targetPage = nextPage ?? opportunityPage;
+    const targetPageSize = nextPageSize ?? opportunityPageSize;
+    setOpportunityLoading(true);
+    try {
+      const [summaryResp, listResp] = await Promise.all([
+        fetchOpportunitySummary({ startDate: range[0], endDate: range[1] }),
+        fetchOpportunityList({
+          startDate: range[0],
+          endDate: range[1],
+          status: opportunityStatusFilter,
+          sourceType: opportunitySourceFilter,
+          keyword: opportunityKeyword || undefined,
+          page: targetPage,
+          pageSize: targetPageSize,
+        }),
+      ]);
+      setOpportunitySummary(summaryResp);
+      setOpportunities(listResp.records);
+      setOpportunityTotal(listResp.total);
+      setOpportunityPage(listResp.page);
+      setOpportunityPageSize(listResp.pageSize);
+    } catch {
+      message.error('加载商机数据失败');
+    } finally {
+      setOpportunityLoading(false);
+    }
+  };
+
   const loadAgents = async () => {
     setAgentsLoading(true);
     try {
@@ -237,6 +290,12 @@ export function DashboardPage() {
   useEffect(() => {
     void reload();
   }, [range[0], range[1]]);
+
+  useEffect(() => {
+    if (activeMenuKey === 'opportunity') {
+      void loadOpportunities(1, opportunityPageSize);
+    }
+  }, [range[0], range[1], activeMenuKey]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -311,6 +370,29 @@ export function DashboardPage() {
         title: '消息数',
         dataIndex: 'messageCount',
         key: 'messageCount',
+      },
+      {
+        title: '操作',
+        key: 'actions',
+        render: (_: unknown, record: UdescSessionRecord) => (
+          <Button
+            size="small"
+            onClick={() => {
+              setEditingOpportunityId(null);
+              opportunityForm.resetFields();
+              opportunityForm.setFieldsValue({
+                sourceType: 'CONSULTATION',
+                sourceSessionId: record.id,
+                agentId: record.agentId,
+                title: `咨询会话商机-${record.id}`,
+                status: 'NEW',
+              });
+              setOpportunityModalOpen(true);
+            }}
+          >
+            转商机
+          </Button>
+        ),
       },
     ],
     [agentProfileMap, treeData, sessionAgentFilters],
@@ -743,6 +825,188 @@ export function DashboardPage() {
     </>
   );
 
+  const opportunityTab = (
+    <>
+      <Row gutter={16}>
+        <Col span={4}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="商机总数" value={opportunitySummary?.total ?? 0} />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="赢单数" value={opportunitySummary?.won ?? 0} />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="输单数" value={opportunitySummary?.lost ?? 0} />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: 120 }}>
+            <Statistic
+              title="赢单率"
+              value={Number(((opportunitySummary?.winRate ?? 0) * 100).toFixed(2))}
+              suffix="%"
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="咨询链路商机" value={opportunitySummary?.consultingLinked ?? 0} />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="手工录入商机" value={opportunitySummary?.manualCreated ?? 0} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card style={{ marginTop: 16 }}>
+        <Space wrap>
+          <Input
+            allowClear
+            placeholder="关键词（标题/客户）"
+            value={opportunityKeyword}
+            onChange={(e) => setOpportunityKeyword(e.target.value)}
+            style={{ width: 240 }}
+          />
+          <Select
+            allowClear
+            placeholder="状态"
+            value={opportunityStatusFilter}
+            onChange={(value) => setOpportunityStatusFilter(value)}
+            style={{ width: 160 }}
+            options={[
+              { label: '新建', value: 'NEW' },
+              { label: '已甄别', value: 'QUALIFIED' },
+              { label: '跟进中', value: 'FOLLOWING' },
+              { label: '赢单', value: 'WON' },
+              { label: '输单', value: 'LOST' },
+            ]}
+          />
+          <Select
+            allowClear
+            placeholder="来源"
+            value={opportunitySourceFilter}
+            onChange={(value) => setOpportunitySourceFilter(value)}
+            style={{ width: 160 }}
+            options={[
+              { label: '咨询转商机', value: 'CONSULTATION' },
+              { label: '手工录入', value: 'MANUAL' },
+            ]}
+          />
+          <Button onClick={() => void loadOpportunities(1, opportunityPageSize)}>查询</Button>
+          <Button
+            type="primary"
+            onClick={() => {
+              setEditingOpportunityId(null);
+              opportunityForm.resetFields();
+              opportunityForm.setFieldsValue({ sourceType: 'MANUAL', status: 'NEW' });
+              setOpportunityModalOpen(true);
+            }}
+          >
+            新增商机
+          </Button>
+        </Space>
+      </Card>
+
+      <Card title="商机闭环列表" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="id"
+          loading={opportunityLoading}
+          dataSource={opportunities}
+          columns={[
+            { title: '标题', dataIndex: 'title', key: 'title' },
+            { title: '来源', dataIndex: 'sourceType', key: 'sourceType' },
+            { title: '关联会话', dataIndex: 'sourceSessionId', key: 'sourceSessionId', render: (value?: string) => value ?? '-' },
+            { title: '客服', dataIndex: 'agentId', key: 'agentId', render: (value?: string) => getAgentLabel(value) },
+            { title: '客户', dataIndex: 'customerName', key: 'customerName', render: (value?: string) => value ?? '-' },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              key: 'status',
+              render: (value: OpportunityStatus, record: OpportunityRecord) => (
+                <Select
+                  value={value}
+                  style={{ width: 140 }}
+                  options={[
+                    { label: '新建', value: 'NEW' },
+                    { label: '已甄别', value: 'QUALIFIED' },
+                    { label: '跟进中', value: 'FOLLOWING' },
+                    { label: '赢单', value: 'WON' },
+                    { label: '输单', value: 'LOST' },
+                  ]}
+                  onChange={async (nextStatus) => {
+                    await updateOpportunityStatus(record.id, { status: nextStatus });
+                    message.success('商机状态已更新');
+                    await loadOpportunities(opportunityPage, opportunityPageSize);
+                  }}
+                />
+              ),
+            },
+            {
+              title: '估算金额',
+              dataIndex: 'estimatedAmount',
+              key: 'estimatedAmount',
+              render: (value?: number) => (value === undefined ? '-' : value),
+            },
+            {
+              title: '更新时间',
+              dataIndex: 'updatedAt',
+              key: 'updatedAt',
+              render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+            },
+            {
+              title: '操作',
+              key: 'actions',
+              render: (_: unknown, record: OpportunityRecord) => (
+                <Space>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setEditingOpportunityId(record.id);
+                      opportunityForm.setFieldsValue({
+                        ...record,
+                        sourceType: record.sourceType as OpportunitySourceType,
+                        status: record.status as OpportunityStatus,
+                      });
+                      setOpportunityModalOpen(true);
+                    }}
+                  >
+                    编辑
+                  </Button>
+                  <Popconfirm
+                    title="确认删除该商机？"
+                    onConfirm={async () => {
+                      await deleteOpportunity(record.id);
+                      message.success('商机已删除');
+                      await loadOpportunities(opportunityPage, opportunityPageSize);
+                    }}
+                  >
+                    <Button danger size="small">
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+          pagination={{
+            current: opportunityPage,
+            pageSize: opportunityPageSize,
+            total: opportunityTotal,
+            onChange: (nextPageNumber, nextPageSizeNumber) => {
+              void loadOpportunities(nextPageNumber, nextPageSizeNumber);
+            },
+          }}
+        />
+      </Card>
+    </>
+  );
+
   const syncTab = (
     <>
       <Space style={{ marginBottom: 16 }}>
@@ -1024,10 +1288,13 @@ export function DashboardPage() {
         <Menu
           mode="inline"
           selectedKeys={[activeMenuKey]}
-          onClick={(e) => setActiveMenuKey(e.key as 'satisfaction' | 'demand' | 'sync' | 'agents')}
+          onClick={(e) =>
+            setActiveMenuKey(e.key as 'satisfaction' | 'demand' | 'opportunity' | 'sync' | 'agents')
+          }
           items={[
             { key: 'satisfaction', label: '用户满意度' },
             { key: 'demand', label: '需求完成率' },
+            { key: 'opportunity', label: '商机管理' },
             { key: 'sync', label: '数据同步' },
             { key: 'agents', label: '人员管理' },
           ]}
@@ -1035,7 +1302,24 @@ export function DashboardPage() {
       </Layout.Sider>
 
       <Layout.Content style={{ padding: 24 }}>
-        <Typography.Title level={3}>GitCode 客服运营看板</Typography.Title>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography.Title level={3} style={{ marginBottom: 0 }}>
+            GitCode 客服运营看板
+          </Typography.Title>
+          <Space>
+            <Typography.Text type="secondary">
+              {loginUser?.realname ? `当前登录：${loginUser.realname}` : '当前登录'}
+            </Typography.Text>
+            <Button
+              onClick={() => {
+                clearSession();
+                window.location.href = '/login';
+              }}
+            >
+              退出登录
+            </Button>
+          </Space>
+        </div>
         <Space style={{ marginBottom: 16 }}>
           <RangePicker
             format="YYYY-MM-DD"
@@ -1050,16 +1334,30 @@ export function DashboardPage() {
               setRange([value[0].startOf('day').toISOString(), value[1].endOf('day').toISOString()]);
             }}
           />
-          <Button onClick={() => void reload()}>查询</Button>
+          <Button
+            onClick={() => {
+              if (activeMenuKey === 'opportunity') {
+                void loadOpportunities(1, opportunityPageSize);
+                return;
+              }
+              void reload();
+            }}
+          >
+            查询
+          </Button>
         </Space>
 
         {loading && <Spin />}
 
         {!loading && !overview && activeMenuKey === 'satisfaction' && <Alert type="warning" message="暂无满意度数据，请先同步。" />}
         {!loading && !demandOverview && activeMenuKey === 'demand' && <Alert type="warning" message="暂无需求数据，请先同步驺吾数据。" />}
+        {!opportunityLoading && opportunities.length === 0 && activeMenuKey === 'opportunity' && (
+          <Alert type="warning" message="暂无商机数据，可手工新增或从咨询详情转商机。" />
+        )}
 
         {!loading && overview && activeMenuKey === 'satisfaction' && satisfactionTab}
         {!loading && demandOverview && activeMenuKey === 'demand' && demandTab}
+        {activeMenuKey === 'opportunity' && opportunityTab}
         {activeMenuKey === 'sync' && syncTab}
         {activeMenuKey === 'agents' && agentsTab}
 
@@ -1105,6 +1403,83 @@ export function DashboardPage() {
               <Switch />
             </Form.Item>
             <Form.Item name="remark" label="备注">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title={editingOpportunityId ? '编辑商机' : '新增商机'}
+          open={opportunityModalOpen}
+          confirmLoading={savingOpportunity}
+          onCancel={() => setOpportunityModalOpen(false)}
+          onOk={async () => {
+            const values = await opportunityForm.validateFields();
+            setSavingOpportunity(true);
+            try {
+              await upsertOpportunity({
+                id: editingOpportunityId ?? undefined,
+                ...values,
+              });
+              message.success('商机已保存');
+              setOpportunityModalOpen(false);
+              await loadOpportunities(opportunityPage, opportunityPageSize);
+            } finally {
+              setSavingOpportunity(false);
+            }
+          }}
+        >
+          <Form form={opportunityForm} layout="vertical">
+            <Form.Item name="title" label="商机标题" rules={[{ required: true, message: '请输入商机标题' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="sourceType" label="来源" rules={[{ required: true, message: '请选择来源' }]}>
+              <Select
+                options={[
+                  { label: '咨询转商机', value: 'CONSULTATION' },
+                  { label: '手工录入', value: 'MANUAL' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="sourceSessionId" label="关联咨询会话ID">
+              <AutoComplete
+                options={sessions.map((item) => ({
+                  value: item.id,
+                  label: `${item.id} | ${getAgentLabel(item.agentId)}`,
+                }))}
+                placeholder="可选择咨询详情中的会话ID"
+              />
+            </Form.Item>
+            <Form.Item name="agentId" label="负责人客服ID">
+              <AutoComplete
+                options={udescAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
+                placeholder="可关联客服ID"
+              />
+            </Form.Item>
+            <Form.Item name="customerName" label="客户名称">
+              <Input />
+            </Form.Item>
+            <Form.Item name="contactInfo" label="联系方式">
+              <Input />
+            </Form.Item>
+            <Form.Item name="estimatedAmount" label="预估金额">
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+              <Select
+                options={[
+                  { label: '新建', value: 'NEW' },
+                  { label: '已甄别', value: 'QUALIFIED' },
+                  { label: '跟进中', value: 'FOLLOWING' },
+                  { label: '赢单', value: 'WON' },
+                  { label: '输单', value: 'LOST' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="nextAction" label="下一步动作">
+              <Input />
+            </Form.Item>
+            <Form.Item name="description" label="商机说明">
               <Input.TextArea rows={3} />
             </Form.Item>
           </Form>

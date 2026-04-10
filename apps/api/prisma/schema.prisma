@@ -15,6 +15,19 @@ enum RequirementStatus {
   REJECTED
 }
 
+enum OpportunitySourceType {
+  CONSULTATION
+  MANUAL
+}
+
+enum OpportunityStatus {
+  NEW
+  QUALIFIED
+  FOLLOWING
+  WON
+  LOST
+}
+
 model UdescSession {
   id                  String   @id
   agentId             String?
@@ -26,10 +39,35 @@ model UdescSession {
   updatedAtSource     DateTime?
   syncedAt            DateTime @default(now())
   messages            UdescSessionMessage[]
+  opportunities       BusinessOpportunity[]
 
   @@index([startedAt])
   @@index([updatedAtSource])
   @@index([isConsultToDemand])
+}
+
+model BusinessOpportunity {
+  id               String                @id @default(cuid())
+  title            String
+  description      String?
+  sourceType       OpportunitySourceType @default(MANUAL)
+  sourceSessionId  String?
+  agentId          String?
+  customerName     String?
+  contactInfo      String?
+  estimatedAmount  Float?
+  status           OpportunityStatus     @default(NEW)
+  closeReason      String?
+  closedAt         DateTime?
+  nextAction       String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  sourceSession    UdescSession?         @relation(fields: [sourceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([sourceType, createdAt])
+  @@index([agentId, createdAt])
+  @@index([sourceSessionId])
 }
 
 model UdescSessionMessage {

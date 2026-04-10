@@ -27,6 +27,10 @@
 - 人员管理
   - 维护客服人员资料并与 Udesk `agentId` 关联
   - 概览页自动显示人员名称映射
+- 企业微信登录
+  - 支持 `corp`（开源共创）和 `csdn`（创新乐知）双主体 OAuth 登录
+  - 支持企微内置浏览器自动授权 + 普通浏览器扫码登录
+  - 登录账号需在人员管理中存在且 `enabled=true`（按 `agentId=企微userid` 映射）
 
 ## 项目结构
 
@@ -125,6 +129,16 @@ npm run dev --workspace apps/web -- --host localhost --port 5801
   - `SYNC_RETRY_MAX_ATTEMPTS`
   - `SYNC_RETRY_BASE_DELAY_MS`
   - `SYNC_ENABLE_ZOUWU`
+- 企业微信登录
+  - `WECOM_CORP_CORPID`
+  - `WECOM_CORP_SECRET`
+  - `WECOM_CSDN_CORPID`
+  - `WECOM_CSDN_SECRET`
+  - `VITE_WECOM_APPID`
+  - `VITE_WECOM_AGENTID`
+  - `VITE_WECOM_CSDN_APPID`
+  - `VITE_WECOM_CSDN_AGENTID`
+  - `AUTH_TOKEN_SECRET`
 
 ## 主要接口（节选）
 
@@ -148,6 +162,10 @@ npm run dev --workspace apps/web -- --host localhost --port 5801
   - `GET /api/v1/agents`
   - `POST /api/v1/agents/upsert`
   - `DELETE /api/v1/agents/:agentId`
+- 企业微信登录
+  - `GET /api/v1/auth/wxlogin`
+  - `GET /api/v1/auth/csdnwxlogin`
+  - `GET /api/v1/auth/getState`
 
 ## 常见问题
 
