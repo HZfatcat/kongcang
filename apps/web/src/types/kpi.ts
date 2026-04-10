@@ -10,6 +10,32 @@ export interface KpiOverview {
   demandCompletionRate: number;
 }
 
+export interface DemandOverview {
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  totalIdentifiedCount: number;
+  completedCount: number;
+  completionRate: number;
+  linkedSessionCount: number;
+  bugCount: number;
+  statusBreakdown: Record<string, number>;
+  daily: {
+    days: string[];
+    created: number[];
+    completed: number[];
+  };
+  recentRequirements: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sourceSessionId?: string | null;
+    createdAtSource: string;
+    completedAtSource?: string;
+  }>;
+}
+
 export interface SyncRunRecord {
   id: string;
   source: string;

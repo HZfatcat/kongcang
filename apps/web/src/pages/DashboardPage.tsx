@@ -29,6 +29,7 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
+import { fetchDemandOverview } from '../api/kpi';
 import {
   deleteAgent,
   fetchAgents,
@@ -59,6 +60,7 @@ import type {
   UdescSessionRecord,
   UdescTreeNode,
 } from '../types/udesc';
+import type { DemandOverview } from '../types/kpi';
 
 const { RangePicker } = DatePicker;
 
@@ -82,11 +84,14 @@ function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, 
 }
 
 export function DashboardPage() {
-  const [activeMenuKey, setActiveMenuKey] = useState<'overview' | 'sync' | 'agents'>('overview');
+  const [activeMenuKey, setActiveMenuKey] = useState<
+    'satisfaction' | 'demand' | 'sync' | 'agents'
+  >('satisfaction');
   const [agentForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [overview, setOverview] = useState<UdescOverview | null>(null);
+  const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['__summary__']);
   const [selectedMetrics, setSelectedMetrics] = useState<Array<'sessions' | 'messages'>>([
@@ -146,8 +151,9 @@ export function DashboardPage() {
     const targetSessionAgentFilters = nextSessionAgentFilters ?? sessionAgentFilters;
     setLoading(true);
     try {
-      const [overviewData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
+      const [overviewData, demandData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
         fetchUdescOverview({ startDate: range[0], endDate: range[1] }),
+        fetchDemandOverview({ startDate: range[0], endDate: range[1] }),
         fetchUdescDailyAgentStats({ startDate: range[0], endDate: range[1] }),
         fetchUdescTree({ startDate: range[0], endDate: range[1] }),
         fetchUdescSessions({
@@ -180,6 +186,7 @@ export function DashboardPage() {
         }),
       ]);
       setOverview(overviewData);
+      setDemandOverview(demandData);
       setDailyStats(dailyStatsData);
       setTreeData(Array.isArray(treeResp) ? treeResp : []);
       setSessions(sessionResp.records);
@@ -482,7 +489,7 @@ export function DashboardPage() {
     };
   }, [dailyStats, selectedAgents, selectedMetrics, summarySeries, agentProfileMap]);
 
-  const operationsTab = (
+  const satisfactionTab = (
     <>
       <Row gutter={16}>
         <Col span={4}>
@@ -632,6 +639,107 @@ export function DashboardPage() {
           </Card>
         </Col>
       </Row>
+    </>
+  );
+
+  const demandTrendOption = useMemo(() => {
+    const days = demandOverview?.daily.days ?? [];
+    const created = demandOverview?.daily.created ?? [];
+    const completed = demandOverview?.daily.completed ?? [];
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['识别需求数', '完成需求数'] },
+      grid: { left: 56, right: 24, top: 40, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: days },
+      yAxis: { type: 'value', minInterval: 1 },
+      series: [
+        { name: '识别需求数', type: 'line', smooth: true, data: created },
+        { name: '完成需求数', type: 'line', smooth: true, data: completed },
+      ],
+    };
+  }, [demandOverview]);
+
+  const demandTab = (
+    <>
+      <Row gutter={16}>
+        <Col span={6}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="识别需求总数" value={demandOverview?.totalIdentifiedCount ?? 0} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="已完成需求数" value={demandOverview?.completedCount ?? 0} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card style={{ height: 120 }}>
+            <Statistic
+              title="需求完成率"
+              value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
+              suffix="%"
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="识别 Bug 数" value={demandOverview?.bugCount ?? 0} />
+          </Card>
+        </Col>
+      </Row>
+      <Row gutter={16} style={{ marginTop: 16 }}>
+        <Col span={16}>
+          <Card title="需求识别与完成趋势">
+            <ReactECharts option={demandTrendOption} style={{ height: 320 }} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card title="需求状态分布">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {Object.entries(demandOverview?.statusBreakdown ?? {}).map(([status, count]) => (
+                <Row key={status} justify="space-between">
+                  <Typography.Text>{status}</Typography.Text>
+                  <Typography.Text strong>{count}</Typography.Text>
+                </Row>
+              ))}
+              <Typography.Text type="secondary">
+                关联咨询会话需求数：{demandOverview?.linkedSessionCount ?? 0}
+              </Typography.Text>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+      <Card title="最近需求 / Bug 明细" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="id"
+          dataSource={demandOverview?.recentRequirements ?? []}
+          size="small"
+          pagination={{ pageSize: 20 }}
+          columns={[
+            { title: 'ID', dataIndex: 'id', key: 'id' },
+            { title: '标题', dataIndex: 'title', key: 'title' },
+            { title: '状态', dataIndex: 'status', key: 'status' },
+            {
+              title: '来源会话',
+              dataIndex: 'sourceSessionId',
+              key: 'sourceSessionId',
+              render: (value?: string) => value ?? '-',
+            },
+            {
+              title: '创建时间',
+              dataIndex: 'createdAtSource',
+              key: 'createdAtSource',
+              render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+            },
+            {
+              title: '完成时间',
+              dataIndex: 'completedAtSource',
+              key: 'completedAtSource',
+              render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+            },
+          ]}
+        />
+      </Card>
     </>
   );
 
@@ -916,9 +1024,10 @@ export function DashboardPage() {
         <Menu
           mode="inline"
           selectedKeys={[activeMenuKey]}
-          onClick={(e) => setActiveMenuKey(e.key as 'overview' | 'sync' | 'agents')}
+          onClick={(e) => setActiveMenuKey(e.key as 'satisfaction' | 'demand' | 'sync' | 'agents')}
           items={[
-            { key: 'overview', label: '运营概览' },
+            { key: 'satisfaction', label: '用户满意度' },
+            { key: 'demand', label: '需求完成率' },
             { key: 'sync', label: '数据同步' },
             { key: 'agents', label: '人员管理' },
           ]}
@@ -946,9 +1055,11 @@ export function DashboardPage() {
 
         {loading && <Spin />}
 
-        {!loading && !overview && <Alert type="warning" message="暂无数据，请先同步。" />}
+        {!loading && !overview && activeMenuKey === 'satisfaction' && <Alert type="warning" message="暂无满意度数据，请先同步。" />}
+        {!loading && !demandOverview && activeMenuKey === 'demand' && <Alert type="warning" message="暂无需求数据，请先同步驺吾数据。" />}
 
-        {!loading && overview && activeMenuKey === 'overview' && operationsTab}
+        {!loading && overview && activeMenuKey === 'satisfaction' && satisfactionTab}
+        {!loading && demandOverview && activeMenuKey === 'demand' && demandTab}
         {activeMenuKey === 'sync' && syncTab}
         {activeMenuKey === 'agents' && agentsTab}
 
