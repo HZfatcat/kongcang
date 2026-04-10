@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Space, Spin, Typography } from 'antd';
+import { AxiosError } from 'axios';
 import { accountWxLogin } from '../api/account';
 import { setLoginUser } from '../auth/session';
 
@@ -19,6 +20,23 @@ export function LoginVerifyPage() {
   const appid =
     corp === 'csdn' ? import.meta.env.VITE_WECOM_CSDN_APPID : import.meta.env.VITE_WECOM_APPID;
 
+  const resolveErrorMessage = (error: unknown) => {
+    if (error instanceof AxiosError) {
+      const payload = error.response?.data as { message?: string | string[] } | undefined;
+      const message = payload?.message;
+      if (Array.isArray(message)) {
+        return message.join('；');
+      }
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message;
+      }
+      if (error.message) {
+        return error.message;
+      }
+    }
+    return '身份验证失败，请重试。';
+  };
+
   const doLogin = async () => {
     if (!code || !state || !appid) {
       setError('登录参数缺失，请返回登录页重试。');
@@ -37,7 +55,7 @@ export function LoginVerifyPage() {
       setLoginUser(user);
       window.location.href = redirect;
     } catch (e) {
-      setError('身份验证失败，请重试。');
+      setError(resolveErrorMessage(e));
       setLoading(false);
     }
   };
