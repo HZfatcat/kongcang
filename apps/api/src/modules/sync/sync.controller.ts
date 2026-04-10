@@ -1,6 +1,7 @@
 import { Controller, Get, Post } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { SyncService } from './sync.service';
+import { Body } from '@nestjs/common';
 
 @Controller('sync')
 export class SyncController {
@@ -35,9 +36,24 @@ export class SyncController {
     return this.syncService.getUdescProgress();
   }
 
+  @Get('summary')
+  getSummary() {
+    return this.syncService.getUdescSyncSummary();
+  }
+
   @Post('issues/retry')
   retryIssues() {
     return this.syncService.retryFailedIssues();
+  }
+
+  @Get('config')
+  getConfig() {
+    return this.syncService.getSyncConfig('udesc');
+  }
+
+  @Post('config')
+  updateConfig(@Body() payload: { enabled?: boolean; intervalHours?: number }) {
+    return this.syncService.updateSyncConfig('udesc', payload);
   }
 
   @Post('udesc/reset')

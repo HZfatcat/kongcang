@@ -97,6 +97,13 @@ model SyncIssue {
   @@index([source, createdAt])
 }
 
+model SyncConfig {
+  source        String   @id
+  enabled       Boolean  @default(true)
+  intervalHours Int      @default(1)
+  updatedAt     DateTime @updatedAt
+}
+
 model AgentProfile {
   agentId      String   @id
   displayName  String

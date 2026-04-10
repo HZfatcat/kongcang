@@ -9,6 +9,7 @@ import {
   DatePicker,
   Form,
   Input,
+  InputNumber,
   Layout,
   Modal,
   Row,
@@ -31,8 +32,11 @@ import ReactECharts from 'echarts-for-react';
 import {
   deleteAgent,
   fetchAgents,
+  fetchSyncConfig,
   fetchSyncIssues,
   fetchSyncProgress,
+  fetchSyncRuns,
+  fetchSyncSummary,
   fetchUdescDailyAgentStats,
   fetchUdescAgentIds,
   fetchUdescOverview,
@@ -40,12 +44,16 @@ import {
   fetchUdescTree,
   retrySyncIssues,
   runSync,
+  updateSyncConfig,
   upsertAgent,
 } from '../api/udesc';
 import type {
   AgentProfile,
+  SyncConfig,
   SyncIssue,
   SyncProgress,
+  SyncRun,
+  SyncSummary,
   UdescDailyAgentStats,
   UdescOverview,
   UdescSessionRecord,
@@ -70,7 +78,7 @@ function normalizeMessageContent(raw?: string) {
 }
 
 function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, dayjs.Dayjs] {
-  return [start, end];
+  return [start.startOf('day'), end.endOf('day')];
 }
 
 export function DashboardPage() {
@@ -89,6 +97,10 @@ export function DashboardPage() {
   const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([]);
+  const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
+  const [syncConfig, setSyncConfig] = useState<SyncConfig | null>(null);
+  const [syncConfigLoading, setSyncConfigLoading] = useState(false);
   const [retryLoading, setRetryLoading] = useState(false);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
@@ -106,17 +118,18 @@ export function DashboardPage() {
   });
   const quickRangePresets = useMemo(
     () => [
-      { label: '今天', value: () => createPresetRange(dayjs().startOf('day'), dayjs()) },
-      {
-        label: '昨天',
-        value: () => createPresetRange(dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')),
-      },
-      { label: '近7天', value: () => createPresetRange(dayjs().subtract(7, 'day'), dayjs()) },
-      { label: '近30天', value: () => createPresetRange(dayjs().subtract(30, 'day'), dayjs()) },
+      { label: '今天', value: () => createPresetRange(dayjs(), dayjs()) },
+      { label: '昨天', value: () => createPresetRange(dayjs().subtract(1, 'day'), dayjs().subtract(1, 'day')) },
+      { label: '近7天', value: () => createPresetRange(dayjs().subtract(6, 'day'), dayjs()) },
+      { label: '近30天', value: () => createPresetRange(dayjs().subtract(29, 'day'), dayjs()) },
       { label: '本月', value: () => createPresetRange(dayjs().startOf('month'), dayjs()) },
       {
         label: '上月',
-        value: () => createPresetRange(dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')),
+        value: () =>
+          createPresetRange(
+            dayjs().subtract(1, 'month').startOf('month'),
+            dayjs().subtract(1, 'month').endOf('month'),
+          ),
       },
     ],
     [],
@@ -141,14 +154,26 @@ export function DashboardPage() {
           setSyncProgress(data);
           return data;
         }),
+        fetchSyncConfig().then((data) => {
+          setSyncConfig(data);
+          return data;
+        }),
         fetchSyncIssues().then((data) => {
           setSyncIssues(data);
+          return data;
+        }),
+        fetchSyncRuns().then((data) => {
+          setSyncRuns(data);
+          return data;
+        }),
+        fetchSyncSummary().then((data) => {
+          setSyncSummary(data);
           return data;
         }),
       ]);
       setOverview(overviewData);
       setDailyStats(dailyStatsData);
-      setTreeData(treeResp);
+      setTreeData(Array.isArray(treeResp) ? treeResp : []);
       setSessions(sessionResp.records);
       setTotal(sessionResp.total);
       setPage(sessionResp.page);
@@ -169,6 +194,19 @@ export function DashboardPage() {
       message.error('加载人员信息失败');
     } finally {
       setAgentsLoading(false);
+    }
+  };
+
+  const saveSyncConfig = async (payload: { enabled?: boolean; intervalHours?: number }) => {
+    setSyncConfigLoading(true);
+    try {
+      const data = await updateSyncConfig(payload);
+      setSyncConfig(data);
+      message.success('定时同步配置已更新');
+    } catch {
+      message.error('更新定时同步配置失败');
+    } finally {
+      setSyncConfigLoading(false);
     }
   };
 
@@ -565,8 +603,14 @@ export function DashboardPage() {
               } else {
                 message.warning('同步任务已在运行中');
               }
-              const progress = await fetchSyncProgress();
+              const [progress, runs, summary] = await Promise.all([
+                fetchSyncProgress(),
+                fetchSyncRuns(),
+                fetchSyncSummary(),
+              ]);
               setSyncProgress(progress);
+              setSyncRuns(runs);
+              setSyncSummary(summary);
             } finally {
               setSyncLoading(false);
             }
@@ -585,9 +629,16 @@ export function DashboardPage() {
               } else {
                 message.warning(resp.reason === 'no_issues' ? '暂无失败记录可重试' : '同步正在运行中');
               }
-              const [progress, issues] = await Promise.all([fetchSyncProgress(), fetchSyncIssues()]);
+              const [progress, issues, runs, summary] = await Promise.all([
+                fetchSyncProgress(),
+                fetchSyncIssues(),
+                fetchSyncRuns(),
+                fetchSyncSummary(),
+              ]);
               setSyncProgress(progress);
               setSyncIssues(issues);
+              setSyncRuns(runs);
+              setSyncSummary(summary);
             } finally {
               setRetryLoading(false);
             }
@@ -624,6 +675,89 @@ export function DashboardPage() {
             状态：{syncProgress?.isRunning ? '运行中' : '空闲'} {syncProgress?.note ? `| ${syncProgress.note}` : ''}
           </Typography.Text>
         </Space>
+      </Card>
+
+      <Card title="定时任务配置" style={{ marginTop: 16 }}>
+        <Space>
+          <Typography.Text>开启定时同步</Typography.Text>
+          <Switch
+            checked={syncConfig?.enabled ?? true}
+            onChange={(checked) => {
+              void saveSyncConfig({ enabled: checked });
+            }}
+            loading={syncConfigLoading}
+          />
+          <Typography.Text>周期（小时）</Typography.Text>
+          <InputNumber
+            min={1}
+            max={168}
+            value={syncConfig?.intervalHours ?? 1}
+            onChange={(value) => {
+              if (!value) {
+                return;
+              }
+              void saveSyncConfig({ intervalHours: Number(value) });
+            }}
+            disabled={!syncConfig?.enabled}
+          />
+        </Space>
+      </Card>
+
+      <Card title="已同步汇总" style={{ marginTop: 16 }}>
+        <Row gutter={12}>
+          <Col span={6}>
+            <Statistic title="累计会话数" value={syncSummary?.totalSessions ?? 0} />
+          </Col>
+          <Col span={6}>
+            <Statistic title="累计消息数" value={syncSummary?.totalMessages ?? 0} />
+          </Col>
+          <Col span={6}>
+            <Statistic title="累计入库记录" value={syncSummary?.totalRecords ?? 0} />
+          </Col>
+          <Col span={6}>
+            <Statistic title="累计失败记录" value={syncSummary?.issueCount ?? 0} />
+          </Col>
+        </Row>
+        <Space direction="vertical" style={{ marginTop: 12 }}>
+          <Typography.Text type="secondary">
+            最近成功同步：{syncSummary?.latestSuccessAt ? dayjs(syncSummary.latestSuccessAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            同步检查点：{syncSummary?.checkpoint?.cursor ?? '-'}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            检查点时间：
+            {syncSummary?.checkpoint?.lastSyncedAt
+              ? dayjs(syncSummary.checkpoint.lastSyncedAt).format('YYYY-MM-DD HH:mm:ss')
+              : '-'}
+          </Typography.Text>
+        </Space>
+      </Card>
+
+      <Card title="历史同步记录" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="id"
+          dataSource={syncRuns}
+          pagination={false}
+          size="small"
+          columns={[
+            {
+              title: '开始时间',
+              dataIndex: 'startedAt',
+              key: 'startedAt',
+              render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+            },
+            {
+              title: '结束时间',
+              dataIndex: 'finishedAt',
+              key: 'finishedAt',
+              render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+            },
+            { title: '状态', dataIndex: 'status', key: 'status' },
+            { title: '同步条数', dataIndex: 'recordsSynced', key: 'recordsSynced' },
+            { title: '说明', dataIndex: 'message', key: 'message', render: (value?: string) => value ?? '-' },
+          ]}
+        />
       </Card>
 
       <Card title="最近失败记录" style={{ marginTop: 16 }}>
@@ -748,9 +882,7 @@ export function DashboardPage() {
         <Typography.Title level={3}>GitCode 客服运营看板</Typography.Title>
         <Space style={{ marginBottom: 16 }}>
           <RangePicker
-            showTime={{
-              defaultOpenValue: [dayjs().startOf('day'), dayjs().startOf('day')],
-            }}
+            format="YYYY-MM-DD"
             value={[dayjs(range[0]), dayjs(range[1])]}
             presets={quickRangePresets}
             allowClear={false}
@@ -759,7 +891,7 @@ export function DashboardPage() {
                 return;
               }
               setPage(1);
-              setRange([value[0].toISOString(), value[1].toISOString()]);
+              setRange([value[0].startOf('day').toISOString(), value[1].endOf('day').toISOString()]);
             }}
           />
           <Button onClick={() => void reload()}>查询</Button>

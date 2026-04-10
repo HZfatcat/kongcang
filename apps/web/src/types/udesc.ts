@@ -76,6 +76,44 @@ export interface SyncIssue {
   createdAt: string;
 }
 
+export interface SyncRun {
+  id: string;
+  source: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: string;
+  message?: string;
+  recordsSynced: number;
+}
+
+export interface SyncSummary {
+  source: string;
+  totalSessions: number;
+  totalMessages: number;
+  totalRecords: number;
+  issueCount: number;
+  latestSuccessAt?: string | null;
+  latestRun?: {
+    id: string;
+    status: string;
+    startedAt: string;
+    finishedAt?: string | null;
+    recordsSynced: number;
+    message?: string | null;
+  } | null;
+  checkpoint?: {
+    cursor?: string | null;
+    lastSyncedAt?: string | null;
+  } | null;
+}
+
+export interface SyncConfig {
+  source: string;
+  enabled: boolean;
+  intervalHours: number;
+  updatedAt: string;
+}
+
 export interface UdescDailyAgentStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];

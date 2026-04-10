@@ -1,8 +1,11 @@
 import { apiClient } from './client';
 import type {
   AgentProfile,
+  SyncConfig,
   SyncIssue,
   SyncProgress,
+  SyncRun,
+  SyncSummary,
   UdescDailyAgentStats,
   UdescOverview,
   UdescSessionListResp,
@@ -50,8 +53,28 @@ export async function fetchSyncIssues() {
   return resp.data;
 }
 
+export async function fetchSyncRuns() {
+  const resp = await apiClient.get<SyncRun[]>('/sync/runs');
+  return resp.data;
+}
+
+export async function fetchSyncSummary() {
+  const resp = await apiClient.get<SyncSummary>('/sync/summary');
+  return resp.data;
+}
+
 export async function retrySyncIssues() {
   const resp = await apiClient.post<{ accepted: boolean; reason: string; issueCount: number }>('/sync/issues/retry');
+  return resp.data;
+}
+
+export async function fetchSyncConfig() {
+  const resp = await apiClient.get<SyncConfig>('/sync/config');
+  return resp.data;
+}
+
+export async function updateSyncConfig(payload: { enabled?: boolean; intervalHours?: number }) {
+  const resp = await apiClient.post<SyncConfig>('/sync/config', payload);
   return resp.data;
 }
 

@@ -22,6 +22,11 @@ interface SyncProgressSnapshot {
   note?: string;
 }
 
+interface UpdateSyncConfigPayload {
+  enabled?: boolean;
+  intervalHours?: number;
+}
+
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
@@ -549,6 +554,121 @@ export class SyncService {
     const udesc = await this.syncUdesc();
     const zouwu = enableZouwu ? await this.syncZouwu() : null;
     return { udesc, zouwu };
+  }
+
+  async getSyncConfig(source: string) {
+    const config = await this.prisma.syncConfig.findUnique({
+      where: { source },
+    });
+    if (config) {
+      return config;
+    }
+    return this.prisma.syncConfig.create({
+      data: {
+        source,
+        enabled: true,
+        intervalHours: 1,
+      },
+    });
+  }
+
+  async updateSyncConfig(source: string, payload: UpdateSyncConfigPayload) {
+    const intervalHours =
+      payload.intervalHours !== undefined
+        ? Math.max(1, Math.min(168, Math.floor(payload.intervalHours)))
+        : undefined;
+    return this.prisma.syncConfig.upsert({
+      where: { source },
+      create: {
+        source,
+        enabled: payload.enabled ?? true,
+        intervalHours: intervalHours ?? 1,
+      },
+      update: {
+        ...(payload.enabled !== undefined ? { enabled: payload.enabled } : {}),
+        ...(intervalHours !== undefined ? { intervalHours } : {}),
+      },
+    });
+  }
+
+  async getUdescSyncSummary() {
+    const [totalSessions, totalMessages, issueCount, latestRun, checkpoint] = await this.prisma.$transaction([
+      this.prisma.udescSession.count(),
+      this.prisma.udescSessionMessage.count(),
+      this.prisma.syncIssue.count({ where: { source: 'udesc' } }),
+      this.prisma.syncRun.findFirst({
+        where: { source: 'udesc' },
+        orderBy: { startedAt: 'desc' },
+      }),
+      this.prisma.syncCheckpoint.findUnique({
+        where: { source: 'udesc' },
+      }),
+    ]);
+
+    const latestSuccessRun = await this.prisma.syncRun.findFirst({
+      where: { source: 'udesc', status: 'SUCCESS' },
+      orderBy: { finishedAt: 'desc' },
+    });
+
+    return {
+      source: 'udesc',
+      totalSessions,
+      totalMessages,
+      totalRecords: totalSessions + totalMessages,
+      issueCount,
+      latestSuccessAt: latestSuccessRun?.finishedAt ?? null,
+      latestRun: latestRun
+        ? {
+            id: latestRun.id,
+            status: latestRun.status,
+            startedAt: latestRun.startedAt,
+            finishedAt: latestRun.finishedAt,
+            recordsSynced: latestRun.recordsSynced,
+            message: latestRun.message,
+          }
+        : null,
+      checkpoint: checkpoint
+        ? {
+            cursor: checkpoint.cursor,
+            lastSyncedAt: checkpoint.lastSyncedAt,
+          }
+        : null,
+    };
+  }
+
+  async triggerScheduledUdescSync() {
+    const config = await this.getSyncConfig('udesc');
+    if (!config.enabled) {
+      return { accepted: false, reason: 'disabled', config };
+    }
+
+    if (this.progress.isRunning) {
+      return { accepted: false, reason: 'running', config };
+    }
+
+    const latestRun = await this.prisma.syncRun.findFirst({
+      where: {
+        source: 'udesc',
+        status: 'SUCCESS',
+      },
+      orderBy: { finishedAt: 'desc' },
+    });
+
+    const now = Date.now();
+    const lastFinished = latestRun?.finishedAt?.getTime() ?? 0;
+    const intervalMs = config.intervalHours * 60 * 60 * 1000;
+    const due = now - lastFinished >= intervalMs;
+
+    if (!due && latestRun?.finishedAt) {
+      return {
+        accepted: false,
+        reason: 'not_due',
+        config,
+        nextRunAt: new Date(lastFinished + intervalMs).toISOString(),
+      };
+    }
+
+    return this.triggerUdescSync();
   }
 
   getUdescProgress() {

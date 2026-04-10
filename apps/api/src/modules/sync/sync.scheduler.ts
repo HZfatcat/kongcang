@@ -8,12 +8,14 @@ export class SyncScheduler {
 
   constructor(private readonly syncService: SyncService) {}
 
-  @Cron(process.env.SYNC_CRON ?? '0 */6 * * *', { name: 'sync-udesc-job' })
+  @Cron(process.env.SYNC_HEARTBEAT_CRON ?? '*/5 * * * *', { name: 'sync-udesc-heartbeat-job' })
   async handleCron() {
-    this.logger.log('start scheduled udesc sync');
+    this.logger.log('check scheduled udesc sync');
     try {
-      await this.syncService.syncUdesc();
-      this.logger.log('scheduled udesc sync finished');
+      const result = await this.syncService.triggerScheduledUdescSync();
+      if (result.accepted) {
+        this.logger.log('scheduled udesc sync triggered');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(`scheduled udesc sync failed: ${message}`);
