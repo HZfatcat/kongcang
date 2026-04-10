@@ -13,6 +13,7 @@ import {
   Layout,
   Modal,
   Row,
+  Segmented,
   Space,
   Spin,
   Statistic,
@@ -30,7 +31,7 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { fetchDemandOverview } from '../api/kpi';
+import { fetchConsultationFunnel, fetchDemandOverview } from '../api/kpi';
 import {
   deleteOpportunity,
   fetchOpportunityList,
@@ -68,7 +69,7 @@ import type {
   UdescSessionRecord,
   UdescTreeNode,
 } from '../types/udesc';
-import type { DemandOverview } from '../types/kpi';
+import type { ConsultationFunnelOverview, DemandOverview } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
 
@@ -104,6 +105,8 @@ export function DashboardPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [overview, setOverview] = useState<UdescOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
+  const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
+  const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
   const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['__summary__']);
   const [selectedMetrics, setSelectedMetrics] = useState<Array<'sessions' | 'messages'>>([
@@ -175,9 +178,14 @@ export function DashboardPage() {
     const targetSessionAgentFilters = nextSessionAgentFilters ?? sessionAgentFilters;
     setLoading(true);
     try {
-      const [overviewData, demandData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
+      const [overviewData, demandData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
         fetchUdescOverview({ startDate: range[0], endDate: range[1] }),
         fetchDemandOverview({ startDate: range[0], endDate: range[1] }),
+        fetchConsultationFunnel({
+          startDate: range[0],
+          endDate: range[1],
+          granularity: funnelGranularity,
+        }),
         fetchUdescDailyAgentStats({ startDate: range[0], endDate: range[1] }),
         fetchUdescTree({ startDate: range[0], endDate: range[1] }),
         fetchUdescSessions({
@@ -211,6 +219,7 @@ export function DashboardPage() {
       ]);
       setOverview(overviewData);
       setDemandOverview(demandData);
+      setConsultationFunnel(funnelData);
       setDailyStats(dailyStatsData);
       setTreeData(Array.isArray(treeResp) ? treeResp : []);
       setSessions(sessionResp.records);
@@ -289,7 +298,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     void reload();
-  }, [range[0], range[1]]);
+  }, [range[0], range[1], funnelGranularity]);
 
   useEffect(() => {
     if (activeMenuKey === 'opportunity') {
@@ -571,6 +580,41 @@ export function DashboardPage() {
     };
   }, [dailyStats, selectedAgents, selectedMetrics, summarySeries, agentProfileMap]);
 
+  const latestFunnelPeriod = useMemo(() => {
+    if (!consultationFunnel || consultationFunnel.periods.length === 0) {
+      return null;
+    }
+    return consultationFunnel.periods[consultationFunnel.periods.length - 1];
+  }, [consultationFunnel]);
+
+  const funnelChartOption = useMemo(() => {
+    if (!latestFunnelPeriod) {
+      return { series: [] };
+    }
+    return {
+      tooltip: { trigger: 'item' },
+      series: [
+        {
+          type: 'funnel',
+          left: '10%',
+          width: '80%',
+          sort: 'none',
+          label: { show: true, position: 'inside' },
+          data: [
+            { name: '咨询量', value: latestFunnelPeriod.consultationCount },
+            { name: '问题咨询', value: latestFunnelPeriod.issueConsultCount },
+            { name: '问题反馈', value: latestFunnelPeriod.feedbackCount },
+            { name: '新需求', value: latestFunnelPeriod.newRequirementCount },
+            { name: '问题解决量', value: latestFunnelPeriod.solvedCount },
+            { name: '需求/Bug上线量', value: latestFunnelPeriod.releaseCount },
+            { name: '商机量', value: latestFunnelPeriod.opportunityCount },
+            { name: '商机转化量', value: latestFunnelPeriod.opportunityWonCount },
+          ],
+        },
+      ],
+    };
+  }, [latestFunnelPeriod]);
+
   const satisfactionTab = (
     <>
       <Row gutter={16}>
@@ -637,6 +681,50 @@ export function DashboardPage() {
               </div>
             </Space>
             <ReactECharts option={trendOption} style={{ height: 340 }} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={16} style={{ marginTop: 16 }}>
+        <Col span={24}>
+          <Card
+            title="咨询状态漏斗（咨询 -> 反馈 -> 需求/Bug -> 商机）"
+            extra={
+              <Segmented
+                value={funnelGranularity}
+                onChange={(value) => {
+                  setFunnelGranularity(value as 'day' | 'week' | 'month');
+                }}
+                options={[
+                  { label: '每天', value: 'day' },
+                  { label: '每周', value: 'week' },
+                  { label: '每月', value: 'month' },
+                ]}
+              />
+            }
+          >
+            <Typography.Text type="secondary">
+              当前展示周期：{latestFunnelPeriod?.periodLabel ?? '-'}
+            </Typography.Text>
+            <ReactECharts option={funnelChartOption} style={{ height: 360, marginTop: 8 }} />
+            <Table
+              rowKey="periodStart"
+              size="small"
+              style={{ marginTop: 8 }}
+              pagination={{ pageSize: 10 }}
+              dataSource={consultationFunnel?.periods ?? []}
+              columns={[
+                { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel' },
+                { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
+                { title: '问题咨询', dataIndex: 'issueConsultCount', key: 'issueConsultCount' },
+                { title: '问题反馈', dataIndex: 'feedbackCount', key: 'feedbackCount' },
+                { title: '新需求', dataIndex: 'newRequirementCount', key: 'newRequirementCount' },
+                { title: '问题解决量', dataIndex: 'solvedCount', key: 'solvedCount' },
+                { title: '需求/Bug上线量', dataIndex: 'releaseCount', key: 'releaseCount' },
+                { title: '商机量', dataIndex: 'opportunityCount', key: 'opportunityCount' },
+                { title: '商机转化量', dataIndex: 'opportunityWonCount', key: 'opportunityWonCount' },
+              ]}
+            />
           </Card>
         </Col>
       </Row>

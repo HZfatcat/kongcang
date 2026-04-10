@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional } from 'class-validator';
+import { IsDateString, IsIn, IsOptional } from 'class-validator';
 
 export class DateRangeQueryDto {
   @IsOptional()
@@ -8,4 +8,10 @@ export class DateRangeQueryDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+}
+
+export class FunnelQueryDto extends DateRangeQueryDto {
+  @IsOptional()
+  @IsIn(['day', 'week', 'month'])
+  granularity?: 'day' | 'week' | 'month';
 }

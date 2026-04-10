@@ -1,5 +1,10 @@
 import { apiClient } from './client';
-import type { DemandOverview, KpiOverview, SyncRunRecord } from '../types/kpi';
+import type {
+  ConsultationFunnelOverview,
+  DemandOverview,
+  KpiOverview,
+  SyncRunRecord,
+} from '../types/kpi';
 
 export async function fetchOverview(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<KpiOverview>('/kpi/overview', { params });
@@ -8,6 +13,17 @@ export async function fetchOverview(params: { startDate?: string; endDate?: stri
 
 export async function fetchDemandOverview(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<DemandOverview>('/kpi/demand', { params });
+  return resp.data;
+}
+
+export async function fetchConsultationFunnel(params: {
+  startDate?: string;
+  endDate?: string;
+  granularity?: 'day' | 'week' | 'month';
+}) {
+  const resp = await apiClient.get<ConsultationFunnelOverview>('/kpi/consultation-funnel', {
+    params,
+  });
   return resp.data;
 }
 

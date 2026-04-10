@@ -36,6 +36,29 @@ export interface DemandOverview {
   }>;
 }
 
+export interface ConsultationFunnelPoint {
+  periodStart: string;
+  periodLabel: string;
+  consultationCount: number;
+  issueConsultCount: number;
+  feedbackCount: number;
+  newRequirementCount: number;
+  solvedCount: number;
+  releaseCount: number;
+  opportunityCount: number;
+  opportunityWonCount: number;
+}
+
+export interface ConsultationFunnelOverview {
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  granularity: 'day' | 'week' | 'month';
+  stages: Array<{ key: string; label: string }>;
+  periods: ConsultationFunnelPoint[];
+}
+
 export interface SyncRunRecord {
   id: string;
   source: string;
