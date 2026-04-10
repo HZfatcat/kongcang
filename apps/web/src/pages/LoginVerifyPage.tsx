@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, Space, Spin, Typography } from 'antd';
 import { AxiosError } from 'axios';
 import { accountWxLogin } from '../api/account';
@@ -12,6 +12,8 @@ function getQueryValue(key: string) {
 export function LoginVerifyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [codeExpired, setCodeExpired] = useState(false);
+  const submittedRef = useRef(false);
 
   const code = useMemo(() => getQueryValue('code'), []);
   const state = useMemo(() => getQueryValue('state'), []);
@@ -37,14 +39,24 @@ export function LoginVerifyPage() {
     return '身份验证失败，请重试。';
   };
 
+  const isCodeInvalidError = (message: string) => {
+    const normalized = message.toLowerCase();
+    return normalized.includes('invalid code') || normalized.includes('40029');
+  };
+
   const doLogin = async () => {
+    if (submittedRef.current) {
+      return;
+    }
     if (!code || !state || !appid) {
       setError('登录参数缺失，请返回登录页重试。');
       setLoading(false);
       return;
     }
+    submittedRef.current = true;
     setLoading(true);
     setError(null);
+    setCodeExpired(false);
     try {
       const user = await accountWxLogin({
         code,
@@ -55,8 +67,11 @@ export function LoginVerifyPage() {
       setLoginUser(user);
       window.location.href = redirect;
     } catch (e) {
-      setError(resolveErrorMessage(e));
+      const message = resolveErrorMessage(e);
+      setError(message);
+      setCodeExpired(isCodeInvalidError(message));
       setLoading(false);
+      submittedRef.current = false;
     }
   };
 
@@ -77,9 +92,20 @@ export function LoginVerifyPage() {
             </div>
           )}
           {error && <Alert type="error" message={error} showIcon />}
-          {error && (
+          {error && !codeExpired && (
             <Button type="primary" block onClick={() => void doLogin()}>
               重试
+            </Button>
+          )}
+          {codeExpired && (
+            <Button
+              type="primary"
+              block
+              onClick={() => {
+                window.location.href = '/login';
+              }}
+            >
+              返回登录页重新扫码
             </Button>
           )}
         </Space>
