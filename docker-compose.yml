@@ -39,6 +39,13 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_WECOM_APPID: ${VITE_WECOM_APPID}
+        VITE_WECOM_AGENTID: ${VITE_WECOM_AGENTID}
+        VITE_WECOM_CSDN_APPID: ${VITE_WECOM_CSDN_APPID}
+        VITE_WECOM_CSDN_AGENTID: ${VITE_WECOM_CSDN_AGENTID}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api/v1}
+        VITE_DISABLE_AUTH: ${VITE_DISABLE_AUTH:-true}
     container_name: kefu-web
     depends_on:
       - api

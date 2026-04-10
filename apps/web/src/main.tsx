@@ -6,8 +6,13 @@ import { LoginPage } from './pages/LoginPage';
 import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { getToken } from './auth/session';
 
+const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
+
 function App() {
   const pathname = window.location.pathname;
+  if (DISABLE_AUTH) {
+    return <DashboardPage />;
+  }
   if (pathname === '/login/verify') {
     return <LoginVerifyPage />;
   }

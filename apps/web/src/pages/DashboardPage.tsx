@@ -95,6 +95,7 @@ function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, 
 }
 
 export function DashboardPage() {
+  const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true';
   const loginUser = getLoginUser();
   const [activeMenuKey, setActiveMenuKey] = useState<
     'satisfaction' | 'demand' | 'opportunity' | 'sync' | 'agents'
@@ -598,17 +599,16 @@ export function DashboardPage() {
           type: 'funnel',
           left: '10%',
           width: '80%',
-          sort: 'none',
+          sort: 'descending',
+          gap: 4,
           label: { show: true, position: 'inside' },
           data: [
             { name: '咨询量', value: latestFunnelPeriod.consultationCount },
             { name: '问题咨询', value: latestFunnelPeriod.issueConsultCount },
             { name: '问题反馈', value: latestFunnelPeriod.feedbackCount },
-            { name: '新需求', value: latestFunnelPeriod.newRequirementCount },
-            { name: '问题解决量', value: latestFunnelPeriod.solvedCount },
+            { name: '识别需求/Bug', value: latestFunnelPeriod.requirementIdentifiedCount },
+            { name: '已完成需求/Bug', value: latestFunnelPeriod.requirementCompletedCount },
             { name: '需求/Bug上线量', value: latestFunnelPeriod.releaseCount },
-            { name: '商机量', value: latestFunnelPeriod.opportunityCount },
-            { name: '商机转化量', value: latestFunnelPeriod.opportunityWonCount },
           ],
         },
       ],
@@ -688,7 +688,7 @@ export function DashboardPage() {
       <Row gutter={16} style={{ marginTop: 16 }}>
         <Col span={24}>
           <Card
-            title="咨询状态漏斗（咨询 -> 反馈 -> 需求/Bug -> 商机）"
+            title="咨询状态漏斗（咨询 -> 问题 -> 反馈 -> 需求/Bug处理）"
             extra={
               <Segmented
                 value={funnelGranularity}
@@ -718,11 +718,17 @@ export function DashboardPage() {
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
                 { title: '问题咨询', dataIndex: 'issueConsultCount', key: 'issueConsultCount' },
                 { title: '问题反馈', dataIndex: 'feedbackCount', key: 'feedbackCount' },
-                { title: '新需求', dataIndex: 'newRequirementCount', key: 'newRequirementCount' },
-                { title: '问题解决量', dataIndex: 'solvedCount', key: 'solvedCount' },
+                {
+                  title: '识别需求/Bug',
+                  dataIndex: 'requirementIdentifiedCount',
+                  key: 'requirementIdentifiedCount',
+                },
+                {
+                  title: '已完成需求/Bug',
+                  dataIndex: 'requirementCompletedCount',
+                  key: 'requirementCompletedCount',
+                },
                 { title: '需求/Bug上线量', dataIndex: 'releaseCount', key: 'releaseCount' },
-                { title: '商机量', dataIndex: 'opportunityCount', key: 'opportunityCount' },
-                { title: '商机转化量', dataIndex: 'opportunityWonCount', key: 'opportunityWonCount' },
               ]}
             />
           </Card>
@@ -1394,19 +1400,21 @@ export function DashboardPage() {
           <Typography.Title level={3} style={{ marginBottom: 0 }}>
             GitCode 客服运营看板
           </Typography.Title>
-          <Space>
-            <Typography.Text type="secondary">
-              {loginUser?.realname ? `当前登录：${loginUser.realname}` : '当前登录'}
-            </Typography.Text>
-            <Button
-              onClick={() => {
-                clearSession();
-                window.location.href = '/login';
-              }}
-            >
-              退出登录
-            </Button>
-          </Space>
+          {!disableAuth && (
+            <Space>
+              <Typography.Text type="secondary">
+                {loginUser?.realname ? `当前登录：${loginUser.realname}` : '当前登录'}
+              </Typography.Text>
+              <Button
+                onClick={() => {
+                  clearSession();
+                  window.location.href = '/login';
+                }}
+              >
+                退出登录
+              </Button>
+            </Space>
+          )}
         </div>
         <Space style={{ marginBottom: 16 }}>
           <RangePicker

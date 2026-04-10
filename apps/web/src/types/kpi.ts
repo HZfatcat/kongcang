@@ -42,11 +42,9 @@ export interface ConsultationFunnelPoint {
   consultationCount: number;
   issueConsultCount: number;
   feedbackCount: number;
-  newRequirementCount: number;
-  solvedCount: number;
+  requirementIdentifiedCount: number;
+  requirementCompletedCount: number;
   releaseCount: number;
-  opportunityCount: number;
-  opportunityWonCount: number;
 }
 
 export interface ConsultationFunnelOverview {

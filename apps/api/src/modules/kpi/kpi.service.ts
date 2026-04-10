@@ -239,101 +239,88 @@ export class KpiService {
   ) {
     const { start, end } = this.resolveRange(startDate, endDate);
     const unitLiteral = Prisma.raw(`'${granularity}'`);
-
-    const [
-      consultationRows,
-      issueConsultRows,
-      feedbackRows,
-      newRequirementRows,
-      solvedRows,
-      releaseRows,
-      opportunityRows,
-      opportunityWonRows,
-    ] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, s."startedAt") AS bucket, COUNT(*)::bigint AS count
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        bucket: Date;
+        consultation_count: bigint;
+        issue_consult_count: bigint;
+        feedback_count: bigint;
+        requirement_identified_count: bigint;
+        requirement_completed_count: bigint;
+        release_count: bigint;
+      }>
+    >`
+      WITH issue_sessions AS (
+        SELECT DISTINCT m."sessionId"
+        FROM "UdescSessionMessage" m
+        WHERE m."content" ILIKE '%问题%'
+          OR m."content" ILIKE '%报错%'
+          OR m."content" ILIKE '%异常%'
+          OR m."content" ILIKE '%故障%'
+          OR m."content" ILIKE '%失败%'
+          OR m."content" ILIKE '%bug%'
+      ),
+      requirement_agg AS (
+        SELECT
+          r."sourceSessionId",
+          TRUE AS has_requirement,
+          BOOL_OR(r."status" IN ('DONE', 'CLOSED')) AS is_completed,
+          BOOL_OR(r."status" = 'CLOSED') AS is_released
+        FROM "ZouwuRequirement" r
+        WHERE r."sourceSessionId" IS NOT NULL
+        GROUP BY r."sourceSessionId"
+      ),
+      session_base AS (
+        SELECT
+          s."id",
+          DATE_TRUNC(${unitLiteral}, s."startedAt") AS bucket,
+          s."rating" IS NOT NULL AS has_feedback,
+          i."sessionId" IS NOT NULL AS is_issue,
+          COALESCE(ra.has_requirement, FALSE) AS has_requirement,
+          COALESCE(ra.is_completed, FALSE) AS is_completed,
+          COALESCE(ra.is_released, FALSE) AS is_released
         FROM "UdescSession" s
-        WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
-        GROUP BY DATE_TRUNC(${unitLiteral}, s."startedAt")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, s."startedAt") AS bucket, COUNT(DISTINCT s."id")::bigint AS count
-        FROM "UdescSession" s
-        INNER JOIN "UdescSessionMessage" m ON m."sessionId" = s."id"
+        LEFT JOIN issue_sessions i ON i."sessionId" = s."id"
+        LEFT JOIN requirement_agg ra ON ra."sourceSessionId" = s."id"
         WHERE s."startedAt" >= ${start}
           AND s."startedAt" <= ${end}
-          AND (
-            m."content" ILIKE '%问题%'
-            OR m."content" ILIKE '%报错%'
-            OR m."content" ILIKE '%异常%'
-            OR m."content" ILIKE '%故障%'
-            OR m."content" ILIKE '%失败%'
-            OR m."content" ILIKE '%bug%'
-          )
-        GROUP BY DATE_TRUNC(${unitLiteral}, s."startedAt")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, s."startedAt") AS bucket, COUNT(*)::bigint AS count
-        FROM "UdescSession" s
-        WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end} AND s."rating" IS NOT NULL
-        GROUP BY DATE_TRUNC(${unitLiteral}, s."startedAt")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, r."createdAtSource") AS bucket, COUNT(*)::bigint AS count
-        FROM "ZouwuRequirement" r
-        WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
-        GROUP BY DATE_TRUNC(${unitLiteral}, r."createdAtSource")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, r."completedAtSource") AS bucket, COUNT(*)::bigint AS count
-        FROM "ZouwuRequirement" r
-        WHERE r."completedAtSource" IS NOT NULL
-          AND r."completedAtSource" >= ${start}
-          AND r."completedAtSource" <= ${end}
-          AND r."status" IN ('DONE', 'CLOSED')
-        GROUP BY DATE_TRUNC(${unitLiteral}, r."completedAtSource")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, r."completedAtSource") AS bucket, COUNT(*)::bigint AS count
-        FROM "ZouwuRequirement" r
-        WHERE r."completedAtSource" IS NOT NULL
-          AND r."completedAtSource" >= ${start}
-          AND r."completedAtSource" <= ${end}
-          AND r."status" = 'CLOSED'
-        GROUP BY DATE_TRUNC(${unitLiteral}, r."completedAtSource")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, o."createdAt") AS bucket, COUNT(*)::bigint AS count
-        FROM "BusinessOpportunity" o
-        WHERE o."createdAt" >= ${start} AND o."createdAt" <= ${end}
-        GROUP BY DATE_TRUNC(${unitLiteral}, o."createdAt")
-      `,
-      this.prisma.$queryRaw<Array<{ bucket: Date; count: bigint }>>`
-        SELECT DATE_TRUNC(${unitLiteral}, COALESCE(o."closedAt", o."updatedAt")) AS bucket, COUNT(*)::bigint AS count
-        FROM "BusinessOpportunity" o
-        WHERE COALESCE(o."closedAt", o."updatedAt") >= ${start}
-          AND COALESCE(o."closedAt", o."updatedAt") <= ${end}
-          AND o."status" = 'WON'::"OpportunityStatus"
-        GROUP BY DATE_TRUNC(${unitLiteral}, COALESCE(o."closedAt", o."updatedAt"))
-      `,
-    ]);
+      )
+      SELECT
+        sb.bucket,
+        COUNT(*)::bigint AS consultation_count,
+        COUNT(*) FILTER (WHERE sb.is_issue)::bigint AS issue_consult_count,
+        COUNT(*) FILTER (WHERE sb.is_issue AND sb.has_feedback)::bigint AS feedback_count,
+        COUNT(*) FILTER (WHERE sb.is_issue AND sb.has_requirement)::bigint AS requirement_identified_count,
+        COUNT(*) FILTER (
+          WHERE sb.is_issue
+            AND sb.has_requirement
+            AND sb.is_completed
+        )::bigint AS requirement_completed_count,
+        COUNT(*) FILTER (
+          WHERE sb.is_issue
+            AND sb.has_requirement
+            AND sb.is_completed
+            AND sb.is_released
+        )::bigint AS release_count
+      FROM session_base sb
+      GROUP BY sb.bucket
+      ORDER BY sb.bucket ASC
+    `;
 
-    const buildMap = (rows: Array<{ bucket: Date; count: bigint }>) => {
+    const buildMap = (getter: (row: (typeof rows)[number]) => bigint) => {
       const map = new Map<string, number>();
       for (const row of rows) {
-        map.set(new Date(row.bucket).toISOString(), Number(row.count));
+        map.set(new Date(row.bucket).toISOString(), Number(getter(row)));
       }
       return map;
     };
 
-    const consultationMap = buildMap(consultationRows);
-    const issueConsultMap = buildMap(issueConsultRows);
-    const feedbackMap = buildMap(feedbackRows);
-    const newRequirementMap = buildMap(newRequirementRows);
-    const solvedMap = buildMap(solvedRows);
-    const releaseMap = buildMap(releaseRows);
-    const opportunityMap = buildMap(opportunityRows);
-    const opportunityWonMap = buildMap(opportunityWonRows);
+    const consultationMap = buildMap((row) => row.consultation_count);
+    const issueConsultMap = buildMap((row) => row.issue_consult_count);
+    const feedbackMap = buildMap((row) => row.feedback_count);
+    const requirementIdentifiedMap = buildMap((row) => row.requirement_identified_count);
+    const requirementCompletedMap = buildMap((row) => row.requirement_completed_count);
+    const releaseMap = buildMap((row) => row.release_count);
 
     const periods: Array<{
       periodStart: string;
@@ -341,11 +328,9 @@ export class KpiService {
       consultationCount: number;
       issueConsultCount: number;
       feedbackCount: number;
-      newRequirementCount: number;
-      solvedCount: number;
+      requirementIdentifiedCount: number;
+      requirementCompletedCount: number;
       releaseCount: number;
-      opportunityCount: number;
-      opportunityWonCount: number;
     }> = [];
 
     let cursor = this.truncateDate(start, granularity);
@@ -357,11 +342,9 @@ export class KpiService {
         consultationCount: consultationMap.get(key) ?? 0,
         issueConsultCount: issueConsultMap.get(key) ?? 0,
         feedbackCount: feedbackMap.get(key) ?? 0,
-        newRequirementCount: newRequirementMap.get(key) ?? 0,
-        solvedCount: solvedMap.get(key) ?? 0,
+        requirementIdentifiedCount: requirementIdentifiedMap.get(key) ?? 0,
+        requirementCompletedCount: requirementCompletedMap.get(key) ?? 0,
         releaseCount: releaseMap.get(key) ?? 0,
-        opportunityCount: opportunityMap.get(key) ?? 0,
-        opportunityWonCount: opportunityWonMap.get(key) ?? 0,
       });
       cursor = this.addStep(cursor, granularity);
     }
@@ -376,11 +359,9 @@ export class KpiService {
         { key: 'consultationCount', label: '咨询量' },
         { key: 'issueConsultCount', label: '问题咨询' },
         { key: 'feedbackCount', label: '问题反馈' },
-        { key: 'newRequirementCount', label: '新需求' },
-        { key: 'solvedCount', label: '问题解决量' },
+        { key: 'requirementIdentifiedCount', label: '识别需求/Bug' },
+        { key: 'requirementCompletedCount', label: '已完成需求/Bug' },
         { key: 'releaseCount', label: '需求/Bug上线量' },
-        { key: 'opportunityCount', label: '商机量' },
-        { key: 'opportunityWonCount', label: '商机转化量' },
       ],
       periods,
     };
