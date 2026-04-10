@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { createHmac } from 'crypto';
@@ -31,6 +31,7 @@ export interface LoginUser {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly tokenCache = new Map<CorpType, { accessToken: string; expiresAt: number }>();
   private readonly stateUserMap = new Map<string, LoginUser>();
   private readonly stateTtlMs = 5 * 60 * 1000;
@@ -143,12 +144,34 @@ export class AuthService {
     if (resp.data.errcode !== 0) {
       throw new UnauthorizedException(`企业微信 code 校验失败: ${resp.data.errmsg ?? 'unknown'}`);
     }
-    if (!resp.data.UserId && resp.data.OpenId) {
+    const payload = resp.data as WecomUserInfoResp & {
+      userid?: string;
+      openid?: string;
+      userId?: string;
+      openId?: string;
+    };
+    const userId =
+      payload.UserId ??
+      payload.userid ??
+      payload.userId ??
+      null;
+    const openId =
+      payload.OpenId ??
+      payload.openid ??
+      payload.openId ??
+      null;
+
+    if (!userId && openId) {
       throw new UnauthorizedException(
         '企业微信仅返回 OpenId，未返回 UserId。请确认扫码账号为企业内部成员，并检查应用授权范围与可见范围配置。',
       );
     }
-    return resp.data.UserId ?? null;
+    if (!userId) {
+      this.logger.warn(
+        `getuserinfo missing user id corp=${corp} keys=${Object.keys(payload).join(',')}`,
+      );
+    }
+    return userId;
   }
 
   private async fetchWecomUserDetail(corp: CorpType, userId: string): Promise<WecomUserDetailResp | null> {
