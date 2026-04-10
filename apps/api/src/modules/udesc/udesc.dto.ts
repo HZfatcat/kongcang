@@ -17,6 +17,10 @@ export class UdescSessionQueryDto extends UdescDateRangeDto {
   agentId?: string;
 
   @IsOptional()
+  @IsString()
+  agentIds?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

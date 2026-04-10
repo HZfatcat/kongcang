@@ -22,6 +22,7 @@ export class UdescController {
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,
+      agentIds: query.agentIds,
       page: query.page,
       pageSize: query.pageSize,
     });

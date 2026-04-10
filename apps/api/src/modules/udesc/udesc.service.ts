@@ -148,15 +148,24 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
     agentId?: string;
+    agentIds?: string;
     page?: number;
     pageSize?: number;
   }) {
     const { start, end } = this.resolveRange(params.startDate, params.endDate);
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
+    const agentIds = (params.agentIds ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
     const where = {
       startedAt: { gte: start, lte: end },
-      ...(params.agentId ? { agentId: params.agentId } : {}),
+      ...(agentIds.length > 0
+        ? { agentId: { in: agentIds } }
+        : params.agentId
+          ? { agentId: params.agentId }
+          : {}),
     };
 
     const [total, rows] = await Promise.all([

@@ -33,6 +33,7 @@ export async function fetchUdescSessions(params: {
   page?: number;
   pageSize?: number;
   agentId?: string;
+  agentIds?: string;
 }) {
   const resp = await apiClient.get<UdescSessionListResp>('/udesc/sessions', { params });
   return resp.data;

@@ -95,6 +95,7 @@ export function DashboardPage() {
   ]);
   const [treeData, setTreeData] = useState<UdescTreeNode[]>([]);
   const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
+  const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([]);
   const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
@@ -135,9 +136,14 @@ export function DashboardPage() {
     [],
   );
 
-  const reload = async (nextPage?: number, nextPageSize?: number) => {
+  const reload = async (
+    nextPage?: number,
+    nextPageSize?: number,
+    nextSessionAgentFilters?: string[],
+  ) => {
     const targetPage = nextPage ?? page;
     const targetPageSize = nextPageSize ?? pageSize;
+    const targetSessionAgentFilters = nextSessionAgentFilters ?? sessionAgentFilters;
     setLoading(true);
     try {
       const [overviewData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
@@ -149,6 +155,8 @@ export function DashboardPage() {
           endDate: range[1],
           page: targetPage,
           pageSize: targetPageSize,
+          agentIds:
+            targetSessionAgentFilters.length > 0 ? targetSessionAgentFilters.join(',') : undefined,
         }),
         fetchSyncProgress().then((data) => {
           setSyncProgress(data);
@@ -266,6 +274,12 @@ export function DashboardPage() {
         title: '客服',
         dataIndex: 'agentId',
         key: 'agentId',
+        filters: Array.from(new Set(treeData.map((item) => item.agentId))).map((agentId) => ({
+          text: getAgentLabel(agentId),
+          value: agentId,
+        })),
+        filteredValue: sessionAgentFilters.length > 0 ? sessionAgentFilters : null,
+        filterMultiple: true,
         render: (value?: string) => getAgentLabel(value),
       },
       {
@@ -292,7 +306,7 @@ export function DashboardPage() {
         key: 'messageCount',
       },
     ],
-    [agentProfileMap],
+    [agentProfileMap, treeData, sessionAgentFilters],
   );
 
   const treeNodes: DataNode[] = [...treeData]
@@ -547,8 +561,36 @@ export function DashboardPage() {
         <Col span={14}>
           <Card title="咨询详情（结构化）">
             <Space wrap style={{ marginBottom: 12 }}>
+              <Tag
+                color={sessionAgentFilters.length === 0 ? 'processing' : 'default'}
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  setSessionAgentFilters([]);
+                  setPage(1);
+                  void reload(1, pageSize, []);
+                }}
+              >
+                全部客服
+              </Tag>
               {(overview?.topAgents ?? []).map((agent) => (
-                <Tag key={agent.agentId}>
+                <Tag
+                  key={agent.agentId}
+                  color={
+                    sessionAgentFilters.length === 1 && sessionAgentFilters[0] === agent.agentId
+                      ? 'processing'
+                      : 'default'
+                  }
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    const nextFilters =
+                      sessionAgentFilters.length === 1 && sessionAgentFilters[0] === agent.agentId
+                        ? []
+                        : [agent.agentId];
+                    setSessionAgentFilters(nextFilters);
+                    setPage(1);
+                    void reload(1, pageSize, nextFilters);
+                  }}
+                >
                   {getAgentLabel(agent.agentId)}: {agent.sessions}
                 </Tag>
               ))}
@@ -557,12 +599,17 @@ export function DashboardPage() {
               rowKey="id"
               dataSource={sessions}
               columns={sessionColumns}
+              onChange={(pagination, filters) => {
+                const agentIds = ((filters.agentId as string[] | null) ?? []).filter(Boolean);
+                setSessionAgentFilters(agentIds);
+                void reload(pagination.current ?? 1, pagination.pageSize ?? pageSize, agentIds);
+              }}
               pagination={{
                 current: page,
                 pageSize,
                 total,
                 onChange: (nextPageNumber, nextPageSizeNumber) => {
-                  void reload(nextPageNumber, nextPageSizeNumber);
+                  void reload(nextPageNumber, nextPageSizeNumber, sessionAgentFilters);
                 },
               }}
               expandable={{
