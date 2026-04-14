@@ -1,6 +1,5 @@
 # Project Knowledge (auto-generated)
 
-- [11:22] "不管选哪个，最后依然是 20/page，实际显示也是 20 条一页。。。此外，用户管理页面，变..." → edited: RequirementDetailPage, BugDetailPage, UsersPage.tsx | OK
 - [11:24] "分页条数修复好了。但人员管理页面依然是空白页" → edited: UsersPage | OK
 - [11:28] "chunk-ZYRRGRZJ.js?v=75d51b32:21609 Download the..." → edited: main | OK
 - [11:34] "请修改" → edited: kefumonitor | OK
@@ -10,6 +9,4 @@
 - [12:26] "没有让把页面改版成这样。。。重新从 git 下载代码把。。。下载 git 代码后，精准修复生产..." → edited: main, DashboardPage | OK
 - [12:35] "把 datalog目录设置为 git ignore" → edited: kefumonitor | OK
 - [test] npm run dev --workspace apps/api > /tmp/api.log 2>&1 &
-npm run dev --workspace apps/web > /tmp/web.log 2>&1 &
-sleep 5
-ec
+- [13:34] "为这个工程编写自动化测试，每次修改、发布前先进行研发自测，避免把发布后在线上修复问题" → edited: package, jest.config.js, agents.service.spec.ts, opportunity, package | OK

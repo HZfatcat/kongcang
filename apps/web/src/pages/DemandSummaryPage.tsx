@@ -183,59 +183,58 @@ export function DemandSummaryPage() {
   ];
 
   return (
-    <div style={{ padding: 24, background: '#f5f5f5', minHeight: 'calc(100vh - 64px)' }}>
-      <Typography.Title level={4} style={{ marginBottom: 24 }}>需求与 Bug 汇总 Dashboard</Typography.Title>
+    <div className="fade-in">
+      <div className="page-header">
+        <h1 className="page-title">需求与 Bug 汇总 Dashboard</h1>
+        <p className="page-subtitle">跟踪需求和 Bug 的完成情况</p>
+      </div>
       
-      <Row gutter={16}>
-        <Col span={6}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={6}>
           <Card 
             loading={demandLoading} 
-            style={{ borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            className="stat-card"
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>需求总数</span>} 
+              title="需求总数" 
               value={demandOverview?.totalIdentifiedCount ?? 0}
-              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card 
             loading={demandLoading} 
-            style={{ borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            className="stat-card green"
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>需求已完成</span>} 
+              title="需求已完成" 
               value={demandOverview?.completedCount ?? 0}
-              valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card 
             loading={demandLoading} 
-            style={{ borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            className="stat-card orange"
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>Bug 总数</span>} 
+              title="Bug 总数" 
               value={demandOverview?.bugCount ?? 0}
-              valueStyle={{ color: '#faad14' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card 
             loading={demandLoading} 
-            style={{ borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            className="stat-card blue"
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>Bug 已完成</span>} 
+              title="Bug 已完成" 
               value={demandOverview?.bugCompletedCount ?? 0}
-              valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>

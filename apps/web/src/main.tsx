@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import 'antd/dist/reset.css';
+import './styles/global.css';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DashboardPage } from './pages/DashboardPage';
 import { DemandSummaryPage } from './pages/DemandSummaryPage';
@@ -11,57 +12,106 @@ import { BugDetailPage } from './pages/BugDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { UsersPage } from './pages/UsersPage';
-import { getToken } from './auth/session';
+import { getToken, getLoginUser, clearSession } from './auth/session';
+import {
+  HomeOutlined,
+  SmileOutlined,
+  CheckCircleOutlined,
+  DollarOutlined,
+  SyncOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
 
-const { Content, Sider } = Layout;
+const { Content, Sider, Header } = Layout;
+const { Text } = Typography;
 const queryClient = new QueryClient();
 
 const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const loginUser = getLoginUser();
+  
+  const menuItems = [
+    {
+      key: '/',
+      icon: <HomeOutlined />,
+      label: '客服运营后台',
+    },
+    {
+      key: '/satisfaction',
+      icon: <SmileOutlined />,
+      label: '用户满意度',
+    },
+    {
+      key: 'demand',
+      icon: <CheckCircleOutlined />,
+      label: '需求完成率',
+      children: [
+        { key: '/demand', label: '汇总 Dashboard' },
+        { key: '/demand/requirements', label: '需求详情' },
+        { key: '/demand/bugs', label: 'Bug 详情' },
+      ],
+    },
+    {
+      key: '/opportunity',
+      icon: <DollarOutlined />,
+      label: '商机管理',
+    },
+    {
+      key: '/sync-udesk',
+      icon: <SyncOutlined />,
+      label: '数据同步（Udesk）',
+    },
+    {
+      key: '/sync-zouwu',
+      icon: <SyncOutlined />,
+      label: '数据同步（驺吾）',
+    },
+    {
+      key: '/users',
+      icon: <TeamOutlined />,
+      label: '人员管理',
+    },
+  ];
+
+  const userMenuItems = [
+    {
+      key: 'logout',
+      label: '退出登录',
+    },
+  ];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={220} theme="light">
+      <Sider 
+        width={220} 
+        theme="dark"
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+        }}
+      >
+        <div style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+        }}>
+          <Text strong style={{ color: '#fff', fontSize: 18 }}>客服监控系统</Text>
+        </div>
         <Menu
+          theme="dark"
           mode="inline"
-          defaultSelectedKeys={['/']}
+          selectedKeys={[location.pathname]}
           defaultOpenKeys={['demand']}
-          style={{ height: '100%', borderRight: 0 }}
-          items={[
-            {
-              key: '/',
-              label: '客服运营后台',
-            },
-            {
-              key: '/satisfaction',
-              label: '用户满意度',
-            },
-            {
-              key: 'demand',
-              label: '需求完成率',
-              children: [
-                { key: '/demand', label: '汇总 Dashboard' },
-                { key: '/demand/requirements', label: '需求详情' },
-                { key: '/demand/bugs', label: 'Bug 详情' },
-              ],
-            },
-            {
-              key: '/opportunity',
-              label: '商机管理',
-            },
-            {
-              key: '/sync-udesk',
-              label: '数据同步（Udesk）',
-            },
-            {
-              key: '/sync-zouwu',
-              label: '数据同步（驺吾）',
-            },
-            {
-              key: '/users',
-              label: '人员管理',
-            },
-          ]}
+          style={{ borderRight: 0, marginTop: 8 }}
+          items={menuItems}
           onClick={({ key }) => {
             if (key.startsWith('/')) {
               window.location.href = key;
@@ -69,9 +119,53 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           }}
         />
       </Sider>
-      <Layout>
-        <Content style={{ background: '#fff', minHeight: '100%' }}>
-          {children}
+      <Layout style={{ marginLeft: 220 }}>
+        <Header style={{
+          background: '#fff',
+          padding: '0 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: 500 }}>
+            {menuItems.find(item => item.key === location.pathname)?.label || '仪表盘'}
+          </Text>
+          {!DISABLE_AUTH && loginUser && (
+            <Dropdown menu={{ 
+              items: userMenuItems,
+              onClick: ({ key }) => {
+                if (key === 'logout') {
+                  clearSession();
+                  window.location.href = '/login';
+                }
+              }
+            }}>
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar style={{ backgroundColor: '#1890ff' }}>
+                  {loginUser.realname?.charAt(0) || 'U'}
+                </Avatar>
+                <Text>{loginUser.realname || '用户'}</Text>
+              </Space>
+            </Dropdown>
+          )}
+        </Header>
+        <Content style={{ 
+          background: '#f0f2f5', 
+          minHeight: 'calc(100vh - 64px)',
+          padding: 24,
+        }}>
+          <div className="fade-in" style={{ 
+            background: '#fff', 
+            padding: 24, 
+            borderRadius: 8,
+            minHeight: 'calc(100vh - 112px)',
+          }}>
+            {children}
+          </div>
         </Content>
       </Layout>
     </Layout>
