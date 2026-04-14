@@ -9,3 +9,4 @@ apps/web/dist
 apps/api/dist
 apps/api/prisma/dev.db
 .DS_Store
+datalog/
