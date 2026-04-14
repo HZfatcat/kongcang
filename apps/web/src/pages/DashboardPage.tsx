@@ -104,12 +104,12 @@ function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, 
   return [start.startOf('day'), end.endOf('day')];
 }
 
-export function DashboardPage() {
+export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenuKey?: 'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents' } = {}) {
   const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true';
   const loginUser = getLoginUser();
   const [activeMenuKey, setActiveMenuKey] = useState<
     'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents'
-  >('satisfaction');
+  >(initialMenuKey);
   const [agentForm] = Form.useForm();
   const [opportunityForm] = Form.useForm();
   const [loading, setLoading] = useState(false);

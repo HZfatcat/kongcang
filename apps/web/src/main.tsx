@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import 'antd/dist/reset.css';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DashboardPage } from './pages/DashboardPage';
@@ -81,11 +81,15 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<AppLayout><DashboardPage /></AppLayout>} />
+      <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
+      <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
       <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
       <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
       <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
-      <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
+      <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
+      <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
+      <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
+      <Route path="/users" element={<AppLayout><DashboardPage initialMenuKey="agents" /></AppLayout>} />
     </Routes>
   );
 }
