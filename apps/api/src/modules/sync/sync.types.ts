@@ -35,3 +35,24 @@ export interface SyncFetchResult<T> {
   nextCursor?: string;
   hasMore: boolean;
 }
+
+export interface ZouwuCloseRateStat {
+  scope: 'requirement' | 'bug' | 'all';
+  issueType: '0' | '1' | null;
+  total: number;
+  excludedByLongTermAccepted: number;
+  closedOrRejected: number;
+  denominator: number;
+  closeRate: number | null;
+}
+
+export interface ZouwuFeedbackStatistics {
+  baseUrl: string;
+  startCreatedTime: string;
+  endCreatedTime: string;
+  longTermLabelName: string;
+  longTermLabelId: number;
+  newRequirements: number;
+  newBugs: number;
+  closeRates: ZouwuCloseRateStat[];
+}

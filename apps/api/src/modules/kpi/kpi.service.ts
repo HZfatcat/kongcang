@@ -6,11 +6,11 @@ import { PrismaService } from '../../common/prisma.service';
 export class KpiService {
   constructor(private readonly prisma: PrismaService) {}
 
-  resolveRange(startDate?: string, endDate?: string) {
+  resolveRange(startDate?: string, endDate?: string, lookbackDays = 90) {
     const end = endDate ? new Date(endDate) : new Date();
     const start = startDate
       ? new Date(startDate)
-      : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
+      : new Date(end.getTime() - 1000 * 60 * 60 * 24 * lookbackDays);
 
     return { start, end };
   }
@@ -76,12 +76,26 @@ export class KpiService {
       },
     };
 
-    const [totalIdentifiedCount, completedCount, linkedSessionCount, bugCount, statusGroups] =
+    const [totalIdentifiedCount, completedCount, linkedSessionCount, bugCount, bugCompletedCount, statusGroups] =
       await Promise.all([
-        this.prisma.zouwuRequirement.count({ where: baseWhere }),
+        // 需求总数（issueType != 1，即非Bug）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            OR: [
+              { issueType: { not: 1 } },
+              { issueType: null },
+            ],
+          },
+        }),
+        // 需求完成数
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            OR: [
+              { issueType: { not: 1 } },
+              { issueType: null },
+            ],
             status: {
               in: [RequirementStatus.DONE, RequirementStatus.CLOSED],
             },
@@ -93,13 +107,21 @@ export class KpiService {
             sourceSessionId: { not: null },
           },
         }),
+        // Bug 总数（issueType = 1）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
-            OR: [
-              { title: { contains: 'bug', mode: 'insensitive' } },
-              { title: { contains: '缺陷', mode: 'insensitive' } },
-            ],
+            issueType: 1,
+          },
+        }),
+        // Bug 完成数
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            issueType: 1,
+            status: {
+              in: [RequirementStatus.DONE, RequirementStatus.CLOSED],
+            },
           },
         }),
         this.prisma.zouwuRequirement.groupBy({
@@ -131,6 +153,56 @@ export class KpiService {
       ORDER BY day ASC
     `;
 
+    // 按月统计需求（不含 bug，即 issueType != 1）
+    const monthlyRequirementCreatedRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
+      ORDER BY month ASC
+    `;
+
+    const monthlyRequirementCompletedRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource")) AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE COALESCE(r."completedAtSource", r."updatedAtSource") IS NOT NULL
+        AND COALESCE(r."completedAtSource", r."updatedAtSource") >= ${start} AND COALESCE(r."completedAtSource", r."updatedAtSource") <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r.status IN ('DONE', 'CLOSED')
+      GROUP BY DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource"))
+      ORDER BY month ASC
+    `;
+
+    // 按月统计 bug
+    const monthlyBugCreatedRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
+      ORDER BY month ASC
+    `;
+
+    const monthlyBugCompletedRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource")) AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE COALESCE(r."completedAtSource", r."updatedAtSource") IS NOT NULL
+        AND COALESCE(r."completedAtSource", r."updatedAtSource") >= ${start} AND COALESCE(r."completedAtSource", r."updatedAtSource") <= ${end}
+        AND r."issueType" = 1
+        AND r.status IN ('DONE', 'CLOSED')
+      GROUP BY DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource"))
+      ORDER BY month ASC
+    `;
+
     const recentRequirements = await this.prisma.zouwuRequirement.findMany({
       where: baseWhere,
       orderBy: [{ updatedAtSource: 'desc' }, { createdAtSource: 'desc' }],
@@ -142,6 +214,7 @@ export class KpiService {
         sourceSessionId: true,
         createdAtSource: true,
         completedAtSource: true,
+        updatedAtSource: true,
       },
     });
 
@@ -160,6 +233,57 @@ export class KpiService {
       daySet.add(day);
     }
 
+    // 构建按月统计数据 - 生成本年度全部月份
+    const currentYear = end.getFullYear();
+    const currentMonth = end.getMonth();
+    const allMonths: string[] = [];
+    for (let m = 0; m <= currentMonth; m++) {
+      const monthStr = `${currentYear}-${String(m + 1).padStart(2, '0')}`;
+      allMonths.push(monthStr);
+    }
+
+    const monthlyRequirementMap = new Map<string, { created: number; completed: number }>();
+    // 初始化所有月份
+    for (const month of allMonths) {
+      monthlyRequirementMap.set(month, { created: 0, completed: 0 });
+    }
+    // 填充实际数据
+    for (const row of monthlyRequirementCreatedRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyRequirementMap.get(month);
+      if (prev) {
+        prev.created = Number(row.count);
+      }
+    }
+    for (const row of monthlyRequirementCompletedRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyRequirementMap.get(month);
+      if (prev) {
+        prev.completed = Number(row.count);
+      }
+    }
+
+    const monthlyBugMap = new Map<string, { created: number; completed: number }>();
+    // 初始化所有月份
+    for (const month of allMonths) {
+      monthlyBugMap.set(month, { created: 0, completed: 0 });
+    }
+    // 填充实际数据
+    for (const row of monthlyBugCreatedRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyBugMap.get(month);
+      if (prev) {
+        prev.created = Number(row.count);
+      }
+    }
+    for (const row of monthlyBugCompletedRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyBugMap.get(month);
+      if (prev) {
+        prev.completed = Number(row.count);
+      }
+    }
+
     const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
     const statusBreakdown = statusGroups.reduce<Record<string, number>>((acc, item) => {
       acc[item.status] = item._count.id;
@@ -176,16 +300,35 @@ export class KpiService {
       completionRate: totalIdentifiedCount > 0 ? completedCount / totalIdentifiedCount : 0,
       linkedSessionCount,
       bugCount,
+      bugCompletedCount,
+      bugCompletionRate: bugCount > 0 ? bugCompletedCount / bugCount : 0,
       statusBreakdown,
       daily: {
         days,
         created: days.map((day) => createdMap.get(day) ?? 0),
         completed: days.map((day) => completedMap.get(day) ?? 0),
       },
+      monthlyRequirement: Array.from(monthlyRequirementMap.entries())
+        .map(([month, value]) => ({
+          month,
+          created: value.created,
+          completed: value.completed,
+          completionRate: value.created > 0 ? value.completed / value.created : 0,
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month)),
+      monthlyBug: Array.from(monthlyBugMap.entries())
+        .map(([month, value]) => ({
+          month,
+          created: value.created,
+          completed: value.completed,
+          completionRate: value.created > 0 ? value.completed / value.created : 0,
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month)),
       recentRequirements: recentRequirements.map((item) => ({
         ...item,
         createdAtSource: item.createdAtSource.toISOString(),
         completedAtSource: item.completedAtSource?.toISOString(),
+        updatedAtSource: item.updatedAtSource?.toISOString(),
       })),
     };
   }

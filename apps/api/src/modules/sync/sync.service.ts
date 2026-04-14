@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, RequirementStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { UdescClient } from './udesc.client';
@@ -27,9 +27,16 @@ interface UpdateSyncConfigPayload {
   intervalHours?: number;
 }
 
+interface ZouwuFeedbackStatisticsQuery {
+  start?: string;
+  end?: string;
+  token?: string;
+}
+
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
+  private zouwuRunning = false;
   private readonly progress: SyncProgressSnapshot = {
     source: 'udesc',
     isRunning: false,
@@ -141,10 +148,27 @@ export class SyncService {
   }
 
   private buildDateRange() {
-    const lookbackDays = Number(process.env.SYNC_LOOKBACK_DAYS ?? 30);
+    const explicitStart = process.env.SYNC_START_DATE;
     const end = new Date();
+    if (explicitStart) {
+      const start = new Date(explicitStart);
+      return { start, end };
+    }
+    const lookbackDays = Number(process.env.SYNC_LOOKBACK_DAYS ?? 30);
     const start = new Date(end.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
     return { start, end };
+  }
+
+  private resolveZouwuStatsWindow(query: ZouwuFeedbackStatisticsQuery) {
+    const defaultStart = process.env.ZOUWU_STATS_DEFAULT_START ?? '2026-01-01 00:00:00';
+    const defaultEnd = process.env.ZOUWU_STATS_DEFAULT_END ?? '2026-04-10 23:59:59';
+    const startCreatedTime = query.start?.trim() || defaultStart;
+    const endCreatedTime = query.end?.trim() || defaultEnd;
+    return {
+      startCreatedTime,
+      endCreatedTime,
+      tokenOverride: query.token?.trim() || undefined,
+    };
   }
 
   private async startRun(source: string) {
@@ -465,6 +489,10 @@ export class SyncService {
   }
 
   async syncZouwu() {
+    if (this.zouwuRunning) {
+      throw new Error('zouwu sync is already running');
+    }
+    this.zouwuRunning = true;
     const run = await this.startRun('zouwu');
     let recordsSynced = 0;
 
@@ -546,6 +574,8 @@ export class SyncService {
       this.logger.error(`sync zouwu failed: ${message}`);
       await this.finishRun(run.id, { status: 'FAILED', recordsSynced, message });
       throw error;
+    } finally {
+      this.zouwuRunning = false;
     }
   }
 
@@ -554,6 +584,16 @@ export class SyncService {
     const udesc = await this.syncUdesc();
     const zouwu = enableZouwu ? await this.syncZouwu() : null;
     return { udesc, zouwu };
+  }
+
+  async getZouwuFeedbackStatistics(query: ZouwuFeedbackStatisticsQuery) {
+    const params = this.resolveZouwuStatsWindow(query);
+    try {
+      return await this.zouwuClient.getFeedbackStatistics(params);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '获取驺吾统计失败';
+      throw new BadRequestException(message);
+    }
   }
 
   async getSyncConfig(source: string) {
@@ -671,6 +711,41 @@ export class SyncService {
     return this.triggerUdescSync();
   }
 
+  async triggerScheduledZouwuSync() {
+    const config = await this.getSyncConfig('zouwu');
+    if (!config.enabled) {
+      return { accepted: false, reason: 'disabled', config };
+    }
+
+    if (this.zouwuRunning) {
+      return { accepted: false, reason: 'running', config };
+    }
+
+    const latestRun = await this.prisma.syncRun.findFirst({
+      where: {
+        source: 'zouwu',
+        status: 'SUCCESS',
+      },
+      orderBy: { finishedAt: 'desc' },
+    });
+
+    const now = Date.now();
+    const lastFinished = latestRun?.finishedAt?.getTime() ?? 0;
+    const intervalMs = config.intervalHours * 60 * 60 * 1000;
+    const due = now - lastFinished >= intervalMs;
+
+    if (!due && latestRun?.finishedAt) {
+      return {
+        accepted: false,
+        reason: 'not_due',
+        config,
+        nextRunAt: new Date(lastFinished + intervalMs).toISOString(),
+      };
+    }
+
+    return this.triggerZouwuSync();
+  }
+
   getUdescProgress() {
     return { ...this.progress };
   }
@@ -692,6 +767,24 @@ export class SyncService {
     return {
       accepted: true,
       progress: this.getUdescProgress(),
+    };
+  }
+
+  triggerZouwuSync() {
+    if (this.zouwuRunning) {
+      return {
+        accepted: false,
+        reason: 'running',
+      };
+    }
+
+    void this.syncZouwu().catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`triggered zouwu sync failed: ${message}`);
+    });
+
+    return {
+      accepted: true,
     };
   }
 

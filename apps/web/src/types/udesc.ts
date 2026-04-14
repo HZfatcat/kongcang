@@ -135,3 +135,39 @@ export interface AgentProfile {
   updatedAt: string;
 }
 
+export interface WecomEmployee {
+  userId: string;
+  name?: string;
+  department?: string;
+  position?: string;
+  mobile?: string;
+  email?: string;
+  avatar?: string;
+  enabled: boolean;
+  isCustomerService: boolean;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ZouwuCloseRateStat {
+  scope: 'requirement' | 'bug' | 'all';
+  issueType: '0' | '1' | null;
+  total: number;
+  excludedByLongTermAccepted: number;
+  closedOrRejected: number;
+  denominator: number;
+  closeRate: number | null;
+}
+
+export interface ZouwuFeedbackStatistics {
+  baseUrl: string;
+  startCreatedTime: string;
+  endCreatedTime: string;
+  longTermLabelName: string;
+  longTermLabelId: number;
+  newRequirements: number;
+  newBugs: number;
+  closeRates: ZouwuCloseRateStat[];
+}
+

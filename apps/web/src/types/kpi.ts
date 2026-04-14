@@ -10,6 +10,13 @@ export interface KpiOverview {
   demandCompletionRate: number;
 }
 
+export interface MonthlyCompletion {
+  month: string;
+  created: number;
+  completed: number;
+  completionRate: number;
+}
+
 export interface DemandOverview {
   dateRange: {
     startDate: string;
@@ -20,16 +27,21 @@ export interface DemandOverview {
   completionRate: number;
   linkedSessionCount: number;
   bugCount: number;
+  bugCompletedCount: number;
+  bugCompletionRate: number;
   statusBreakdown: Record<string, number>;
   daily: {
     days: string[];
     created: number[];
     completed: number[];
   };
+  monthlyRequirement: MonthlyCompletion[];
+  monthlyBug: MonthlyCompletion[];
   recentRequirements: Array<{
     id: string;
     title: string;
     status: string;
+    issueType?: number;
     sourceSessionId?: string | null;
     createdAtSource: string;
     completedAtSource?: string;

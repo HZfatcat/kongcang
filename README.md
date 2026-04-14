@@ -129,6 +129,13 @@ npm run dev --workspace apps/web -- --host localhost --port 5801
   - `SYNC_RETRY_MAX_ATTEMPTS`
   - `SYNC_RETRY_BASE_DELAY_MS`
   - `SYNC_ENABLE_ZOUWU`
+- 驺吾
+  - `ZOUWU_BASE_URL`（含 context-path，例如 `http://localhost:8090/dev`）
+  - `ZOUWU_COOKIE_NAME`（默认 `admin-plus-app-token`）
+  - `ZOUWU_APP_TOKEN`
+  - `ZOUWU_PROXY_MODE`（`auto`/`on`/`off`，默认 `auto`）
+  - `ZOUWU_LONG_TERM_LABEL_NAME`（默认 `长期演进`）
+  - `ZOUWU_STATS_DEFAULT_START` / `ZOUWU_STATS_DEFAULT_END`（`yyyy-MM-dd HH:mm:ss`）
 - 企业微信登录
   - `WECOM_CORP_CORPID`
   - `WECOM_CORP_SECRET`
@@ -138,6 +145,7 @@ npm run dev --workspace apps/web -- --host localhost --port 5801
   - `VITE_WECOM_AGENTID`
   - `VITE_WECOM_CSDN_APPID`
   - `VITE_WECOM_CSDN_AGENTID`
+  - `VITE_WECOM_REDIRECT_BASE_URL`（可选，需配置为企微应用可信域名，如 `https://your-domain.com`）
   - `AUTH_TOKEN_SECRET`
 
 ## 主要接口（节选）
@@ -158,6 +166,7 @@ npm run dev --workspace apps/web -- --host localhost --port 5801
   - `POST /api/v1/sync/issues/retry`
   - `GET /api/v1/sync/config`
   - `POST /api/v1/sync/config`
+  - `GET /api/v1/sync/zouwu/feedback-stats`（支持 `start`/`end`/`token` 查询参数）
 - 人员管理
   - `GET /api/v1/agents`
   - `POST /api/v1/agents/upsert`

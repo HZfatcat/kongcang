@@ -1,3 +1,11 @@
+// 必须在最开头加载 dotenv，确保环境变量在其他模块加载前就设置好
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+const envPath = path.join(__dirname, '../../../.env');
+dotenv.config({ path: envPath });
+console.log('[main.ts] Loaded .env from:', envPath);
+console.log('[main.ts] ZOUWU_BASE_URL:', process.env.ZOUWU_BASE_URL);
+
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';

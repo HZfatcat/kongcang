@@ -30,8 +30,10 @@ function getOauthUrl(corp: 'corp' | 'csdn', state: string) {
     corp === 'csdn'
       ? import.meta.env.VITE_WECOM_CSDN_AGENTID
       : import.meta.env.VITE_WECOM_AGENTID;
+  const configuredRedirectBase = (import.meta.env.VITE_WECOM_REDIRECT_BASE_URL ?? '').trim();
+  const redirectBase = (configuredRedirectBase || window.location.origin).replace(/\/$/, '');
   const redirectUri = encodeURIComponent(
-    `${window.location.origin}/login/verify?corp=${corp}&redirect=${encodeURIComponent('/')}`,
+    `${redirectBase}/login/verify?corp=${corp}&redirect=${encodeURIComponent('/')}`,
   );
   // Use snsapi_base for internal member auth to reliably obtain UserId.
   return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appid}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&agentid=${agentid}&state=${state}#wechat_redirect`;

@@ -90,6 +90,7 @@ model ZouwuRequirement {
   title               String
   sourceSessionId     String?
   status              RequirementStatus
+  issueType           Int?              // 0=需求, 1=Bug
   createdAtSource     DateTime
   completedAtSource   DateTime?
   updatedAtSource     DateTime?
@@ -100,6 +101,7 @@ model ZouwuRequirement {
   @@index([completedAtSource])
   @@index([status])
   @@index([sourceSessionId])
+  @@index([issueType])
 }
 
 model SyncCheckpoint {
@@ -142,6 +144,7 @@ model SyncConfig {
   updatedAt     DateTime @updatedAt
 }
 
+// udesc 客服人员
 model AgentProfile {
   agentId      String   @id
   displayName  String
@@ -151,4 +154,23 @@ model AgentProfile {
   remark       String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// 企微员工 - 公司全部员工
+model WecomEmployee {
+  userId          String   @id  // 企微 userId
+  name            String?
+  department      String?
+  position        String?
+  mobile          String?
+  email           String?
+  avatar          String?
+  enabled         Boolean  @default(true)
+  isCustomerService Boolean @default(false)  // 是否客服部门
+  remark          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([isCustomerService])
 }

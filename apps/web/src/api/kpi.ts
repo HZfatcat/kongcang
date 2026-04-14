@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from './client';
 import type {
   ConsultationFunnelOverview,
@@ -5,6 +6,7 @@ import type {
   KpiOverview,
   SyncRunRecord,
 } from '../types/kpi';
+import dayjs from 'dayjs';
 
 export async function fetchOverview(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<KpiOverview>('/kpi/overview', { params });
@@ -35,4 +37,41 @@ export async function runSync() {
 export async function fetchSyncRuns() {
   const resp = await apiClient.get<SyncRunRecord[]>('/sync/runs');
   return resp.data;
+}
+
+// Hook for KPI data with date range support
+export function useKpi() {
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs().startOf('year'),
+    dayjs(),
+  ]);
+  const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
+  const [demandLoading, setDemandLoading] = useState(false);
+
+  const loadDemandOverview = useCallback(async () => {
+    setDemandLoading(true);
+    try {
+      const data = await fetchDemandOverview({
+        startDate: dateRange[0].format('YYYY-MM-DD'),
+        endDate: dateRange[1].format('YYYY-MM-DD'),
+      });
+      setDemandOverview(data);
+    } catch (error) {
+      console.error('Failed to load demand overview:', error);
+    } finally {
+      setDemandLoading(false);
+    }
+  }, [dateRange]);
+
+  useEffect(() => {
+    loadDemandOverview();
+  }, [loadDemandOverview]);
+
+  return {
+    dateRange,
+    setDateRange,
+    demandOverview,
+    demandLoading,
+    refresh: loadDemandOverview,
+  };
 }

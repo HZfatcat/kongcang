@@ -18,6 +18,7 @@ import {
   Spin,
   Statistic,
   Table,
+  Tabs,
   Menu,
   Popconfirm,
   Tag,
@@ -41,6 +42,7 @@ import {
 } from '../api/opportunity';
 import {
   deleteAgent,
+  fetchZouwuFeedbackStats,
   fetchAgents,
   fetchSyncConfig,
   fetchSyncIssues,
@@ -54,11 +56,18 @@ import {
   fetchUdescTree,
   retrySyncIssues,
   runSync,
+  runZouwuSync,
   updateSyncConfig,
+  updateZouwuSyncConfig,
+  fetchZouwuSyncConfig,
   upsertAgent,
+  fetchWecomEmployees,
+  upsertWecomEmployee,
+  deleteWecomEmployee,
 } from '../api/udesc';
 import type {
   AgentProfile,
+  WecomEmployee,
   SyncConfig,
   SyncIssue,
   SyncProgress,
@@ -68,6 +77,7 @@ import type {
   UdescOverview,
   UdescSessionRecord,
   UdescTreeNode,
+  ZouwuFeedbackStatistics,
 } from '../types/udesc';
 import type { ConsultationFunnelOverview, DemandOverview } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
@@ -98,7 +108,7 @@ export function DashboardPage() {
   const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true';
   const loginUser = getLoginUser();
   const [activeMenuKey, setActiveMenuKey] = useState<
-    'satisfaction' | 'demand' | 'opportunity' | 'sync' | 'agents'
+    'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents'
   >('satisfaction');
   const [agentForm] = Form.useForm();
   const [opportunityForm] = Form.useForm();
@@ -136,19 +146,32 @@ export function DashboardPage() {
   const [syncConfig, setSyncConfig] = useState<SyncConfig | null>(null);
   const [syncConfigLoading, setSyncConfigLoading] = useState(false);
   const [retryLoading, setRetryLoading] = useState(false);
+  const [zouwuStatsLoading, setZouwuStatsLoading] = useState(false);
+  const [zouwuStats, setZouwuStats] = useState<ZouwuFeedbackStatistics | null>(null);
+  const [zouwuSyncLoading, setZouwuSyncLoading] = useState(false);
+  const [zouwuConfigLoading, setZouwuConfigLoading] = useState(false);
+  const [zouwuConfig, setZouwuConfig] = useState<SyncConfig | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [udescAgentIds, setUdescAgentIds] = useState<string[]>([]);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [savingAgent, setSavingAgent] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  // 企微人员
+  const [wecomEmployees, setWecomEmployees] = useState<WecomEmployee[]>([]);
+  const [wecomEmployeesLoading, setWecomEmployeesLoading] = useState(false);
+  const [wecomEmployeeModalOpen, setWecomEmployeeModalOpen] = useState(false);
+  const [savingWecomEmployee, setSavingWecomEmployee] = useState(false);
+  const [editingWecomUserId, setEditingWecomUserId] = useState<string | null>(null);
+  const [wecomEmployeeForm] = Form.useForm();
+  const [agentsTabKey, setAgentsTabKey] = useState<'udesc' | 'wecom'>('udesc');
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [range, setRange] = useState<[string, string]>(() => {
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
     const end = dayjs();
     const start = end.subtract(30, 'day');
-    return [start.toISOString(), end.toISOString()];
+    return [start.startOf('day'), end.endOf('day')];
   });
   const quickRangePresets = useMemo(
     () => [
@@ -168,6 +191,15 @@ export function DashboardPage() {
     ],
     [],
   );
+  const apiRange = useMemo(
+    () => ({
+      startDateIso: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
+      endDateIso: range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
+      startDateLocal: range[0].startOf('day').format('YYYY-MM-DD HH:mm:ss'),
+      endDateLocal: range[1].endOf('day').format('YYYY-MM-DD HH:mm:ss'),
+    }),
+    [range],
+  );
 
   const reload = async (
     nextPage?: number,
@@ -180,18 +212,18 @@ export function DashboardPage() {
     setLoading(true);
     try {
       const [overviewData, demandData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
-        fetchUdescOverview({ startDate: range[0], endDate: range[1] }),
-        fetchDemandOverview({ startDate: range[0], endDate: range[1] }),
+        fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchDemandOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchConsultationFunnel({
-          startDate: range[0],
-          endDate: range[1],
+          startDate: apiRange.startDateIso,
+          endDate: apiRange.endDateIso,
           granularity: funnelGranularity,
         }),
-        fetchUdescDailyAgentStats({ startDate: range[0], endDate: range[1] }),
-        fetchUdescTree({ startDate: range[0], endDate: range[1] }),
+        fetchUdescDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchUdescSessions({
-          startDate: range[0],
-          endDate: range[1],
+          startDate: apiRange.startDateIso,
+          endDate: apiRange.endDateIso,
           page: targetPage,
           pageSize: targetPageSize,
           agentIds:
@@ -240,10 +272,10 @@ export function DashboardPage() {
     setOpportunityLoading(true);
     try {
       const [summaryResp, listResp] = await Promise.all([
-        fetchOpportunitySummary({ startDate: range[0], endDate: range[1] }),
+        fetchOpportunitySummary({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchOpportunityList({
-          startDate: range[0],
-          endDate: range[1],
+          startDate: apiRange.startDateIso,
+          endDate: apiRange.endDateIso,
           status: opportunityStatusFilter,
           sourceType: opportunitySourceFilter,
           keyword: opportunityKeyword || undefined,
@@ -275,6 +307,52 @@ export function DashboardPage() {
     }
   };
 
+  const loadWecomEmployees = async () => {
+    setWecomEmployeesLoading(true);
+    try {
+      const data = await fetchWecomEmployees();
+      setWecomEmployees(data);
+    } catch {
+      message.error('加载企微人员信息失败');
+    } finally {
+      setWecomEmployeesLoading(false);
+    }
+  };
+
+  const loadZouwuStats = async () => {
+    setZouwuStatsLoading(true);
+    try {
+      const [data, config, runs] = await Promise.all([
+        fetchZouwuFeedbackStats({
+          start: apiRange.startDateLocal,
+          end: apiRange.endDateLocal,
+        }),
+        fetchZouwuSyncConfig(),
+        fetchSyncRuns(),
+      ]);
+      setZouwuStats(data);
+      setZouwuConfig(config);
+      setSyncRuns(runs);
+    } catch {
+      message.error('加载驺吾同步统计失败');
+    } finally {
+      setZouwuStatsLoading(false);
+    }
+  };
+
+  const saveZouwuConfig = async (payload: { enabled?: boolean; intervalHours?: number }) => {
+    setZouwuConfigLoading(true);
+    try {
+      const data = await updateZouwuSyncConfig(payload);
+      setZouwuConfig(data);
+      message.success('驺吾定时同步配置已更新');
+    } catch {
+      message.error('更新驺吾定时配置失败');
+    } finally {
+      setZouwuConfigLoading(false);
+    }
+  };
+
   const saveSyncConfig = async (payload: { enabled?: boolean; intervalHours?: number }) => {
     setSyncConfigLoading(true);
     try {
@@ -299,13 +377,13 @@ export function DashboardPage() {
 
   useEffect(() => {
     void reload();
-  }, [range[0], range[1], funnelGranularity]);
+  }, [apiRange.startDateIso, apiRange.endDateIso, funnelGranularity]);
 
   useEffect(() => {
     if (activeMenuKey === 'opportunity') {
       void loadOpportunities(1, opportunityPageSize);
     }
-  }, [range[0], range[1], activeMenuKey]);
+  }, [apiRange.startDateIso, apiRange.endDateIso, activeMenuKey]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -326,8 +404,15 @@ export function DashboardPage() {
     if (activeMenuKey === 'agents') {
       void loadAgents();
       void loadUdescAgentIds();
+      void loadWecomEmployees();
     }
   }, [activeMenuKey]);
+
+  useEffect(() => {
+    if (activeMenuKey === 'sync-zouwu') {
+      void loadZouwuStats();
+    }
+  }, [activeMenuKey, apiRange.startDateIso, apiRange.endDateIso]);
 
   const agentProfileMap = useMemo(() => {
     return new Map(agents.map((item) => [item.agentId, item]));
@@ -835,31 +920,157 @@ export function DashboardPage() {
     };
   }, [demandOverview]);
 
-  const demandTab = (
+  const demandMonthlyRows = useMemo(() => {
+    return (demandOverview?.monthlyRequirement ?? []).slice().reverse();
+  }, [demandOverview]);
+
+  const bugMonthlyRows = useMemo(() => {
+    return (demandOverview?.monthlyBug ?? []).slice().reverse();
+  }, [demandOverview]);
+
+  // 需求明细数据
+  const requirementList = useMemo(() => {
+    return (demandOverview?.recentRequirements ?? []).filter(
+      (r) => r.issueType !== 1
+    );
+  }, [demandOverview]);
+
+  // Bug明细数据
+  const bugList = useMemo(() => {
+    return (demandOverview?.recentRequirements ?? []).filter(
+      (r) => r.issueType === 1
+    );
+  }, [demandOverview]);
+
+  // 需求明细表格列定义（支持排序和筛选）
+  const requirementColumns = [
+    { 
+      title: 'ID', 
+      dataIndex: 'id', 
+      key: 'id',
+      sorter: (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id),
+    },
+    {
+      title: '标题',
+      dataIndex: 'title',
+      key: 'title',
+      sorter: (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title),
+      render: (title: string, record: { id: string }) => (
+        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+          {title}
+        </a>
+      ),
+    },
+    { 
+      title: '状态', 
+      dataIndex: 'status', 
+      key: 'status',
+      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({ text: s, value: s })),
+      onFilter: (value: unknown, record: { status: string }) => record.status === value,
+      sorter: (a: { status: string }, b: { status: string }) => a.status.localeCompare(b.status),
+    },
+    {
+      title: '来源会话',
+      dataIndex: 'sourceSessionId',
+      key: 'sourceSessionId',
+      render: (value?: string) => value ?? '-',
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAtSource',
+      key: 'createdAtSource',
+      sorter: (a: { createdAtSource: string }, b: { createdAtSource: string }) => 
+        new Date(a.createdAtSource).getTime() - new Date(b.createdAtSource).getTime(),
+      render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+    },
+    {
+      title: '完成时间',
+      dataIndex: 'completedAtSource',
+      key: 'completedAtSource',
+      sorter: (a: { completedAtSource?: string }, b: { completedAtSource?: string }) => {
+        const aTime = a.completedAtSource ? new Date(a.completedAtSource).getTime() : 0;
+        const bTime = b.completedAtSource ? new Date(b.completedAtSource).getTime() : 0;
+        return aTime - bTime;
+      },
+      render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+    },
+  ];
+
+  // Bug明细表格列定义
+  const bugColumns = [
+    { 
+      title: 'ID', 
+      dataIndex: 'id', 
+      key: 'id',
+      sorter: (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id),
+    },
+    {
+      title: '标题',
+      dataIndex: 'title',
+      key: 'title',
+      sorter: (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title),
+      render: (title: string, record: { id: string }) => (
+        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+          {title}
+        </a>
+      ),
+    },
+    { 
+      title: '状态', 
+      dataIndex: 'status', 
+      key: 'status',
+      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: s, value: s })),
+      onFilter: (value: unknown, record: { status: string }) => record.status === value,
+      sorter: (a: { status: string }, b: { status: string }) => a.status.localeCompare(b.status),
+    },
+    {
+      title: '来源会话',
+      dataIndex: 'sourceSessionId',
+      key: 'sourceSessionId',
+      render: (value?: string) => value ?? '-',
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAtSource',
+      key: 'createdAtSource',
+      sorter: (a: { createdAtSource: string }, b: { createdAtSource: string }) => 
+        new Date(a.createdAtSource).getTime() - new Date(b.createdAtSource).getTime(),
+      render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+    },
+    {
+      title: '完成时间',
+      dataIndex: 'completedAtSource',
+      key: 'completedAtSource',
+      sorter: (a: { completedAtSource?: string }, b: { completedAtSource?: string }) => {
+        const aTime = a.completedAtSource ? new Date(a.completedAtSource).getTime() : 0;
+        const bTime = b.completedAtSource ? new Date(b.completedAtSource).getTime() : 0;
+        return aTime - bTime;
+      },
+      render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+    },
+  ];
+
+  // 需求Tab内容
+  const requirementTabContent = (
     <>
       <Row gutter={16}>
-        <Col span={6}>
+        <Col span={8}>
           <Card style={{ height: 120 }}>
             <Statistic title="识别需求总数" value={demandOverview?.totalIdentifiedCount ?? 0} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card style={{ height: 120 }}>
             <Statistic title="已完成需求数" value={demandOverview?.completedCount ?? 0} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card style={{ height: 120 }}>
             <Statistic
               title="需求完成率"
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
             />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card style={{ height: 120 }}>
-            <Statistic title="识别 Bug 数" value={demandOverview?.bugCount ?? 0} />
           </Card>
         </Col>
       </Row>
@@ -872,12 +1083,18 @@ export function DashboardPage() {
         <Col span={8}>
           <Card title="需求状态分布">
             <Space direction="vertical" style={{ width: '100%' }}>
-              {Object.entries(demandOverview?.statusBreakdown ?? {}).map(([status, count]) => (
-                <Row key={status} justify="space-between">
-                  <Typography.Text>{status}</Typography.Text>
-                  <Typography.Text strong>{count}</Typography.Text>
-                </Row>
-              ))}
+              {Object.entries(demandOverview?.statusBreakdown ?? {})
+                .filter(([status]) => {
+                  // 只显示需求的状态（排除Bug状态）
+                  const reqStatuses = requirementList.map(r => r.status);
+                  return reqStatuses.includes(status);
+                })
+                .map(([status, count]) => (
+                  <Row key={status} justify="space-between">
+                    <Typography.Text>{status}</Typography.Text>
+                    <Typography.Text strong>{count}</Typography.Text>
+                  </Row>
+                ))}
               <Typography.Text type="secondary">
                 关联咨询会话需求数：{demandOverview?.linkedSessionCount ?? 0}
               </Typography.Text>
@@ -885,38 +1102,100 @@ export function DashboardPage() {
           </Card>
         </Col>
       </Row>
-      <Card title="最近需求 / Bug 明细" style={{ marginTop: 16 }}>
+      <Card title="需求明细" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={demandOverview?.recentRequirements ?? []}
+          dataSource={requirementList}
           size="small"
-          pagination={{ pageSize: 20 }}
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+          columns={requirementColumns}
+        />
+      </Card>
+      <Card title="按月需求完成率" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="month"
+          dataSource={demandMonthlyRows}
+          pagination={false}
+          size="small"
           columns={[
-            { title: 'ID', dataIndex: 'id', key: 'id' },
-            { title: '标题', dataIndex: 'title', key: 'title' },
-            { title: '状态', dataIndex: 'status', key: 'status' },
+            { title: '月份', dataIndex: 'month', key: 'month', sorter: true },
+            { title: '识别需求数', dataIndex: 'created', key: 'created', sorter: true },
+            { title: '完成需求数', dataIndex: 'completed', key: 'completed', sorter: true },
             {
-              title: '来源会话',
-              dataIndex: 'sourceSessionId',
-              key: 'sourceSessionId',
-              render: (value?: string) => value ?? '-',
-            },
-            {
-              title: '创建时间',
-              dataIndex: 'createdAtSource',
-              key: 'createdAtSource',
-              render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
-            },
-            {
-              title: '完成时间',
-              dataIndex: 'completedAtSource',
-              key: 'completedAtSource',
-              render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+              title: '完成率',
+              dataIndex: 'completionRate',
+              key: 'completionRate',
+              sorter: true,
+              render: (value: number) => `${(value * 100).toFixed(2)}%`,
             },
           ]}
         />
       </Card>
     </>
+  );
+
+  // Bug Tab内容
+  const bugTabContent = (
+    <>
+      <Row gutter={16}>
+        <Col span={8}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="识别 Bug 总数" value={demandOverview?.bugCount ?? 0} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card style={{ height: 120 }}>
+            <Statistic title="已完成 Bug 数" value={demandOverview?.bugCompletedCount ?? 0} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card style={{ height: 120 }}>
+            <Statistic
+              title="Bug 完成率"
+              value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
+              suffix="%"
+            />
+          </Card>
+        </Col>
+      </Row>
+      <Card title="Bug 明细" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="id"
+          dataSource={bugList}
+          size="small"
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+          columns={bugColumns}
+        />
+      </Card>
+      <Card title="按月 Bug 完成率" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="month"
+          dataSource={bugMonthlyRows}
+          pagination={false}
+          size="small"
+          columns={[
+            { title: '月份', dataIndex: 'month', key: 'month', sorter: true },
+            { title: '识别 Bug 数', dataIndex: 'created', key: 'created', sorter: true },
+            { title: '完成 Bug 数', dataIndex: 'completed', key: 'completed', sorter: true },
+            {
+              title: '完成率',
+              dataIndex: 'completionRate',
+              key: 'completionRate',
+              sorter: true,
+              render: (value: number) => `${(value * 100).toFixed(2)}%`,
+            },
+          ]}
+        />
+      </Card>
+    </>
+  );
+
+  // 需求主Tab（包含需求和Bug两个子Tab）
+  const demandTab = (
+    <Tabs defaultActiveKey="requirement" items={[
+      { key: 'requirement', label: '需求', children: requirementTabContent },
+      { key: 'bug', label: 'Bug', children: bugTabContent },
+    ]} />
   );
 
   const opportunityTab = (
@@ -1294,76 +1573,312 @@ export function DashboardPage() {
     </>
   );
 
-  const agentsTab = (
-    <Card
-      title="人员管理"
-      extra={
+  const zouwuSyncTab = (
+    <>
+      <Space style={{ marginBottom: 16 }}>
         <Button
           type="primary"
-          onClick={() => {
-            setEditingAgentId(null);
-            agentForm.resetFields();
-            agentForm.setFieldsValue({ enabled: true });
-                    void loadUdescAgentIds();
-            setAgentModalOpen(true);
+          loading={zouwuSyncLoading}
+          onClick={async () => {
+            setZouwuSyncLoading(true);
+            try {
+              const resp = await runZouwuSync();
+              if (resp.accepted) {
+                message.success('已触发驺吾同步任务（后台运行）');
+              } else {
+                message.warning('驺吾同步任务已在运行中');
+              }
+              await loadZouwuStats();
+              const runs = await fetchSyncRuns();
+              setSyncRuns(runs);
+            } finally {
+              setZouwuSyncLoading(false);
+            }
           }}
         >
-          新增人员
+          手动同步
         </Button>
-      }
-    >
-      <Table
-        rowKey="agentId"
-        loading={agentsLoading}
-        dataSource={agents}
-        columns={[
-          { title: '人员ID', dataIndex: 'agentId', key: 'agentId' },
-          { title: '姓名', dataIndex: 'displayName', key: 'displayName' },
-          { title: '团队', dataIndex: 'team', key: 'team' },
-          { title: '角色', dataIndex: 'role', key: 'role' },
+        <Button loading={zouwuStatsLoading} onClick={() => void loadZouwuStats()}>
+          刷新驺吾统计
+        </Button>
+      </Space>
+
+      <Card title="驺吾定时任务配置" style={{ marginBottom: 16 }}>
+        <Space>
+          <Typography.Text>开启定时同步</Typography.Text>
+          <Switch
+            checked={zouwuConfig?.enabled ?? true}
+            onChange={(checked) => {
+              void saveZouwuConfig({ enabled: checked });
+            }}
+            loading={zouwuConfigLoading}
+          />
+          <Typography.Text>周期（小时）</Typography.Text>
+          <InputNumber
+            min={1}
+            max={168}
+            value={zouwuConfig?.intervalHours ?? 1}
+            onChange={(value) => {
+              if (!value) {
+                return;
+              }
+              void saveZouwuConfig({ intervalHours: Number(value) });
+            }}
+            disabled={!zouwuConfig?.enabled}
+          />
+        </Space>
+      </Card>
+
+      <Card title="驺吾新增统计（按创建时间）" loading={zouwuStatsLoading}>
+        <Row gutter={12}>
+          <Col span={8}>
+            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
+          </Col>
+          <Col span={8}>
+            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
+          </Col>
+          <Col span={8}>
+            <Statistic title="长期演进标签ID" value={zouwuStats?.longTermLabelId ?? '-'} />
+          </Col>
+        </Row>
+        <Space direction="vertical" style={{ marginTop: 12 }}>
+          <Typography.Text type="secondary">
+            统计窗口：{zouwuStats?.startCreatedTime ?? '-'} ~ {zouwuStats?.endCreatedTime ?? '-'}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            标签：{zouwuStats?.longTermLabelName ?? '-'}
+          </Typography.Text>
+        </Space>
+      </Card>
+
+      <Card title="驺吾关单率" style={{ marginTop: 16 }} loading={zouwuStatsLoading}>
+        <Table
+          rowKey="scope"
+          pagination={false}
+          dataSource={zouwuStats?.closeRates ?? []}
+          columns={[
+            {
+              title: '口径',
+              dataIndex: 'scope',
+              key: 'scope',
+              render: (value: 'requirement' | 'bug' | 'all') =>
+                value === 'requirement' ? '功能需求' : value === 'bug' ? 'BUG反馈' : '总量',
+            },
+            { title: '总数', dataIndex: 'total', key: 'total' },
+            {
+              title: '排除（已采纳且长期演进）',
+              dataIndex: 'excludedByLongTermAccepted',
+              key: 'excludedByLongTermAccepted',
+            },
+            { title: '已拒绝+已闭环', dataIndex: 'closedOrRejected', key: 'closedOrRejected' },
+            { title: '分母', dataIndex: 'denominator', key: 'denominator' },
+            {
+              title: '关单率',
+              dataIndex: 'closeRate',
+              key: 'closeRate',
+              render: (value: number | null) => (value === null ? 'N/A' : `${(value * 100).toFixed(2)}%`),
+            },
+          ]}
+        />
+      </Card>
+
+      <Card title="驺吾历史同步记录" style={{ marginTop: 16 }}>
+        <Table
+          rowKey="id"
+          dataSource={syncRuns.filter((item) => item.source === 'zouwu')}
+          pagination={false}
+          size="small"
+          columns={[
+            {
+              title: '开始时间',
+              dataIndex: 'startedAt',
+              key: 'startedAt',
+              render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+            },
+            {
+              title: '结束时间',
+              dataIndex: 'finishedAt',
+              key: 'finishedAt',
+              render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+            },
+            { title: '状态', dataIndex: 'status', key: 'status' },
+            { title: '同步条数', dataIndex: 'recordsSynced', key: 'recordsSynced' },
+            { title: '说明', dataIndex: 'message', key: 'message', render: (value?: string) => value ?? '-' },
+          ]}
+        />
+      </Card>
+    </>
+  );
+
+  const agentsTab = (
+    <Card title="人员管理">
+      <Tabs
+        activeKey={agentsTabKey}
+        onChange={(key) => setAgentsTabKey(key as 'udesc' | 'wecom')}
+        items={[
           {
-            title: '启用',
-            dataIndex: 'enabled',
-            key: 'enabled',
-            render: (value: boolean) => (value ? '是' : '否'),
-          },
-          { title: '备注', dataIndex: 'remark', key: 'remark' },
-          {
-            title: '操作',
-            key: 'actions',
-            render: (_: unknown, record: AgentProfile) => (
-              <Space>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setEditingAgentId(record.agentId);
-                    agentForm.setFieldsValue({
-                      agentId: record.agentId,
-                      displayName: record.displayName,
-                      team: record.team,
-                      role: record.role,
-                      enabled: record.enabled,
-                      remark: record.remark,
-                    });
-                    void loadUdescAgentIds();
-                    setAgentModalOpen(true);
-                  }}
-                >
-                  编辑
-                </Button>
-                <Popconfirm
-                  title="确认删除该人员配置？"
-                  onConfirm={async () => {
-                    await deleteAgent(record.agentId);
-                    message.success('已删除');
-                    await loadAgents();
-                  }}
-                >
-                  <Button size="small" danger>
-                    删除
+            key: 'udesc',
+            label: 'Udesc 客服人员',
+            children: (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      setEditingAgentId(null);
+                      agentForm.resetFields();
+                      agentForm.setFieldsValue({ enabled: true });
+                      void loadUdescAgentIds();
+                      setAgentModalOpen(true);
+                    }}
+                  >
+                    新增人员
                   </Button>
-                </Popconfirm>
-              </Space>
+                </div>
+                <Table
+                  rowKey="agentId"
+                  loading={agentsLoading}
+                  dataSource={agents}
+                  columns={[
+                    { title: '人员ID', dataIndex: 'agentId', key: 'agentId' },
+                    { title: '姓名', dataIndex: 'displayName', key: 'displayName' },
+                    { title: '团队', dataIndex: 'team', key: 'team' },
+                    { title: '角色', dataIndex: 'role', key: 'role' },
+                    {
+                      title: '启用',
+                      dataIndex: 'enabled',
+                      key: 'enabled',
+                      render: (value: boolean) => (value ? '是' : '否'),
+                    },
+                    { title: '备注', dataIndex: 'remark', key: 'remark' },
+                    {
+                      title: '操作',
+                      key: 'actions',
+                      render: (_: unknown, record: AgentProfile) => (
+                        <Space>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setEditingAgentId(record.agentId);
+                              agentForm.setFieldsValue({
+                                agentId: record.agentId,
+                                displayName: record.displayName,
+                                team: record.team,
+                                role: record.role,
+                                enabled: record.enabled,
+                                remark: record.remark,
+                              });
+                              void loadUdescAgentIds();
+                              setAgentModalOpen(true);
+                            }}
+                          >
+                            编辑
+                          </Button>
+                          <Popconfirm
+                            title="确认删除该人员配置？"
+                            onConfirm={async () => {
+                              await deleteAgent(record.agentId);
+                              message.success('已删除');
+                              await loadAgents();
+                            }}
+                          >
+                            <Button size="small" danger>
+                              删除
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                      ),
+                    },
+                  ]}
+                />
+              </>
+            ),
+          },
+          {
+            key: 'wecom',
+            label: '企微人员',
+            children: (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      setEditingWecomUserId(null);
+                      wecomEmployeeForm.resetFields();
+                      wecomEmployeeForm.setFieldsValue({ enabled: true, isCustomerService: false });
+                      setWecomEmployeeModalOpen(true);
+                    }}
+                  >
+                    新增企微人员
+                  </Button>
+                </div>
+                <Table
+                  rowKey="userId"
+                  loading={wecomEmployeesLoading}
+                  dataSource={wecomEmployees}
+                  columns={[
+                    { title: '用户ID', dataIndex: 'userId', key: 'userId' },
+                    { title: '姓名', dataIndex: 'name', key: 'name' },
+                    { title: '部门', dataIndex: 'department', key: 'department' },
+                    { title: '职位', dataIndex: 'position', key: 'position' },
+                    { title: '手机', dataIndex: 'mobile', key: 'mobile' },
+                    { title: '邮箱', dataIndex: 'email', key: 'email' },
+                    {
+                      title: '启用',
+                      dataIndex: 'enabled',
+                      key: 'enabled',
+                      render: (value: boolean) => (value ? '是' : '否'),
+                    },
+                    {
+                      title: '客服',
+                      dataIndex: 'isCustomerService',
+                      key: 'isCustomerService',
+                      render: (value: boolean) => (value ? '是' : '否'),
+                    },
+                    { title: '备注', dataIndex: 'remark', key: 'remark' },
+                    {
+                      title: '操作',
+                      key: 'actions',
+                      render: (_: unknown, record: WecomEmployee) => (
+                        <Space>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setEditingWecomUserId(record.userId);
+                              wecomEmployeeForm.setFieldsValue({
+                                userId: record.userId,
+                                name: record.name,
+                                department: record.department,
+                                position: record.position,
+                                mobile: record.mobile,
+                                email: record.email,
+                                enabled: record.enabled,
+                                isCustomerService: record.isCustomerService,
+                                remark: record.remark,
+                              });
+                              setWecomEmployeeModalOpen(true);
+                            }}
+                          >
+                            编辑
+                          </Button>
+                          <Popconfirm
+                            title="确认删除该企微人员？"
+                            onConfirm={async () => {
+                              await deleteWecomEmployee(record.userId);
+                              message.success('已删除');
+                              await loadWecomEmployees();
+                            }}
+                          >
+                            <Button size="small" danger>
+                              删除
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                      ),
+                    },
+                  ]}
+                />
+              </>
             ),
           },
         ]}
@@ -1372,54 +1887,31 @@ export function DashboardPage() {
   );
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Layout.Sider width={220} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
-        <div style={{ padding: '16px 16px 8px 16px' }}>
-          <Typography.Title level={5} style={{ margin: 0 }}>
-            客服运营后台
-          </Typography.Title>
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[activeMenuKey]}
-          onClick={(e) =>
-            setActiveMenuKey(e.key as 'satisfaction' | 'demand' | 'opportunity' | 'sync' | 'agents')
-          }
-          items={[
-            { key: 'satisfaction', label: '用户满意度' },
-            { key: 'demand', label: '需求完成率' },
-            { key: 'opportunity', label: '商机管理' },
-            { key: 'sync', label: '数据同步' },
-            { key: 'agents', label: '人员管理' },
-          ]}
-        />
-      </Layout.Sider>
-
-      <Layout.Content style={{ padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography.Title level={3} style={{ marginBottom: 0 }}>
-            GitCode 客服运营看板
-          </Typography.Title>
-          {!disableAuth && (
-            <Space>
-              <Typography.Text type="secondary">
-                {loginUser?.realname ? `当前登录：${loginUser.realname}` : '当前登录'}
-              </Typography.Text>
-              <Button
-                onClick={() => {
-                  clearSession();
-                  window.location.href = '/login';
-                }}
-              >
-                退出登录
-              </Button>
-            </Space>
-          )}
-        </div>
+    <div style={{ padding: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography.Title level={3} style={{ marginBottom: 0 }}>
+          GitCode 客服运营看板
+        </Typography.Title>
+        {!disableAuth && (
+          <Space>
+            <Typography.Text type="secondary">
+              {loginUser?.realname ? `当前登录：${loginUser.realname}` : '当前登录'}
+            </Typography.Text>
+            <Button
+              onClick={() => {
+                clearSession();
+                window.location.href = '/login';
+              }}
+            >
+              退出登录
+            </Button>
+          </Space>
+        )}
+      </div>
         <Space style={{ marginBottom: 16 }}>
           <RangePicker
             format="YYYY-MM-DD"
-            value={[dayjs(range[0]), dayjs(range[1])]}
+            value={range}
             presets={quickRangePresets}
             allowClear={false}
             onChange={(value) => {
@@ -1427,13 +1919,17 @@ export function DashboardPage() {
                 return;
               }
               setPage(1);
-              setRange([value[0].startOf('day').toISOString(), value[1].endOf('day').toISOString()]);
+              setRange([value[0].startOf('day'), value[1].endOf('day')]);
             }}
           />
           <Button
             onClick={() => {
               if (activeMenuKey === 'opportunity') {
                 void loadOpportunities(1, opportunityPageSize);
+                return;
+              }
+              if (activeMenuKey === 'sync-zouwu') {
+                void loadZouwuStats();
                 return;
               }
               void reload();
@@ -1454,7 +1950,8 @@ export function DashboardPage() {
         {!loading && overview && activeMenuKey === 'satisfaction' && satisfactionTab}
         {!loading && demandOverview && activeMenuKey === 'demand' && demandTab}
         {activeMenuKey === 'opportunity' && opportunityTab}
-        {activeMenuKey === 'sync' && syncTab}
+        {activeMenuKey === 'sync-udesc' && syncTab}
+        {activeMenuKey === 'sync-zouwu' && zouwuSyncTab}
         {activeMenuKey === 'agents' && agentsTab}
 
         <Modal
@@ -1496,6 +1993,57 @@ export function DashboardPage() {
               <Input />
             </Form.Item>
             <Form.Item name="enabled" label="启用" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="remark" label="备注">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title={editingWecomUserId ? '编辑企微人员' : '新增企微人员'}
+          open={wecomEmployeeModalOpen}
+          confirmLoading={savingWecomEmployee}
+          onCancel={() => setWecomEmployeeModalOpen(false)}
+          onOk={async () => {
+            const values = await wecomEmployeeForm.validateFields();
+            setSavingWecomEmployee(true);
+            try {
+              await upsertWecomEmployee(values);
+              message.success('保存成功');
+              setWecomEmployeeModalOpen(false);
+              await loadWecomEmployees();
+            } catch {
+              message.error('保存失败');
+            } finally {
+              setSavingWecomEmployee(false);
+            }
+          }}
+        >
+          <Form form={wecomEmployeeForm} layout="vertical">
+            <Form.Item name="userId" label="用户ID" rules={[{ required: true, message: '请输入用户ID' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="name" label="姓名">
+              <Input />
+            </Form.Item>
+            <Form.Item name="department" label="部门">
+              <Input />
+            </Form.Item>
+            <Form.Item name="position" label="职位">
+              <Input />
+            </Form.Item>
+            <Form.Item name="mobile" label="手机">
+              <Input />
+            </Form.Item>
+            <Form.Item name="email" label="邮箱">
+              <Input />
+            </Form.Item>
+            <Form.Item name="enabled" label="启用" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="isCustomerService" label="是否客服" valuePropName="checked">
               <Switch />
             </Form.Item>
             <Form.Item name="remark" label="备注">
@@ -1580,7 +2128,6 @@ export function DashboardPage() {
             </Form.Item>
           </Form>
         </Modal>
-      </Layout.Content>
-    </Layout>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { SyncService } from './sync.service';
-import { Body } from '@nestjs/common';
+import { ZouwuFeedbackStatisticsQueryDto } from './sync.dto';
 
 @Controller('sync')
 export class SyncController {
@@ -13,6 +13,11 @@ export class SyncController {
   @Post('run')
   run() {
     return this.syncService.triggerUdescSync();
+  }
+
+  @Post('zouwu/run')
+  runZouwu() {
+    return this.syncService.triggerZouwuSync();
   }
 
   @Get('runs')
@@ -54,6 +59,21 @@ export class SyncController {
   @Post('config')
   updateConfig(@Body() payload: { enabled?: boolean; intervalHours?: number }) {
     return this.syncService.updateSyncConfig('udesc', payload);
+  }
+
+  @Get('zouwu/config')
+  getZouwuConfig() {
+    return this.syncService.getSyncConfig('zouwu');
+  }
+
+  @Post('zouwu/config')
+  updateZouwuConfig(@Body() payload: { enabled?: boolean; intervalHours?: number }) {
+    return this.syncService.updateSyncConfig('zouwu', payload);
+  }
+
+  @Get('zouwu/feedback-stats')
+  getZouwuFeedbackStats(@Query() query: ZouwuFeedbackStatisticsQueryDto) {
+    return this.syncService.getZouwuFeedbackStatistics(query);
   }
 
   @Post('udesc/reset')

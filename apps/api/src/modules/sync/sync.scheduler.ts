@@ -20,5 +20,16 @@ export class SyncScheduler {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(`scheduled udesc sync failed: ${message}`);
     }
+
+    this.logger.log('check scheduled zouwu sync');
+    try {
+      const result = await this.syncService.triggerScheduledZouwuSync();
+      if (result.accepted) {
+        this.logger.log('scheduled zouwu sync triggered');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      this.logger.error(`scheduled zouwu sync failed: ${message}`);
+    }
   }
 }

@@ -10,7 +10,9 @@ import type {
   UdescOverview,
   UdescSessionListResp,
   UdescTreeNode,
+  ZouwuFeedbackStatistics,
 } from '../types/udesc';
+import type { WecomEmployee } from '../types/udesc';
 
 export async function fetchUdescOverview(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<UdescOverview>('/udesc/overview', { params });
@@ -41,6 +43,11 @@ export async function fetchUdescSessions(params: {
 
 export async function runSync() {
   const resp = await apiClient.post<{ accepted: boolean }>('/sync/run');
+  return resp.data;
+}
+
+export async function runZouwuSync() {
+  const resp = await apiClient.post<{ accepted: boolean; reason?: string }>('/sync/zouwu/run');
   return resp.data;
 }
 
@@ -79,6 +86,25 @@ export async function updateSyncConfig(payload: { enabled?: boolean; intervalHou
   return resp.data;
 }
 
+export async function fetchZouwuSyncConfig() {
+  const resp = await apiClient.get<SyncConfig>('/sync/zouwu/config');
+  return resp.data;
+}
+
+export async function updateZouwuSyncConfig(payload: { enabled?: boolean; intervalHours?: number }) {
+  const resp = await apiClient.post<SyncConfig>('/sync/zouwu/config', payload);
+  return resp.data;
+}
+
+export async function fetchZouwuFeedbackStats(params: {
+  start?: string;
+  end?: string;
+  token?: string;
+}) {
+  const resp = await apiClient.get<ZouwuFeedbackStatistics>('/sync/zouwu/feedback-stats', { params });
+  return resp.data;
+}
+
 export async function fetchAgents() {
   const resp = await apiClient.get<AgentProfile[]>('/agents');
   return resp.data;
@@ -103,6 +129,32 @@ export async function upsertAgent(payload: {
 
 export async function deleteAgent(agentId: string) {
   const resp = await apiClient.delete(`/agents/${encodeURIComponent(agentId)}`);
+  return resp.data;
+}
+
+export async function fetchWecomEmployees() {
+  const resp = await apiClient.get<WecomEmployee[]>('/wecom-employee');
+  return resp.data;
+}
+
+export async function upsertWecomEmployee(payload: {
+  userId: string;
+  name?: string;
+  department?: string;
+  position?: string;
+  mobile?: string;
+  email?: string;
+  avatar?: string;
+  enabled?: boolean;
+  isCustomerService?: boolean;
+  remark?: string;
+}) {
+  const resp = await apiClient.post<WecomEmployee>('/wecom-employee/upsert', payload);
+  return resp.data;
+}
+
+export async function deleteWecomEmployee(userId: string) {
+  const resp = await apiClient.delete(`/wecom-employee/${encodeURIComponent(userId)}`);
   return resp.data;
 }
 

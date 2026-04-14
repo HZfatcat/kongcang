@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { createHmac } from 'crypto';
-import { AgentsService } from '../agents/agents.service';
+import { PrismaService } from '../../common/prisma.service';
 
 type CorpType = 'corp' | 'csdn';
 
@@ -38,7 +38,7 @@ export class AuthService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly agentsService: AgentsService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async wxLogin(payload: {
@@ -54,19 +54,21 @@ export class AuthService {
       throw new UnauthorizedException('未获取到企业微信用户标识');
     }
 
-    const agents = await this.agentsService.list();
-    const matchedAgent = agents.find((agent) => agent.agentId === userId && agent.enabled);
-    if (!matchedAgent) {
+    // 从 WecomEmployee 表验证登录权限
+    const employee = await this.prisma.wecomEmployee.findUnique({
+      where: { userId },
+    });
+    if (!employee || !employee.enabled) {
       throw new UnauthorizedException('当前企微账号未开通系统权限');
     }
 
     const user = {
-      id: matchedAgent.agentId,
+      id: employee.userId,
       corpWxUserId: userId,
-      realname: matchedAgent.displayName,
-      avatar: '',
+      realname: employee.name ?? userId,
+      avatar: employee.avatar ?? '',
       token: this.signToken({
-        id: matchedAgent.agentId,
+        id: employee.userId,
         corpWxUserId: userId,
         corp,
       }),
