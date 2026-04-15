@@ -1,21 +1,22 @@
-FROM node:22-alpine AS builder
+# 使用 Debian 基础镜像，Prisma 原生支持，无需额外配置
+FROM node:22-slim AS builder
 WORKDIR /app
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-    apk add --no-cache openssl-dev
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./
 COPY apps/api/package.json ./apps/api/package.json
-RUN npm install
+RUN npm ci
 
 COPY . .
 RUN npm run prisma:generate --workspace apps/api
 RUN npm run build --workspace apps/api
 
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-    apk add --no-cache openssl3
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
