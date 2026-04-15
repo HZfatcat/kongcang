@@ -488,7 +488,7 @@ export class SyncService {
     }
   }
 
-  async syncZouwu() {
+  async syncZouwu(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {
     if (this.zouwuRunning) {
       throw new Error('zouwu sync is already running');
     }
@@ -497,12 +497,16 @@ export class SyncService {
     let recordsSynced = 0;
 
     try {
-      const checkpoint = await this.prisma.syncCheckpoint.findUnique({
+      // 如果指定了日期范围，使用指定范围；否则使用 checkpoint 增量同步
+      const checkpoint = options?.resetCursor ? null : await this.prisma.syncCheckpoint.findUnique({
         where: { source: 'zouwu' },
       });
-      const { start, end } = this.buildDateRange();
       const pageSize = Number(process.env.ZOUWU_SYNC_PAGE_SIZE ?? 100);
-      let cursor = checkpoint?.cursor ?? undefined;
+      
+      const start = options?.startDate ?? (checkpoint?.lastSyncedAt ? new Date(checkpoint.lastSyncedAt) : this.buildDateRange().start);
+      const end = options?.endDate ?? new Date();
+      
+      let cursor = options?.resetCursor ? undefined : (checkpoint?.cursor ?? undefined);
       let hasMore = true;
 
       while (hasMore) {
@@ -770,7 +774,7 @@ export class SyncService {
     };
   }
 
-  triggerZouwuSync() {
+  triggerZouwuSync(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {
     if (this.zouwuRunning) {
       return {
         accepted: false,
@@ -778,13 +782,15 @@ export class SyncService {
       };
     }
 
-    void this.syncZouwu().catch((error) => {
+    void this.syncZouwu(options).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`triggered zouwu sync failed: ${message}`);
     });
 
     return {
       accepted: true,
+      startDate: options?.startDate?.toISOString(),
+      endDate: options?.endDate?.toISOString(),
     };
   }
 

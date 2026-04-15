@@ -46,8 +46,8 @@ export async function runSync() {
   return resp.data;
 }
 
-export async function runZouwuSync() {
-  const resp = await apiClient.post<{ accepted: boolean; reason?: string }>('/sync/zouwu/run');
+export async function runZouwuSync(options?: { startDate?: string; endDate?: string; resetCursor?: boolean }) {
+  const resp = await apiClient.post<{ accepted: boolean; reason?: string; startDate?: string; endDate?: string }>('/sync/zouwu/run', options);
   return resp.data;
 }
 

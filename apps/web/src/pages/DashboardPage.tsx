@@ -1582,9 +1582,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           onClick={async () => {
             setZouwuSyncLoading(true);
             try {
-              const resp = await runZouwuSync();
+              const resp = await runZouwuSync({
+                startDate: apiRange.startDateIso,
+                endDate: apiRange.endDateIso,
+                resetCursor: true,
+              });
               if (resp.accepted) {
-                message.success('已触发驺吾同步任务（后台运行）');
+                message.success(`已触发驺吾同步任务（${resp.startDate?.slice(0, 10)} ~ ${resp.endDate?.slice(0, 10)}）`);
               } else {
                 message.warning('驺吾同步任务已在运行中');
               }

@@ -16,8 +16,13 @@ export class SyncController {
   }
 
   @Post('zouwu/run')
-  runZouwu() {
-    return this.syncService.triggerZouwuSync();
+  runZouwu(@Body() body?: { startDate?: string; endDate?: string; resetCursor?: boolean }) {
+    const options = body?.startDate || body?.endDate || body?.resetCursor ? {
+      startDate: body.startDate ? new Date(body.startDate) : undefined,
+      endDate: body.endDate ? new Date(body.endDate) : undefined,
+      resetCursor: body.resetCursor,
+    } : undefined;
+    return this.syncService.triggerZouwuSync(options);
   }
 
   @Get('runs')
