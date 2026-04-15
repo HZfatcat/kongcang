@@ -274,6 +274,7 @@ export class ZouwuClient implements OnModuleInit {
       id: this.pickString(item, ['id']) ?? '',
       title: this.pickString(item, ['title', 'subject', 'name']) ?? '',
       sourceSessionId: this.pickString(item, ['sessionId', 'sourceSessionId', 'source_session_id']),
+      issueType: typeof item.issueType === 'number' ? item.issueType : (typeof item.issue_type === 'number' ? item.issue_type : (typeof item.type === 'number' ? item.type : undefined)),
       status: this.mapStatus(item.status),
       createdAt: this.pickString(item, ['createdTime', 'createTime', 'created_at']) ?? new Date().toISOString(),
       completedAt: this.pickString(item, ['closedTime', 'endTime', 'closed_at', 'doneTime']),

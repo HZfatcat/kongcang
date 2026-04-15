@@ -23,6 +23,7 @@ export interface ZouwuRequirementRecord {
   id: string;
   title: string;
   sourceSessionId?: string;
+  issueType?: number;
   status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CLOSED' | 'REJECTED';
   createdAt: string;
   completedAt?: string;

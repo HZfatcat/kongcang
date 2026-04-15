@@ -526,6 +526,7 @@ export class SyncService {
                   id: record.id,
                   title: record.title,
                   sourceSessionId: record.sourceSessionId,
+                  issueType: record.issueType,
                   status: RequirementStatus[record.status],
                   createdAtSource: new Date(record.createdAt),
                   completedAtSource: record.completedAt ? new Date(record.completedAt) : null,
@@ -535,6 +536,7 @@ export class SyncService {
                 update: {
                   title: record.title,
                   sourceSessionId: record.sourceSessionId,
+                  issueType: record.issueType,
                   status: RequirementStatus[record.status],
                   createdAtSource: new Date(record.createdAt),
                   completedAtSource: record.completedAt ? new Date(record.completedAt) : null,
