@@ -47,6 +47,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - '3000:3000'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
       interval: 30s
@@ -67,6 +69,8 @@ services:
         VITE_DISABLE_AUTH: ${VITE_DISABLE_AUTH:-false}
     container_name: kefu-web
     restart: always
+    ports:
+      - '8080:80'
     depends_on:
       api:
         condition: service_healthy
