@@ -206,11 +206,11 @@ export class KpiService {
     const recentRequirements = await this.prisma.zouwuRequirement.findMany({
       where: baseWhere,
       orderBy: [{ updatedAtSource: 'desc' }, { createdAtSource: 'desc' }],
-      take: 50,
       select: {
         id: true,
         title: true,
         status: true,
+        issueType: true,
         sourceSessionId: true,
         createdAtSource: true,
         completedAtSource: true,
