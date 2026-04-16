@@ -7,7 +7,15 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace apps/api & npm run dev --workspace apps/web",
+    "dev": "cp .env.dev-local .env && npm run dev:api & npm run dev:web",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:docker": "cp .env.dev-docker .env && docker compose -f docker-compose.dev.yml up -d",
+    "dev:docker:down": "docker compose -f docker-compose.dev.yml down",
+    "dev:docker:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "prod": "cp .env.example-pro .env && docker compose -f docker-compose.prod.yml up -d",
+    "prod:down": "docker compose -f docker-compose.prod.yml down",
+    "prod:logs": "docker compose -f docker-compose.prod.yml logs -f",
     "build": "npm run build --workspace apps/api && npm run build --workspace apps/web",
     "start": "npm run start --workspace apps/api",
     "test": "npm run test --workspace apps/api",

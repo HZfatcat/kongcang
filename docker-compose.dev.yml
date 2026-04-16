@@ -1,0 +1,89 @@
+# ===========================================
+# 开发环境 Docker Compose 配置
+# ===========================================
+# 使用方式:
+#   docker compose -f docker-compose.dev.yml up -d
+# 
+# 访问地址:
+#   - Web: http://localhost:8080
+#   - API: http://localhost:3000
+#   - PostgreSQL: localhost:5432
+#   - Redis: localhost:6379
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kefu-postgres-dev
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kefumonitor}
+      POSTGRES_USER: ${POSTGRES_USER:-kefu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kefu_pass}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kefu} -d ${POSTGRES_DB:-kefumonitor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: kefu-redis-dev
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: kefu-api-dev
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://kefu:kefu_pass@postgres:5432/kefumonitor?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+      NODE_ENV: development
+      CORS_ORIGIN: http://localhost:8080,http://localhost:5801
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_WECOM_APPID: ${VITE_WECOM_APPID}
+        VITE_WECOM_AGENTID: ${VITE_WECOM_AGENTID}
+        VITE_WECOM_CSDN_APPID: ${VITE_WECOM_CSDN_APPID}
+        VITE_WECOM_CSDN_AGENTID: ${VITE_WECOM_CSDN_AGENTID}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api/v1}
+        VITE_DISABLE_AUTH: ${VITE_DISABLE_AUTH:-true}
+    container_name: kefu-web-dev
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '8080:80'
+
+volumes:
+  postgres_dev_data:
