@@ -1718,7 +1718,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         items={[
           {
             key: 'udesc',
-            label: 'Udesc 客服人员',
+            label: 'Udesk 客服人员',
             children: (
               <>
                 <div style={{ marginBottom: 16 }}>
