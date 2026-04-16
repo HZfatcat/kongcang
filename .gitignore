@@ -11,3 +11,4 @@ apps/api/prisma/dev.db
 .DS_Store
 datalog/
 .atomcode/
+.cursor/
