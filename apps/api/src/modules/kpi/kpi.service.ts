@@ -212,6 +212,8 @@ export class KpiService {
         status: true,
         issueType: true,
         sourceSessionId: true,
+        createdById: true,
+        createdByName: true,
         createdAtSource: true,
         completedAtSource: true,
         updatedAtSource: true,

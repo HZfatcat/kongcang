@@ -43,6 +43,8 @@ export interface DemandOverview {
     status: string;
     issueType?: number;
     sourceSessionId?: string | null;
+    createdById?: string | null;
+    createdByName?: string | null;
     createdAtSource: string;
     completedAtSource?: string;
   }>;

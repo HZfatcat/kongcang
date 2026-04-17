@@ -12,6 +12,8 @@ interface RequirementRow {
   status: string;
   issueType?: number;
   sourceSessionId?: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
   createdAtSource: string;
   completedAtSource?: string;
 }
@@ -77,6 +79,13 @@ export function RequirementDetailPage() {
       key: 'sourceSessionId',
       render: (value?: string | null) => value ?? '-',
       width: 120,
+    },
+    {
+      title: '创建人',
+      dataIndex: 'createdByName',
+      key: 'createdByName',
+      render: (value?: string | null) => value ?? '-',
+      width: 100,
     },
     {
       title: '创建时间',
