@@ -21,6 +21,7 @@ interface RecentRequirement {
   title: string;
   status: string;
   issueType?: number;
+  createdByName?: string | null;
   createdAtSource: string;
 }
 
@@ -170,6 +171,13 @@ export function DemandSummaryPage() {
       key: 'status', 
       width: 100,
       sorter: (a: RecentRequirement, b: RecentRequirement) => a.status.localeCompare(b.status),
+    },
+    { 
+      title: '创建人', 
+      dataIndex: 'createdByName', 
+      key: 'createdByName', 
+      width: 100,
+      render: (value?: string | null) => value ?? '-',
     },
     { 
       title: '创建时间', 

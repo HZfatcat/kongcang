@@ -976,6 +976,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       render: (value?: string) => value ?? '-',
     },
     {
+      title: '创建人',
+      dataIndex: 'createdByName',
+      key: 'createdByName',
+      render: (value?: string) => value ?? '-',
+    },
+    {
       title: '创建时间',
       dataIndex: 'createdAtSource',
       key: 'createdAtSource',
@@ -1027,6 +1033,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       title: '来源会话',
       dataIndex: 'sourceSessionId',
       key: 'sourceSessionId',
+      render: (value?: string) => value ?? '-',
+    },
+    {
+      title: '创建人',
+      dataIndex: 'createdByName',
+      key: 'createdByName',
       render: (value?: string) => value ?? '-',
     },
     {
