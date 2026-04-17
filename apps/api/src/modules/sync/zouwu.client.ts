@@ -67,9 +67,20 @@ export class ZouwuClient implements OnModuleInit {
   }
 
   private formatZouwuDate(isoString: string): string {
+    // 驺吾 API 需要北京时间 (UTC+8)，将传入的 ISO 时间 +8 小时
     const d = new Date(isoString);
+    // 加 8 小时转成北京时间
+    const beijingTime = new Date(d.getTime() + 8 * 60 * 60 * 1000);
     const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${beijingTime.getFullYear()}-${pad(beijingTime.getMonth() + 1)}-${pad(beijingTime.getDate())} ${pad(beijingTime.getHours())}:${pad(beijingTime.getMinutes())}:${pad(beijingTime.getSeconds())}`;
+  }
+
+  private parseZouwuDateTime(dateTimeStr: string | undefined): string | undefined {
+    // 驺吾返回的时间是北京时间字符串 "2024-01-01 12:00:00"，需转成 ISO (UTC)
+    if (!dateTimeStr) return undefined;
+    // 驺吾返回的时间是北京时间，需要 -8 小时转成 UTC
+    const d = new Date(dateTimeStr.replace(' ', 'T') + '+08:00');
+    return d.toISOString();
   }
 
   private async requestWithNetworkFallback(
@@ -270,17 +281,34 @@ export class ZouwuClient implements OnModuleInit {
       endCreatedTime: this.formatZouwuDate(params.endDate),
     });
 
-    const records: ZouwuRequirementRecord[] = result.rows.map((item) => ({
-      id: this.pickString(item, ['id']) ?? '',
-      title: this.pickString(item, ['title', 'subject', 'name']) ?? '',
-      sourceSessionId: this.pickString(item, ['sessionId', 'sourceSessionId', 'source_session_id']),
-      issueType: typeof item.issueType === 'number' ? item.issueType : (typeof item.issue_type === 'number' ? item.issue_type : (typeof item.type === 'number' ? item.type : undefined)),
-      status: this.mapStatus(item.status),
-      createdAt: this.pickString(item, ['createdTime', 'createTime', 'created_at']) ?? new Date().toISOString(),
-      completedAt: this.pickString(item, ['closedTime', 'endTime', 'closed_at', 'doneTime']),
-      updatedAt: this.pickString(item, ['updatedTime', 'updateTime', 'updated_at']),
-      rawPayload: item,
-    }));
+    const records: ZouwuRequirementRecord[] = result.rows.map((item) => {
+      // 解析创建人信息
+      const creatorObj = item.creator || item.createUser || item.createdBy || item.owner;
+      let createdById: string | undefined;
+      let createdByName: string | undefined;
+      if (creatorObj && typeof creatorObj === 'object') {
+        const creator = creatorObj as Record<string, unknown>;
+        createdById = this.pickString(creator, ['id', 'userId', 'uid']);
+        createdByName = this.pickString(creator, ['name', 'nickname', 'displayName', 'userName']);
+      } else if (typeof item.creatorId === 'string' || typeof item.creator_id === 'string') {
+        createdById = this.pickString(item, ['creatorId', 'creator_id']);
+        createdByName = this.pickString(item, ['creatorName', 'creator_name']);
+      }
+
+      return {
+        id: this.pickString(item, ['id']) ?? '',
+        title: this.pickString(item, ['title', 'subject', 'name']) ?? '',
+        sourceSessionId: this.pickString(item, ['sessionId', 'sourceSessionId', 'source_session_id']),
+        issueType: typeof item.issueType === 'number' ? item.issueType : (typeof item.issue_type === 'number' ? item.issue_type : (typeof item.type === 'number' ? item.type : undefined)),
+        status: this.mapStatus(item.status),
+        createdById,
+        createdByName,
+        createdAt: this.parseZouwuDateTime(this.pickString(item, ['createdTime', 'createTime', 'created_at'])) ?? new Date().toISOString(),
+        completedAt: this.parseZouwuDateTime(this.pickString(item, ['closedTime', 'endTime', 'closed_at', 'doneTime'])),
+        updatedAt: this.parseZouwuDateTime(this.pickString(item, ['updatedTime', 'updateTime', 'updated_at'])),
+        rawPayload: item,
+      };
+    });
 
     const hasMore = page * params.pageSize < result.total;
     const nextCursor = hasMore ? String(page + 1) : undefined;

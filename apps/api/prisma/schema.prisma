@@ -91,6 +91,8 @@ model ZouwuRequirement {
   sourceSessionId     String?
   status              RequirementStatus
   issueType           Int?              // 0=需求, 1=Bug
+  createdById         String?           // 创建人ID
+  createdByName       String?           // 创建人姓名
   createdAtSource     DateTime
   completedAtSource   DateTime?
   updatedAtSource     DateTime?
@@ -102,6 +104,7 @@ model ZouwuRequirement {
   @@index([status])
   @@index([sourceSessionId])
   @@index([issueType])
+  @@index([createdById])
 }
 
 model SyncCheckpoint {
