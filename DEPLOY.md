@@ -45,17 +45,53 @@ npm run dev:docker:down
 
 ### 3. 生产环境 - Docker 部署
 
-**启动命令：**
+#### 3.1 首次部署
+
 ```bash
-# 复制配置文件并启动 Docker
+# 克隆代码
+git clone https://gitcode.com/GitCodeKefu/kefumonitor.git
+cd kefumonitor
+
+# 复制生产环境配置
+cp .env.example-pro .env
+
+# 启动生产服务（自动构建镜像并启动）
 npm run prod
-
-# 查看日志
-npm run prod:logs
-
-# 停止服务
-npm run prod:down
 ```
+
+#### 3.2 常用命令
+
+| 命令 | 说明 |
+|------|------|
+| `npm run prod` | 启动生产环境 |
+| `npm run prod:logs` | 查看日志 |
+| `npm run prod:down` | 停止服务 |
+
+#### 3.3 更新部署
+
+```bash
+# 拉取最新代码
+git pull
+
+# 重新构建并启动
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+#### 3.4 服务地址
+
+| 服务 | 地址 |
+|------|------|
+| Web | https://kefumonitor.gitcode.com |
+| API | https://kefumonitor.gitcode.com/api/v1 |
+
+#### 3.5 Docker 容器
+
+| 容器 | 名称 | 说明 |
+|------|------|------|
+| postgres | kefu-postgres | PostgreSQL 数据库 |
+| redis | kefu-redis | Redis 缓存 |
+| api | kefu-api | 后端 API 服务 |
+| web | kefu-web | 前端 Web 服务 |
 
 **访问地址：**
 - Web: https://kefumonitor.gitcode.com
