@@ -12,6 +12,8 @@ interface BugRow {
   status: string;
   issueType?: number;
   sourceSessionId?: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
   createdAtSource: string;
   completedAtSource?: string;
 }
@@ -47,7 +49,7 @@ export function BugDetailPage() {
       ellipsis: true,
       width: 300,
       render: (title: string, record: BugRow) => (
-        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+        <a href={`https://zouwu.gitcode.com/feedback/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
           {title}
         </a>
       ),
@@ -77,6 +79,13 @@ export function BugDetailPage() {
       key: 'sourceSessionId',
       render: (value?: string | null) => value ?? '-',
       width: 120,
+    },
+    {
+      title: '创建人',
+      dataIndex: 'createdByName',
+      key: 'createdByName',
+      render: (value?: string | null) => value ?? '-',
+      width: 100,
     },
     {
       title: '创建时间',

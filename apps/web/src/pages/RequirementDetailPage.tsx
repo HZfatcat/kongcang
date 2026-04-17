@@ -49,7 +49,7 @@ export function RequirementDetailPage() {
       ellipsis: true,
       width: 300,
       render: (title: string, record: RequirementRow) => (
-        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+        <a href={`https://zouwu.gitcode.com/feedback/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
           {title}
         </a>
       ),

@@ -159,7 +159,7 @@ export function DemandSummaryPage() {
       ellipsis: true,
       sorter: (a: RecentRequirement, b: RecentRequirement) => a.title.localeCompare(b.title),
       render: (title: string, record: RecentRequirement) => (
-        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+        <a href={`https://zouwu.gitcode.com/feedback/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
           {title}
         </a>
       ),

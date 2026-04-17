@@ -956,7 +956,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       key: 'title',
       sorter: (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title),
       render: (title: string, record: { id: string }) => (
-        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+        <a href={`https://zouwu.gitcode.com/feedback/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
           {title}
         </a>
       ),
@@ -1010,7 +1010,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       key: 'title',
       sorter: (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title),
       render: (title: string, record: { id: string }) => (
-        <a href={`https://zouwu.gitcode.com/requirements/requirement/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
+        <a href={`https://zouwu.gitcode.com/feedback/detail/${record.id}`} target="_blank" rel="noopener noreferrer">
           {title}
         </a>
       ),

@@ -303,8 +303,10 @@ export class ZouwuClient implements OnModuleInit {
       }
 
       return {
-        id: this.pickString(item, ['id']) ?? '',
-        title: this.pickString(item, ['title', 'subject', 'name']) ?? '',
+        // Zouwu 需求详情页使用的 ID 可能是以下字段之一
+        // 注意：id 可能是序号，真正的需求ID可能是 no/number/feedbackId 等
+        id: this.pickString(item, ['no', 'number', 'serialNo', 'feedbackId', 'feedback_id', 'requireId', 'require_id', 'requirementId', 'requirement_id', 'id']) ?? '',
+        title: this.pickString(item, ['title', 'subject', 'name', 'feedbackTitle', 'feedback_title']) ?? '',
         sourceSessionId: this.pickString(item, ['sessionId', 'sourceSessionId', 'source_session_id']),
         issueType: typeof item.issueType === 'number' ? item.issueType : (typeof item.issue_type === 'number' ? item.issue_type : (typeof item.type === 'number' ? item.type : undefined)),
         status: this.mapStatus(item.status),
