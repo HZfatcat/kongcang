@@ -45,7 +45,42 @@ npm run dev:docker:down
 
 ### 3. 生产环境 - Docker 部署
 
-#### 3.1 首次部署
+#### 3.1 使用部署脚本（推荐）
+
+**下载并运行部署脚本：**
+```bash
+# 下载部署脚本
+curl -O https://gitcode.com/GitCodeKefu/kefumonitor/raw/main/deploy.sh
+chmod +x deploy.sh
+
+# 运行部署脚本（交互模式）
+./deploy.sh
+```
+
+**部署脚本功能：**
+| 选项 | 命令 | 说明 |
+|------|------|------|
+| 1 | `./deploy.sh install` | 首次部署 |
+| 2 | `./deploy.sh update` | 更新部署 |
+| 3 | `./deploy.sh status` | 查看服务状态 |
+| 4 | `./deploy.sh logs` | 查看日志 |
+| 5 | `./deploy.sh stop` | 停止服务 |
+| 6 | `./deploy.sh backup` | 备份数据库 |
+
+**首次部署流程：**
+1. 脚本会自动克隆代码到 `/opt/kefumonitor`
+2. 复制 `.env.example-pro` 为 `.env` 并提示编辑配置
+3. 构建并启动所有 Docker 容器
+
+**更新部署流程：**
+```bash
+./deploy.sh update
+```
+脚本会自动拉取最新代码并重新构建启动。
+
+#### 3.2 手动部署
+
+适合自定义部署场景：
 
 ```bash
 # 克隆代码
@@ -59,7 +94,7 @@ cp .env.example-pro .env
 npm run prod
 ```
 
-#### 3.2 常用命令
+#### 3.3 常用命令
 
 | 命令 | 说明 |
 |------|------|
@@ -67,7 +102,7 @@ npm run prod
 | `npm run prod:logs` | 查看日志 |
 | `npm run prod:down` | 停止服务 |
 
-#### 3.3 更新部署
+#### 3.4 更新部署
 
 ```bash
 # 拉取最新代码
@@ -77,14 +112,14 @@ git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-#### 3.4 服务地址
+#### 3.5 服务地址
 
 | 服务 | 地址 |
 |------|------|
 | Web | https://kefumonitor.gitcode.com |
 | API | https://kefumonitor.gitcode.com/api/v1 |
 
-#### 3.5 Docker 容器
+#### 3.6 Docker 容器
 
 | 容器 | 名称 | 说明 |
 |------|------|------|
