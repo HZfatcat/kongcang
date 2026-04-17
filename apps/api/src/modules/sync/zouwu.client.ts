@@ -283,16 +283,23 @@ export class ZouwuClient implements OnModuleInit {
 
     const records: ZouwuRequirementRecord[] = result.rows.map((item) => {
       // 解析创建人信息
-      const creatorObj = item.creator || item.createUser || item.createdBy || item.owner;
+      const creatorObj = item.creator || item.createUser || item.owner;
       let createdById: string | undefined;
       let createdByName: string | undefined;
+      
+      // 优先检查 creator 对象
       if (creatorObj && typeof creatorObj === 'object') {
         const creator = creatorObj as Record<string, unknown>;
         createdById = this.pickString(creator, ['id', 'userId', 'uid']);
         createdByName = this.pickString(creator, ['name', 'nickname', 'displayName', 'userName']);
-      } else if (typeof item.creatorId === 'string' || typeof item.creator_id === 'string') {
-        createdById = this.pickString(item, ['creatorId', 'creator_id']);
-        createdByName = this.pickString(item, ['creatorName', 'creator_name']);
+      }
+      
+      // 如果 creator 对象没找到，检查顶层字段 createdBy/createdByName
+      if (!createdById && (typeof item.createdBy === 'number' || typeof item.createdBy === 'string')) {
+        createdById = String(item.createdBy);
+      }
+      if (!createdByName) {
+        createdByName = this.pickString(item, ['createdByName', 'creatorName', 'creator_name']);
       }
 
       return {
