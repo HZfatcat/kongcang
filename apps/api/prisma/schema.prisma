@@ -179,3 +179,24 @@ model WecomEmployee {
   @@index([enabled])
   @@index([isCustomerService])
 }
+
+// 系统日志
+model SystemLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  level       String   // debug, info, warn, error
+  module      String?  // sync, api, auth, etc.
+  source      String?  // udesc, zouwu, etc.
+  action      String?  // create, update, delete, etc.
+  message     String
+  context     Json?    // 额外上下文数据
+  userId      String?  // 操作用户
+  correlationId String? // 关联ID
+  duration    Int?     // 耗时(ms)
+
+  @@index([timestamp])
+  @@index([level])
+  @@index([module])
+  @@index([source])
+  @@index([userId])
+}

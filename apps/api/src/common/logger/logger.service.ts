@@ -1,5 +1,6 @@
-import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
+import { Injectable, LoggerService as NestLoggerService, OnModuleInit } from '@nestjs/common';
 import pino from 'pino';
+import { PrismaService } from '../prisma.service';
 
 export interface LogContext {
   correlationId?: string;
@@ -10,9 +11,10 @@ export interface LogContext {
 }
 
 @Injectable()
-export class LoggerService implements NestLoggerService {
+export class LoggerService implements NestLoggerService, OnModuleInit {
   private pino: pino.Logger;
   private readonly isProduction: boolean;
+  private prisma: PrismaService | null = null;
 
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
@@ -57,6 +59,16 @@ export class LoggerService implements NestLoggerService {
     }
   }
 
+  onModuleInit() {
+    // 延迟获取 PrismaService 避免循环依赖
+    try {
+      // 使用全局获取 PrismaService 的方式
+      this.prisma = new PrismaService();
+    } catch {
+      // Prisma 初始化失败时，仅使用控制台日志
+    }
+  }
+
   private formatMessage(message: unknown): string {
     if (typeof message === 'string') return message;
     return JSON.stringify(message);
@@ -71,15 +83,21 @@ export class LoggerService implements NestLoggerService {
   }
 
   log(message: unknown, context?: LogContext): void {
-    this.pino.info(context || {}, this.formatMessage(message));
+    const msg = this.formatMessage(message);
+    this.pino.info(context || {}, msg);
+    void this.writeToDb('info', msg, context);
   }
 
   info(message: unknown, context?: LogContext): void {
-    this.pino.info(context || {}, this.formatMessage(message));
+    const msg = this.formatMessage(message);
+    this.pino.info(context || {}, msg);
+    void this.writeToDb('info', msg, context);
   }
 
   warn(message: unknown, context?: LogContext): void {
-    this.pino.warn(context || {}, this.formatMessage(message));
+    const msg = this.formatMessage(message);
+    this.pino.warn(context || {}, msg);
+    void this.writeToDb('warn', msg, context);
   }
 
   error(message: unknown, trace?: string, context?: LogContext): void {
@@ -87,7 +105,9 @@ export class LoggerService implements NestLoggerService {
     if (trace) {
       ctx.trace = trace;
     }
-    this.pino.error(ctx, this.formatMessage(message));
+    const msg = this.formatMessage(message);
+    this.pino.error(ctx, msg);
+    void this.writeToDb('error', msg, ctx);
   }
 
   /**
@@ -135,15 +155,15 @@ export class LoggerService implements NestLoggerService {
    * 记录同步任务
    */
   logSync(source: string, action: string, data: Record<string, unknown> = {}) {
-    this.pino.info(
-      {
-        module: 'sync',
-        source,
-        action,
-        ...data,
-      },
-      `Sync [${source}] ${action}`,
-    );
+    const ctx: LogContext = {
+      module: 'sync',
+      source,
+      action,
+      ...data,
+    };
+    const msg = `Sync [${source}] ${action}`;
+    this.pino.info(ctx, msg);
+    void this.writeToDb('info', msg, ctx);
   }
 
   /**
@@ -169,5 +189,34 @@ export class LoggerService implements NestLoggerService {
     const childLogger = Object.create(this);
     childLogger.pino = this.pino.child(context);
     return childLogger;
+  }
+
+  /**
+   * 写入日志到数据库
+   */
+  private async writeToDb(
+    level: string,
+    message: string,
+    context?: LogContext,
+  ) {
+    if (!this.prisma) return;
+    
+    try {
+      await this.prisma.systemLog.create({
+        data: {
+          level,
+          message,
+          module: typeof context?.module === 'string' ? context.module : undefined,
+          source: typeof context?.source === 'string' ? context.source : undefined,
+          action: typeof context?.action === 'string' ? context.action : undefined,
+          userId: typeof context?.userId === 'string' ? context.userId : undefined,
+          correlationId: typeof context?.correlationId === 'string' ? context.correlationId : undefined,
+          duration: typeof context?.duration === 'number' ? context.duration : undefined,
+          context: context ? JSON.parse(JSON.stringify(context)) : undefined,
+        },
+      });
+    } catch {
+      // 写入数据库失败，忽略避免日志循环
+    }
   }
 }

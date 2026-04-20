@@ -12,6 +12,7 @@ import { BugDetailPage } from './pages/BugDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { UsersPage } from './pages/UsersPage';
+import { LogsPage } from './pages/LogsPage';
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,
@@ -20,6 +21,7 @@ import {
   DollarOutlined,
   SyncOutlined,
   TeamOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 
 const { Content, Sider, Header } = Layout;
@@ -72,6 +74,11 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       key: '/users',
       icon: <TeamOutlined />,
       label: '人员管理',
+    },
+    {
+      key: '/logs',
+      icon: <FileTextOutlined />,
+      label: '系统日志',
     },
   ];
 
@@ -184,6 +191,7 @@ function AppRoutes() {
       <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
       <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
       <Route path="/users" element={<AppLayout><DashboardPage initialMenuKey="agents" /></AppLayout>} />
+      <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
     </Routes>
   );
 }
