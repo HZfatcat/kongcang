@@ -302,6 +302,16 @@ export class ZouwuClient implements OnModuleInit {
         createdByName = this.pickString(item, ['createdByName', 'creatorName', 'creator_name']);
       }
 
+      // 解析长期演进标签
+      let isLongTerm = false;
+      const labels = item.labels as Array<Record<string, unknown>> | string[] | undefined;
+      if (Array.isArray(labels)) {
+        isLongTerm = labels.some((label) => {
+          const name = typeof label === 'string' ? label : (label?.name as string);
+          return name === this.defaultLongTermLabelName;
+        });
+      }
+
       return {
         // Zouwu 需求详情页使用的 ID 可能是以下字段之一
         // 注意：id 可能是序号，真正的需求ID可能是 no/number/feedbackId 等
@@ -310,6 +320,7 @@ export class ZouwuClient implements OnModuleInit {
         sourceSessionId: this.pickString(item, ['sessionId', 'sourceSessionId', 'source_session_id']),
         issueType: typeof item.issueType === 'number' ? item.issueType : (typeof item.issue_type === 'number' ? item.issue_type : (typeof item.type === 'number' ? item.type : undefined)),
         status: this.mapStatus(item.status),
+        isLongTerm,
         createdById,
         createdByName,
         createdAt: this.parseZouwuDateTime(this.pickString(item, ['createdTime', 'createTime', 'created_at'])) ?? new Date().toISOString(),

@@ -1073,13 +1073,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         </Col>
         <Col span={8}>
           <Card style={{ height: 120 }}>
-            <Statistic title="已完成需求数" value={demandOverview?.completedCount ?? 0} />
+            <Statistic title="已结单需求数" value={demandOverview?.completedCount ?? 0} />
           </Card>
         </Col>
         <Col span={8}>
           <Card style={{ height: 120 }}>
             <Statistic
-              title="需求完成率"
+              title="需求结单率"
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
             />
@@ -1123,7 +1123,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           columns={requirementColumns}
         />
       </Card>
-      <Card title="按月需求完成率" style={{ marginTop: 16 }}>
+      <Card title="按月需求结单率" style={{ marginTop: 16 }}>
         <Table
           rowKey="month"
           dataSource={demandMonthlyRows}
@@ -1157,13 +1157,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         </Col>
         <Col span={8}>
           <Card style={{ height: 120 }}>
-            <Statistic title="已完成 Bug 数" value={demandOverview?.bugCompletedCount ?? 0} />
+            <Statistic title="已结单 Bug 数" value={demandOverview?.bugCompletedCount ?? 0} />
           </Card>
         </Col>
         <Col span={8}>
           <Card style={{ height: 120 }}>
             <Statistic
-              title="Bug 完成率"
+              title="Bug 结单率"
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
             />
@@ -1179,7 +1179,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           columns={bugColumns}
         />
       </Card>
-      <Card title="按月 Bug 完成率" style={{ marginTop: 16 }}>
+      <Card title="按月 Bug 结单率" style={{ marginTop: 16 }}>
         <Table
           rowKey="month"
           dataSource={bugMonthlyRows}

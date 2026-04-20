@@ -105,7 +105,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqCompleted - b.reqCompleted,
     },
     {
-      title: '需求完成率',
+      title: '需求结单率',
       dataIndex: 'reqRate',
       key: 'reqRate',
       width: 110,
@@ -131,7 +131,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugCompleted - b.bugCompleted,
     },
     {
-      title: 'Bug完成率',
+      title: 'Bug结单率',
       dataIndex: 'bugRate',
       key: 'bugRate',
       width: 100,
@@ -217,7 +217,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title="需求已完成" 
+              title="需求已结单" 
               value={demandOverview?.completedCount ?? 0}
             />
           </Card>
@@ -241,7 +241,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title="Bug 已完成" 
+              title="Bug 已结单" 
               value={demandOverview?.bugCompletedCount ?? 0}
             />
           </Card>

@@ -18,7 +18,7 @@ export function KpiCards({ data }: Props) {
         </Card>
       </Col>
       <Col span={12}>
-        <Card title="咨询转需求完成率">
+        <Card title="咨询转需求结单率">
           <Statistic value={toPercent(data.demandCompletionRate)} suffix="%" />
           <Progress percent={toPercent(data.demandCompletionRate)} />
           <div>

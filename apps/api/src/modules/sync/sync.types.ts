@@ -25,6 +25,7 @@ export interface ZouwuRequirementRecord {
   sourceSessionId?: string;
   issueType?: number;
   status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CLOSED' | 'REJECTED';
+  isLongTerm?: boolean;
   createdById?: string;
   createdByName?: string;
   createdAt: string;

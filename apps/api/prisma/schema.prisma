@@ -91,6 +91,7 @@ model ZouwuRequirement {
   sourceSessionId     String?
   status              RequirementStatus
   issueType           Int?              // 0=需求, 1=Bug
+  isLongTerm          Boolean           @default(false)  // 是否长期演进
   createdById         String?           // 创建人ID
   createdByName       String?           // 创建人姓名
   createdAtSource     DateTime
@@ -105,6 +106,7 @@ model ZouwuRequirement {
   @@index([sourceSessionId])
   @@index([issueType])
   @@index([createdById])
+  @@index([isLongTerm])
 }
 
 model SyncCheckpoint {

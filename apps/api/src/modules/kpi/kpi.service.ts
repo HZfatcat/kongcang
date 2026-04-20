@@ -76,28 +76,30 @@ export class KpiService {
       },
     };
 
-    const [totalIdentifiedCount, completedCount, linkedSessionCount, bugCount, bugCompletedCount, statusGroups] =
+    const [totalIdentifiedCount, completedCount, linkedSessionCount, bugCount, bugCompletedCount, statusGroups, longTermCount] =
       await Promise.all([
-        // 需求总数（issueType != 1，即非Bug）
+        // 需求总数（issueType != 1，即非Bug，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            isLongTerm: false,
             OR: [
               { issueType: { not: 1 } },
               { issueType: null },
             ],
           },
         }),
-        // 需求完成数
+        // 需求结单数（DONE + CLOSED + REJECTED，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            isLongTerm: false,
             OR: [
               { issueType: { not: 1 } },
               { issueType: null },
             ],
             status: {
-              in: [RequirementStatus.DONE, RequirementStatus.CLOSED],
+              in: [RequirementStatus.DONE, RequirementStatus.CLOSED, RequirementStatus.REJECTED],
             },
           },
         }),
@@ -107,20 +109,22 @@ export class KpiService {
             sourceSessionId: { not: null },
           },
         }),
-        // Bug 总数（issueType = 1）
+        // Bug 总数（issueType = 1，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            isLongTerm: false,
             issueType: 1,
           },
         }),
-        // Bug 完成数
+        // Bug 结单数（DONE + CLOSED + REJECTED，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            isLongTerm: false,
             issueType: 1,
             status: {
-              in: [RequirementStatus.DONE, RequirementStatus.CLOSED],
+              in: [RequirementStatus.DONE, RequirementStatus.CLOSED, RequirementStatus.REJECTED],
             },
           },
         }),
@@ -128,6 +132,13 @@ export class KpiService {
           by: ['status'],
           where: baseWhere,
           _count: { id: true },
+        }),
+        // 长期演进数量
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            isLongTerm: true,
+          },
         }),
       ]);
 
@@ -173,7 +184,7 @@ export class KpiService {
       WHERE COALESCE(r."completedAtSource", r."updatedAtSource") IS NOT NULL
         AND COALESCE(r."completedAtSource", r."updatedAtSource") >= ${start} AND COALESCE(r."completedAtSource", r."updatedAtSource") <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
-        AND r.status IN ('DONE', 'CLOSED')
+        AND r.status IN ('DONE', 'CLOSED', 'REJECTED')
       GROUP BY DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource"))
       ORDER BY month ASC
     `;
@@ -198,7 +209,7 @@ export class KpiService {
       WHERE COALESCE(r."completedAtSource", r."updatedAtSource") IS NOT NULL
         AND COALESCE(r."completedAtSource", r."updatedAtSource") >= ${start} AND COALESCE(r."completedAtSource", r."updatedAtSource") <= ${end}
         AND r."issueType" = 1
-        AND r.status IN ('DONE', 'CLOSED')
+        AND r.status IN ('DONE', 'CLOSED', 'REJECTED')
       GROUP BY DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource"))
       ORDER BY month ASC
     `;
@@ -304,6 +315,7 @@ export class KpiService {
       bugCount,
       bugCompletedCount,
       bugCompletionRate: bugCount > 0 ? bugCompletedCount / bugCount : 0,
+      longTermCount,
       statusBreakdown,
       daily: {
         days,

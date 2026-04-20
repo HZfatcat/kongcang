@@ -46,7 +46,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     {
       key: 'demand',
       icon: <CheckCircleOutlined />,
-      label: '需求完成率',
+      label: '需求结单率',
       children: [
         { key: '/demand', label: '汇总 Dashboard' },
         { key: '/demand/requirements', label: '需求详情' },

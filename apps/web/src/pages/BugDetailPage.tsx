@@ -177,7 +177,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>已完成 Bug 数</span>} 
+              title={<span style={{ color: '#666' }}>已结单 Bug 数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -190,7 +190,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 完成率</span>}
+              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -200,7 +200,7 @@ export function BugDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月 Bug 完成率</span>}
+        title={<span style={{ fontWeight: 600 }}>按月 Bug 结单率</span>}
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
         <ResizableTable<MonthlyRow>
