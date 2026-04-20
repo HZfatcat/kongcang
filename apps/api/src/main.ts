@@ -3,15 +3,25 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 const envPath = path.join(__dirname, '../../../.env');
 dotenv.config({ path: envPath });
-console.log('[main.ts] Loaded .env from:', envPath);
-console.log('[main.ts] ZOUWU_BASE_URL:', process.env.ZOUWU_BASE_URL);
 
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { LoggerService } from './common/logger/logger.service';
+import { HttpLoggingInterceptor } from './common/interceptors';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+  });
+
+  // 使用结构化日志
+  const logger = app.get(LoggerService);
+  app.useLogger(logger);
+
+  // HTTP 请求/响应日志拦截器
+  app.useGlobalInterceptors(new HttpLoggingInterceptor(logger));
+
   const explicitOrigins = (process.env.CORS_ORIGIN ?? '')
     .split(',')
     .map((item) => item.trim())
@@ -54,6 +64,7 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
+  logger.log(`Application is running on: http://localhost:${port}`, { module: 'main' });
 }
 
 void bootstrap();
