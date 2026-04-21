@@ -176,8 +176,7 @@ export class OpportunityService {
       try {
         const title = row['标题'] || row['title'];
         if (!title) {
-          results.failed++;
-          results.errors.push(`第${rowNum}行: 缺少必填字段"标题"`);
+          // 缺少标题的行静默跳过
           continue;
         }
 
