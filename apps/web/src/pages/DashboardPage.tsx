@@ -27,6 +27,7 @@ import {
   Switch,
   Tree,
   Typography,
+  Upload,
   message,
 } from 'antd';
 import type { DataNode } from 'antd/es/tree';
@@ -37,6 +38,7 @@ import {
   deleteOpportunity,
   fetchOpportunityList,
   fetchOpportunitySummary,
+  importOpportunitiesFromCsv,
   updateOpportunityStatus,
   upsertOpportunity,
 } from '../api/opportunity';
@@ -1426,6 +1428,33 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           >
             新增商机
           </Button>
+          <Upload
+            accept=".csv"
+            showUploadList={false}
+            beforeUpload={(file) => {
+              const handleImport = async () => {
+                try {
+                  message.loading({ content: '正在导入...', key: 'import', duration: 0 });
+                  const result = await importOpportunitiesFromCsv(file);
+                  message.destroy('import');
+                  if (result.success > 0) {
+                    message.success(`成功导入 ${result.success} 条商机${result.failed > 0 ? `，${result.failed} 条失败` : ''}`);
+                    void loadOpportunities(1, opportunityPageSize);
+                  } else {
+                    message.warning(`导入失败：${result.errors.slice(0, 3).join('；')}`);
+                  }
+                } catch (err) {
+                  message.destroy('import');
+                  message.error('导入失败，请检查 CSV 格式');
+                  console.error(err);
+                }
+              };
+              void handleImport();
+              return false;
+            }}
+          >
+            <Button>导入 CSV</Button>
+          </Upload>
         </Space>
       </Card>
 

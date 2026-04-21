@@ -34,3 +34,14 @@ export async function deleteOpportunity(id: string) {
   const resp = await apiClient.delete(`/opportunities/${encodeURIComponent(id)}`);
   return resp.data;
 }
+
+export async function importOpportunitiesFromCsv(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const resp = await apiClient.post<{ success: number; failed: number; errors: string[] }>(
+    '/opportunities/import',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return resp.data;
+}

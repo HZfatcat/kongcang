@@ -165,4 +165,47 @@ export class OpportunityService {
       where: { id },
     });
   }
+
+  async importFromCsv(records: Record<string, string>[]) {
+    const results = { success: 0, failed: 0, errors: [] as string[] };
+
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const rowNum = i + 2; // CSV 第1行是表头
+
+      try {
+        const title = row['标题'] || row['title'];
+        if (!title) {
+          results.failed++;
+          results.errors.push(`第${rowNum}行: 缺少必填字段"标题"`);
+          continue;
+        }
+
+        const data = {
+          title,
+          username: row['用户名'] || row['username'],
+          name: row['姓名'] || row['name'],
+          phone: row['手机号'] || row['phone'],
+          email: row['邮箱'] || row['email'],
+          companyName: row['公司名称'] || row['companyName'],
+          requestType: row['诉求类型'] || row['requestType'],
+          requestDetails: row['诉求详情'] || row['requestDetails'],
+          feedbackChannel: row['反馈渠道'] || row['feedbackChannel'],
+          feedbackPerson: row['反馈人'] || row['feedbackPerson'],
+          feedbackResult: row['反馈结果'] || row['feedbackResult'],
+          sourceType: OpportunitySourceType.MANUAL,
+          status: OpportunityStatus.NEW,
+        };
+
+        await this.prisma.businessOpportunity.create({ data });
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        results.errors.push(`第${rowNum}行: ${errMsg}`);
+      }
+    }
+
+    return results;
+  }
 }
