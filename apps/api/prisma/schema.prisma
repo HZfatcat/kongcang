@@ -40,6 +40,8 @@ model UdescSession {
   syncedAt            DateTime @default(now())
   messages            UdescSessionMessage[]
   opportunities       BusinessOpportunity[]
+  votes               UdescSessionVote[]
+  metrics             UdescSessionMetrics?
 
   @@index([startedAt])
   @@index([updatedAtSource])
@@ -199,4 +201,75 @@ model SystemLog {
   @@index([module])
   @@index([source])
   @@index([userId])
+}
+
+// 会话评价详情
+model UdescSessionVote {
+  id          String   @id @default(cuid())
+  sessionId   String
+  rating      Int?
+  tags        String[] // 评价标签
+  comment     String?  // 评价内容
+  voterId     String?  // 评价人ID
+  voterName   String?  // 评价人名称
+  votedAt     DateTime?
+  rawPayload  Json?
+  syncedAt    DateTime @default(now())
+  session     UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([votedAt])
+}
+
+// 客户信息
+model UdescCustomer {
+  id            String   @id
+  name          String?
+  phone         String?
+  email         String?
+  wechat        String?
+  enterprise    String?  // 所属企业
+  tags          String[]
+  customFields  Json?
+  rawPayload    Json?
+  updatedAtSource DateTime?
+  syncedAt      DateTime @default(now())
+
+  @@index([phone])
+  @@index([email])
+  @@index([enterprise])
+}
+
+// Udesk 客服详细信息
+model UdescAgent {
+  id          String   @id
+  name        String?
+  email       String?
+  phone       String?
+  roleId      String?
+  roleName    String?
+  enabled     Boolean  @default(true)
+  groups      String[]
+  skills      String[]
+  rawPayload  Json?
+  syncedAt    DateTime @default(now())
+
+  @@index([enabled])
+}
+
+// 会话统计指标
+model UdescSessionMetrics {
+  id                    String   @id @default(cuid())
+  sessionId             String   @unique
+  firstResponseTime     Int?     // 首次响应时间(秒)
+  avgResponseTime       Float?   // 平均响应时间(秒)
+  waitTime              Int?     // 排队等待时间(秒)
+  resolutionTime        Int?     // 解决时间(秒)
+  messageCount          Int      @default(0)
+  agentMessageCount     Int      @default(0)
+  customerMessageCount  Int      @default(0)
+  syncedAt              DateTime @default(now())
+  session               UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
