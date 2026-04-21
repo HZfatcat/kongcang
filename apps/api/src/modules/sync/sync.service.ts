@@ -16,6 +16,10 @@ interface SyncProgressSnapshot {
   processedWindows: number;
   sessionSynced: number;
   messageSynced: number;
+  voteSynced: number;
+  customerSynced: number;
+  agentSynced: number;
+  metricsSynced: number;
   issueCount: number;
   estimatedRemainingRecords: number;
   estimatedRemainingSeconds: number;
@@ -44,6 +48,10 @@ export class SyncService {
     processedWindows: 0,
     sessionSynced: 0,
     messageSynced: 0,
+    voteSynced: 0,
+    customerSynced: 0,
+    agentSynced: 0,
+    metricsSynced: 0,
     issueCount: 0,
     estimatedRemainingRecords: 0,
     estimatedRemainingSeconds: 0,
@@ -203,6 +211,10 @@ export class SyncService {
     const run = await this.startRun('udesc');
     let sessionSynced = 0;
     let messageSynced = 0;
+    let voteSynced = 0;
+    let customerSynced = 0;
+    let agentSynced = 0;
+    let metricsSynced = 0;
     let issueCount = 0;
     const syncStartedAt = new Date();
 
@@ -243,6 +255,10 @@ export class SyncService {
       this.progress.processedWindows = 0;
       this.progress.sessionSynced = 0;
       this.progress.messageSynced = 0;
+      this.progress.voteSynced = 0;
+      this.progress.customerSynced = 0;
+      this.progress.agentSynced = 0;
+      this.progress.metricsSynced = 0;
       this.progress.issueCount = issueCount;
       this.progress.currentWindowStart = windowStart.toISOString();
       this.progress.currentWindowEnd = undefined;
@@ -325,6 +341,91 @@ export class SyncService {
               });
               this.progress.issueCount = issueCount;
               continue;
+            }
+
+            // 同步会话评价详情
+            try {
+              const voteResp = await this.withRetry('udesc.fetchSessionVotes', () =>
+                this.udescClient.fetchSessionVotes({
+                  sessionId: record.id,
+                  pageSize: 10,
+                }),
+              );
+              for (const vote of voteResp.records) {
+                try {
+                  // 查找该会话的评价记录
+                  const existing = await this.prisma.udescSessionVote.findFirst({
+                    where: { sessionId: record.id },
+                  });
+                  if (existing) {
+                    await this.prisma.udescSessionVote.update({
+                      where: { id: existing.id },
+                      data: {
+                        rating: vote.rating ?? null,
+                        tags: vote.tags ?? [],
+                        comment: vote.comment ?? null,
+                        voterId: vote.voterId ?? null,
+                        voterName: vote.voterName ?? null,
+                        votedAt: this.asDateOrNull(vote.votedAt),
+                        rawPayload: this.asJson(vote.rawPayload),
+                      },
+                    });
+                  } else {
+                    await this.prisma.udescSessionVote.create({
+                      data: {
+                        sessionId: record.id,
+                        rating: vote.rating ?? null,
+                        tags: vote.tags ?? [],
+                        comment: vote.comment ?? null,
+                        voterId: vote.voterId ?? null,
+                        voterName: vote.voterName ?? null,
+                        votedAt: this.asDateOrNull(vote.votedAt),
+                        rawPayload: this.asJson(vote.rawPayload),
+                      },
+                    });
+                  }
+                  voteSynced += 1;
+                } catch (e) {
+                  // ignore individual vote errors
+                }
+                break; // 每会话只处理第一条评价
+              }
+            } catch (e) {
+              // vote sync is optional
+            }
+
+            // 同步会话统计指标
+            try {
+              const stats = await this.withRetry('udesc.fetchSessionStats', () =>
+                this.udescClient.fetchSessionStats(record.id),
+              );
+              if (stats) {
+                await this.prisma.udescSessionMetrics.upsert({
+                  where: { sessionId: record.id },
+                  create: {
+                    sessionId: record.id,
+                    firstResponseTime: stats.firstResponseTime ?? null,
+                    avgResponseTime: stats.avgResponseTime ?? null,
+                    waitTime: stats.waitTime ?? null,
+                    resolutionTime: stats.resolutionTime ?? null,
+                    messageCount: stats.messageCount ?? 0,
+                    customerMessageCount: stats.customerMessageCount ?? 0,
+                    agentMessageCount: stats.agentMessageCount ?? 0,
+                  },
+                  update: {
+                    firstResponseTime: stats.firstResponseTime ?? null,
+                    avgResponseTime: stats.avgResponseTime ?? null,
+                    waitTime: stats.waitTime ?? null,
+                    resolutionTime: stats.resolutionTime ?? null,
+                    messageCount: stats.messageCount ?? 0,
+                    customerMessageCount: stats.customerMessageCount ?? 0,
+                    agentMessageCount: stats.agentMessageCount ?? 0,
+                  },
+                });
+                metricsSynced += 1;
+              }
+            } catch (e) {
+              // metrics sync is optional
             }
 
             if (!syncLogs) {
@@ -439,12 +540,16 @@ export class SyncService {
 
         this.progress.sessionSynced = sessionSynced;
         this.progress.messageSynced = messageSynced;
+        this.progress.voteSynced = voteSynced;
+        this.progress.customerSynced = customerSynced;
+        this.progress.agentSynced = agentSynced;
+        this.progress.metricsSynced = metricsSynced;
         this.progress.issueCount = issueCount;
         this.progress.processedWindows += 1;
         const elapsedSeconds = Math.max(1, Math.floor((Date.now() - syncStartedAt.getTime()) / 1000));
         const doneWindows = Math.max(1, this.progress.processedWindows);
         const remainingWindows = Math.max(0, this.progress.totalWindows - this.progress.processedWindows);
-        const avgRecordsPerWindow = (sessionSynced + messageSynced) / doneWindows;
+        const avgRecordsPerWindow = (sessionSynced + messageSynced + voteSynced + metricsSynced) / doneWindows;
         const avgSecondsPerWindow = elapsedSeconds / doneWindows;
         this.progress.estimatedRemainingRecords = Math.max(
           0,
@@ -458,10 +563,116 @@ export class SyncService {
         windowStart = nextWindowStart;
       }
 
+      // 同步客户信息
+      this.progress.note = '同步客户信息';
+      try {
+        let customerCursor: string | undefined = undefined;
+        let customerHasMore = true;
+        while (customerHasMore) {
+          const customerResp = await this.withRetry('udesc.fetchCustomers', () =>
+            this.udescClient.fetchCustomers({
+              cursor: customerCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const customer of customerResp.records) {
+            if (!customer.id) continue;
+            try {
+              await this.prisma.udescCustomer.upsert({
+                where: { id: customer.id },
+                create: {
+                  id: customer.id,
+                  name: customer.name ?? null,
+                  phone: customer.phone ?? null,
+                  email: customer.email ?? null,
+                  wechat: customer.wechat ?? null,
+                  enterprise: customer.enterprise ?? null,
+                  tags: customer.tags ?? [],
+                  customFields: this.asJson(customer.customFields),
+                  rawPayload: this.asJson(customer.rawPayload),
+                },
+                update: {
+                  name: customer.name ?? null,
+                  phone: customer.phone ?? null,
+                  email: customer.email ?? null,
+                  wechat: customer.wechat ?? null,
+                  enterprise: customer.enterprise ?? null,
+                  tags: customer.tags ?? [],
+                  customFields: this.asJson(customer.customFields),
+                  rawPayload: this.asJson(customer.rawPayload),
+                },
+              });
+              customerSynced += 1;
+            } catch (e) {
+              // ignore individual customer errors
+            }
+          }
+          customerCursor = customerResp.nextCursor;
+          customerHasMore = customerResp.hasMore && Boolean(customerCursor);
+        }
+        this.progress.customerSynced = customerSynced;
+      } catch (e) {
+        this.logger.warn('customer sync failed, continuing');
+      }
+
+      // 同步客服信息
+      this.progress.note = '同步客服信息';
+      try {
+        let agentCursor: string | undefined = undefined;
+        let agentHasMore = true;
+        while (agentHasMore) {
+          const agentResp = await this.withRetry('udesc.fetchAgents', () =>
+            this.udescClient.fetchAgents({
+              cursor: agentCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const agent of agentResp.records) {
+            if (!agent.id) continue;
+            try {
+              await this.prisma.udescAgent.upsert({
+                where: { id: agent.id },
+                create: {
+                  id: agent.id,
+                  name: agent.name ?? null,
+                  email: agent.email ?? null,
+                  phone: agent.phone ?? null,
+                  roleId: agent.roleId ?? null,
+                  roleName: agent.roleName ?? null,
+                  enabled: agent.enabled ?? true,
+                  groups: agent.groups ?? [],
+                  skills: agent.skills ?? [],
+                  rawPayload: this.asJson(agent.rawPayload),
+                },
+                update: {
+                  name: agent.name ?? null,
+                  email: agent.email ?? null,
+                  phone: agent.phone ?? null,
+                  roleId: agent.roleId ?? null,
+                  roleName: agent.roleName ?? null,
+                  enabled: agent.enabled ?? true,
+                  groups: agent.groups ?? [],
+                  skills: agent.skills ?? [],
+                  rawPayload: this.asJson(agent.rawPayload),
+                },
+              });
+              agentSynced += 1;
+            } catch (e) {
+              // ignore individual agent errors
+            }
+          }
+          agentCursor = agentResp.nextCursor;
+          agentHasMore = agentResp.hasMore && Boolean(agentCursor);
+        }
+        this.progress.agentSynced = agentSynced;
+      } catch (e) {
+        this.logger.warn('agent sync failed, continuing');
+      }
+
       await this.finishRun(run.id, {
         status: 'SUCCESS',
-        recordsSynced: sessionSynced + messageSynced,
-        message: `sessions=${sessionSynced},messages=${messageSynced},issues=${issueCount}`,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
+        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},issues=${issueCount}`,
       });
 
       this.progress.isRunning = false;
@@ -471,13 +682,13 @@ export class SyncService {
       this.progress.estimatedRemainingRecords = 0;
       this.progress.estimatedRemainingSeconds = 0;
       this.progress.note = '同步完成';
-      return { source: 'udesc', sessionSynced, messageSynced, issueCount };
+      return { source: 'udesc', sessionSynced, messageSynced, voteSynced, customerSynced, agentSynced, metricsSynced, issueCount };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(`sync udesc failed: ${message}`);
       await this.finishRun(run.id, {
         status: 'FAILED',
-        recordsSynced: sessionSynced + messageSynced,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
         message,
       });
 

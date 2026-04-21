@@ -11,6 +11,13 @@ import type {
   UdescSessionListResp,
   UdescTreeNode,
   ZouwuFeedbackStatistics,
+  UdescVoteListResp,
+  UdescCustomerListResp,
+  UdescCustomer,
+  UdescAgentListResp,
+  UdescAgentPerformance,
+  UdescMetricsListResp,
+  UdescMetricsSummary,
 } from '../types/udesc';
 import type { WecomEmployee } from '../types/udesc';
 
@@ -155,6 +162,66 @@ export async function upsertWecomEmployee(payload: {
 
 export async function deleteWecomEmployee(userId: string) {
   const resp = await apiClient.delete(`/wecom-employee/${encodeURIComponent(userId)}`);
+  return resp.data;
+}
+
+// ========== 评价分析 ==========
+export async function fetchUdescVotes(params: {
+  startDate?: string;
+  endDate?: string;
+  minRating?: number;
+  maxRating?: number;
+  page?: number;
+  pageSize?: number;
+}) {
+  const resp = await apiClient.get<UdescVoteListResp>('/udesc/votes', { params });
+  return resp.data;
+}
+
+// ========== 客户管理 ==========
+export async function fetchUdescCustomers(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  enterprise?: string;
+}) {
+  const resp = await apiClient.get<UdescCustomerListResp>('/udesc/customers', { params });
+  return resp.data;
+}
+
+export async function fetchUdescCustomerDetail(id: string) {
+  const resp = await apiClient.get<UdescCustomer>(`/udesc/customers/${encodeURIComponent(id)}`);
+  return resp.data;
+}
+
+// ========== 客服管理 ==========
+export async function fetchUdescAgents(params?: { enabled?: boolean }) {
+  const resp = await apiClient.get<UdescAgentListResp>('/udesc/agents', { params });
+  return resp.data;
+}
+
+export async function fetchUdescAgentPerformance(agentId: string, params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdescAgentPerformance>(`/udesc/agents/${encodeURIComponent(agentId)}/performance`, { params });
+  return resp.data;
+}
+
+// ========== 会话性能指标 ==========
+export async function fetchUdescMetrics(params: {
+  startDate?: string;
+  endDate?: string;
+  agentId?: string;
+  agentIds?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}) {
+  const resp = await apiClient.get<UdescMetricsListResp>('/udesc/metrics', { params });
+  return resp.data;
+}
+
+export async function fetchUdescMetricsSummary(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdescMetricsSummary>('/udesc/metrics/summary', { params });
   return resp.data;
 }
 

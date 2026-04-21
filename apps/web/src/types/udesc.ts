@@ -28,6 +28,7 @@ export interface UdescSessionMessage {
   senderType?: string;
   senderId?: string;
   content?: string;
+  rawPayload?: Record<string, unknown>;
 }
 
 export interface UdescSessionRecord {
@@ -169,5 +170,131 @@ export interface ZouwuFeedbackStatistics {
   newRequirements: number;
   newBugs: number;
   closeRates: ZouwuCloseRateStat[];
+}
+
+// ========== 新增：评价、客户、客服、指标 ==========
+
+export interface UdescSessionVote {
+  id: string;
+  sessionId: string;
+  rating: number | null;
+  tags: string[];
+  comment: string | null;
+  voterId?: string | null;
+  voterName: string | null;
+  votedAt: string | null;
+  agentId?: string;
+  sessionStartedAt?: string;
+}
+
+export interface UdescVoteListResp {
+  page: number;
+  pageSize: number;
+  total: number;
+  records: UdescSessionVote[];
+  avgRating: number | null;
+  ratingDistribution: Record<number, number>;
+}
+
+export interface UdescCustomer {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  wechat: string | null;
+  enterprise: string | null;
+  tags: string[];
+  customFields: Record<string, unknown> | null;
+  updatedAtSource: string | null;
+  syncedAt: string;
+  sessionCount?: number;
+}
+
+export interface UdescCustomerListResp {
+  page: number;
+  pageSize: number;
+  total: number;
+  records: UdescCustomer[];
+}
+
+export interface UdescAgentDetail {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  roleId: string | null;
+  roleName: string | null;
+  enabled: boolean;
+  groups: string[];
+  skills: string[];
+  rawPayload: Record<string, unknown> | null;
+  syncedAt: string;
+  sessionCount?: number;
+  avgRating?: number | null;
+}
+
+export interface UdescAgentListResp {
+  records: UdescAgentDetail[];
+}
+
+export interface UdescAgentPerformance {
+  agentId: string;
+  dateRange: { startDate: string; endDate: string };
+  totalSessions: number;
+  avgRating: number | null;
+  avgFirstResponseTime: number | null;
+  avgResolutionTime: number | null;
+  totalMessages: number;
+  avgMessagesPerSession: number;
+  dailyStats: Array<{
+    date: string;
+    sessions: number;
+    avgRating: number | null;
+    avgResponseTime: number | null;
+  }>;
+}
+
+export interface UdescSessionMetrics {
+  id: string;
+  sessionId: string;
+  agentId?: string;
+  agentName?: string;
+  startedAt?: string;
+  endedAt?: string;
+  sessionDuration?: number | null;
+  firstResponseTime: number | null;
+  avgResponseTime: number | null;
+  waitTime: number | null;
+  resolutionTime: number | null;
+  messageCount: number;
+  agentMessageCount: number;
+  customerMessageCount: number;
+  syncedAt: string;
+  session?: {
+    id: string;
+    agentId?: string;
+    startedAt: string;
+    endedAt?: string;
+  };
+}
+
+export interface UdescMetricsListResp {
+  page: number;
+  pageSize: number;
+  total: number;
+  records: UdescSessionMetrics[];
+}
+
+export interface UdescMetricsSummary {
+  dateRange: { startDate: string; endDate: string };
+  totalSessions: number;
+  avgFirstResponseTime: number | null;
+  avgAvgResponseTime: number | null;
+  avgWaitTime: number | null;
+  avgResolutionTime: number | null;
+  totalMessages: number;
+  avgMessagesPerSession: number;
+  avgAgentMessages: number;
+  avgCustomerMessages: number;
 }
 

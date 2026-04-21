@@ -96,6 +96,9 @@ export class UdescController {
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,
+      agentIds: query.agentIds,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
       page: query.page,
       pageSize: query.pageSize,
     });

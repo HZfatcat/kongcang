@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import 'antd/dist/reset.css';
 import './styles/global.css';
@@ -13,6 +13,10 @@ import { LoginPage } from './pages/LoginPage';
 import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { UsersPage } from './pages/UsersPage';
 import { LogsPage } from './pages/LogsPage';
+import { VotesPage } from './pages/VotesPage';
+import { CustomersPage } from './pages/CustomersPage';
+import { MetricsPage } from './pages/MetricsPage';
+import { SessionDetailPage } from './pages/SessionDetailPage';
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,
@@ -22,6 +26,9 @@ import {
   SyncOutlined,
   TeamOutlined,
   FileTextOutlined,
+  StarOutlined,
+  UserOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
 
 const { Content, Sider, Header } = Layout;
@@ -34,6 +41,15 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const loginUser = getLoginUser();
   
+  // 根据当前路径计算默认展开的菜单
+  const getDefaultOpenKeys = (pathname: string): string[] => {
+    if (pathname.startsWith('/udesc')) return ['udesc'];
+    if (pathname.startsWith('/demand')) return ['demand'];
+    return [];
+  };
+  
+  // 使用受控模式管理展开状态
+  const [openKeys, setOpenKeys] = useState<string[]>(() => getDefaultOpenKeys(location.pathname));
   const menuItems = [
     {
       key: '/',
@@ -44,6 +60,17 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       key: '/satisfaction',
       icon: <SmileOutlined />,
       label: '用户满意度',
+    },
+    {
+      key: 'udesc',
+      icon: <DashboardOutlined />,
+      label: 'Udesk 数据分析',
+      children: [
+        { key: '/udesc/votes', label: '评价分析' },
+        { key: '/udesc/customers', label: '客户管理' },
+        { key: '/udesc/metrics', label: '会话指标' },
+        { key: '/udesc/sessions', label: '咨询详情' },
+      ],
     },
     {
       key: 'demand',
@@ -116,7 +143,8 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          defaultOpenKeys={['demand']}
+          openKeys={openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys)}
           style={{ borderRight: 0, marginTop: 8 }}
           items={menuItems}
           onClick={({ key }) => {
@@ -184,13 +212,17 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
       <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
+      <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
+      <Route path="/udesc/customers" element={<AppLayout><CustomersPage /></AppLayout>} />
+      <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
+      <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
       <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
       <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
       <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
       <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
       <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
       <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
-      <Route path="/users" element={<AppLayout><DashboardPage initialMenuKey="agents" /></AppLayout>} />
+      <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
       <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
     </Routes>
   );

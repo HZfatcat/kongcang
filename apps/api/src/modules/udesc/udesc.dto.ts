@@ -104,6 +104,18 @@ export class UdescMetricsQueryDto extends UdescDateRangeDto {
   agentId?: string;
 
   @IsOptional()
+  @IsString()
+  agentIds?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'asc' | 'desc';
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

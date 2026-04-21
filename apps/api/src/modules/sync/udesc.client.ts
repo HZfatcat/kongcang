@@ -228,7 +228,14 @@ export class UdescClient {
   private mapMessage(item: Record<string, unknown>, sessionId: string): UdescMessageRecord {
     const sentAt =
       this.pickString(item, ['created_at', 'send_time', 'sent_at', 'timestamp']) ?? new Date().toISOString();
-    const senderType = this.pickString(item, ['sender_type', 'message_from', 'role', 'from_type']);
+    
+    // 尝试从多个字段提取 senderType，包括 rawPayload 中的 sender 字段
+    let senderType = this.pickString(item, ['sender_type', 'message_from', 'role', 'from_type', 'sender']);
+    if (!senderType) {
+      // 有些 API 响应中 senderType 在顶层，有些通过 rawPayload.sender
+      // rawPayload 可能在调用时已经解构了
+    }
+    
     const senderId = this.pickString(item, ['sender_id', 'user_id', 'agent_id', 'from_id']);
     const content = this.pickString(item, ['content', 'message', 'body', 'text']);
     const messageId =

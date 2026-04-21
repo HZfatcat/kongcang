@@ -1,0 +1,201 @@
+import { useEffect, useState, useMemo } from 'react';
+import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, message, Rate, Select, Space } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import { fetchUdescVotes } from '../api/udesc';
+import type { UdescSessionVote, UdescVoteListResp } from '../types/udesc';
+
+const { RangePicker } = DatePicker;
+
+export function VotesPage() {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<UdescVoteListResp | null>(null);
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
+    const end = dayjs();
+    const start = end.subtract(30, 'day');
+    return [start.startOf('day'), end.endOf('day')];
+  });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [minRating, setMinRating] = useState<number | undefined>();
+  const [maxRating, setMaxRating] = useState<number | undefined>();
+
+  const apiRange = useMemo(
+    () => ({
+      startDateIso: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
+      endDateIso: range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
+    }),
+    [range],
+  );
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const resp = await fetchUdescVotes({
+        startDate: apiRange.startDateIso,
+        endDate: apiRange.endDateIso,
+        minRating,
+        maxRating,
+        page,
+        pageSize,
+      });
+      setData(resp);
+    } catch {
+      message.error('加载评价数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating]);
+
+  const columns: ColumnsType<UdescSessionVote> = [
+    {
+      title: '会话ID',
+      dataIndex: 'sessionId',
+      width: 120,
+      ellipsis: true,
+    },
+    {
+      title: '评分',
+      dataIndex: 'rating',
+      width: 150,
+      render: (rating: number | null) => (rating ? <Rate disabled value={rating} /> : '-'),
+    },
+    {
+      title: '标签',
+      dataIndex: 'tags',
+      width: 200,
+      render: (tags: string[]) => tags?.length > 0 ? tags.map((t) => <Tag key={t}>{t}</Tag>) : '-',
+    },
+    {
+      title: '评价内容',
+      dataIndex: 'comment',
+      ellipsis: true,
+      render: (c: string | null) => c || '-',
+    },
+    {
+      title: '评价人',
+      dataIndex: 'voterName',
+      width: 120,
+      render: (name: string | null) => name || '-',
+    },
+    {
+      title: '评价时间',
+      dataIndex: 'votedAt',
+      width: 180,
+      render: (d: string | null) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm:ss') : '-'),
+    },
+    {
+      title: '客服ID',
+      dataIndex: 'agentId',
+      width: 120,
+      render: (id: string | undefined) => id || '-',
+    },
+    {
+      title: '会话时间',
+      dataIndex: 'sessionStartedAt',
+      width: 180,
+      render: (d: string | undefined) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm:ss') : '-'),
+    },
+  ];
+
+  const ratingOptions = [
+    { label: '全部', value: undefined },
+    { label: '1星', value: 1 },
+    { label: '2星', value: 2 },
+    { label: '3星', value: 3 },
+    { label: '4星', value: 4 },
+    { label: '5星', value: 5 },
+  ];
+
+  return (
+    <div style={{ padding: 24 }}>
+      <Typography.Title level={4}>评价分析</Typography.Title>
+      
+      <Card style={{ marginBottom: 16 }}>
+        <Space wrap>
+          <RangePicker
+            value={range}
+            onChange={(dates) => dates && setRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
+            presets={[
+              { label: '近7天', value: () => [dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day')] as [dayjs.Dayjs, dayjs.Dayjs] },
+              { label: '近30天', value: () => [dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day')] as [dayjs.Dayjs, dayjs.Dayjs] },
+            ]}
+          />
+          <Select
+            placeholder="最低评分"
+            options={ratingOptions}
+            value={minRating}
+            onChange={setMinRating}
+            style={{ width: 100 }}
+            allowClear
+          />
+          <Select
+            placeholder="最高评分"
+            options={ratingOptions}
+            value={maxRating}
+            onChange={setMaxRating}
+            style={{ width: 100 }}
+            allowClear
+          />
+        </Space>
+      </Card>
+
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <Card>
+            <Statistic title="总评价数" value={data?.total ?? 0} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="平均评分"
+              value={data?.avgRating?.toFixed(2) ?? '-'}
+              suffix={data?.avgRating ? '星' : ''}
+            />
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card title="评分分布">
+            <Row gutter={8}>
+              {[5, 4, 3, 2, 1].map((r) => (
+                <Col key={r} span={4}>
+                  <Statistic
+                    title={`${r}星`}
+                    value={data?.ratingDistribution?.[r] ?? 0}
+                  />
+                </Col>
+              ))}
+            </Row>
+          </Card>
+        </Col>
+      </Row>
+
+      <Card>
+        <Spin spinning={loading}>
+          <Table
+            rowKey="id"
+            columns={columns}
+            dataSource={data?.records ?? []}
+            pagination={{
+              current: page,
+              pageSize,
+              total: data?.total ?? 0,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
+            }}
+            scroll={{ x: 1200 }}
+          />
+        </Spin>
+      </Card>
+    </div>
+  );
+}

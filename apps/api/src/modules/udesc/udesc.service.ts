@@ -476,7 +476,7 @@ export class UdescService {
         : {}),
     };
 
-    const [total, rows] = await Promise.all([
+    const [total, rows, ratingStats] = await Promise.all([
       this.prisma.udescSessionVote.count({ where }),
       this.prisma.udescSessionVote.findMany({
         where,
@@ -492,7 +492,27 @@ export class UdescService {
           },
         },
       }),
+      this.prisma.udescSessionVote.groupBy({
+        by: ['rating'],
+        where: { ...where, rating: { not: null } },
+        _count: { rating: true },
+      }),
     ]);
+
+    const avgRatingResult = await this.prisma.udescSessionVote.aggregate({
+      where: { ...where, rating: { not: null } },
+      _avg: { rating: true },
+    });
+
+    const ratingDistribution: Record<number, number> = {};
+    for (let i = 1; i <= 5; i++) {
+      ratingDistribution[i] = 0;
+    }
+    for (const stat of ratingStats) {
+      if (stat.rating !== null) {
+        ratingDistribution[stat.rating] = stat._count.rating;
+      }
+    }
 
     return {
       page,
@@ -509,6 +529,8 @@ export class UdescService {
         agentId: vote.session.agentId,
         sessionStartedAt: vote.session.startedAt.toISOString(),
       })),
+      avgRating: avgRatingResult._avg.rating ?? null,
+      ratingDistribution,
     };
   }
 
@@ -518,48 +540,244 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
     agentId?: string;
+    agentIds?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
     page?: number;
     pageSize?: number;
   }) {
     const { start, end } = this.resolveRange(params.startDate, params.endDate);
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
+    const sortOrder = params.sortOrder ?? 'desc';
+
+    // 解析 agentIds（逗号分隔）
+    const agentIdList = params.agentIds
+      ? params.agentIds.split(',').map((id) => id.trim()).filter(Boolean)
+      : undefined;
+
+    // 构建agentId过滤条件
+    const agentFilter = params.agentId
+      ? params.agentId
+      : agentIdList && agentIdList.length === 1
+      ? agentIdList[0]
+      : undefined;
+
+    // 排序字段映射
+    const sortFieldMap: Record<string, string> = {
+      sessionId: 'sessionId',
+      startedAt: 'startedAt',
+      endedAt: 'endedAt',
+      sessionDuration: 'sessionDuration',
+      firstResponseTime: 'firstResponseTime',
+      avgResponseTime: 'avgResponseTime',
+      waitTime: 'waitTime',
+      resolutionTime: 'resolutionTime',
+      messageCount: 'messageCount',
+      agentMessageCount: 'agentMessageCount',
+      customerMessageCount: 'customerMessageCount',
+    };
+    const sortBy = params.sortBy && sortFieldMap[params.sortBy] ? params.sortBy : 'sessionId';
 
     const sessionWhere = {
       startedAt: { gte: start, lte: end },
-      ...(params.agentId ? { agentId: params.agentId } : {}),
+      ...(agentFilter ? { agentId: agentFilter } : {}),
+      ...(agentIdList && agentIdList.length > 1 ? { agentId: { in: agentIdList } } : {}),
     };
 
-    const [total, rows] = await Promise.all([
-      this.prisma.udescSessionMetrics.count({
-        where: { session: sessionWhere },
-      }),
-      this.prisma.udescSessionMetrics.findMany({
-        where: { session: sessionWhere },
-        orderBy: { syncedAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          session: {
-            select: {
-              id: true,
-              agentId: true,
-              startedAt: true,
-              rating: true,
-            },
+    // 构建排序条件（sessionDuration 是计算字段，需要内存排序）
+    const isComputedSort = sortBy === 'sessionDuration';
+    const orderBy = sortBy === 'sessionId'
+      ? { session: { startedAt: sortOrder } }
+      : sortBy === 'startedAt'
+      ? { session: { startedAt: sortOrder } }
+      : sortBy === 'endedAt'
+      ? { session: { endedAt: sortOrder } }
+      : isComputedSort
+      ? undefined
+      : { [sortFieldMap[sortBy]]: sortOrder };
+
+    // 先从 UdescSessionMetrics 取，如果为空则从消息计算
+    let metricsRows = await this.prisma.udescSessionMetrics.findMany({
+      where: { session: sessionWhere },
+      ...(orderBy ? { orderBy } : {}),
+      ...(isComputedSort ? {} : { skip: (page - 1) * pageSize, take: pageSize }),
+      include: {
+        session: {
+          select: {
+            id: true,
+            agentId: true,
+            startedAt: true,
+            endedAt: true,
+            rating: true,
           },
         },
-      }),
-    ]);
+      },
+    });
 
-    return {
-      page,
-      pageSize,
-      total,
-      records: rows.map((m) => ({
+    // 如果 metrics 表为空，从消息计算
+    if (metricsRows.length === 0) {
+      // 获取所有符合条件的会话用于计算
+      const sessions = await this.prisma.udescSession.findMany({
+        where: sessionWhere,
+        include: {
+          messages: {
+            orderBy: { sentAt: 'asc' },
+          },
+        },
+      });
+
+      const total = sessions.length;
+
+      // 获取所有 agentId 并关联 AgentProfile
+      const agentIds = [...new Set(sessions.map((s) => s.agentId).filter((id): id is string => !!id))];
+      const agentProfiles = agentIds.length > 0 ? await this.prisma.agentProfile.findMany({
+        where: { agentId: { in: agentIds } },
+        select: { agentId: true, displayName: true },
+      }) : [];
+      const agentNameMap = new Map(agentProfiles.map((a) => [a.agentId, a.displayName]));
+
+      // 计算每个会话的指标
+      const records = sessions.map((s) => {
+        const messages = s.messages;
+        const agentMsgs = messages.filter((m) =>
+          m.senderType === 'agent' ||
+          (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
+        );
+        const customerMsgs = messages.filter((m) =>
+          m.senderType === 'customer' ||
+          (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
+        );
+
+        // 计算首次响应时间
+        let firstResponseTime = 0;
+        if (customerMsgs.length > 0 && agentMsgs.length > 0) {
+          const firstCustomerMsg = customerMsgs[0];
+          const firstAgentMsg = agentMsgs.find((a) => new Date(a.sentAt) > new Date(firstCustomerMsg.sentAt));
+          if (firstAgentMsg) {
+            firstResponseTime = Math.round(
+              (new Date(firstAgentMsg.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
+            );
+          }
+        }
+
+        // 计算平均响应时间
+        let avgResponseTime = 0;
+        const responseTimes: number[] = [];
+        for (let i = 0; i < customerMsgs.length - 1; i++) {
+          const agentReply = agentMsgs.find(
+            (a) => new Date(a.sentAt) > new Date(customerMsgs[i].sentAt)
+          );
+          if (agentReply) {
+            responseTimes.push(
+              (new Date(agentReply.sentAt).getTime() - new Date(customerMsgs[i].sentAt).getTime()) / 1000
+            );
+          }
+        }
+        if (responseTimes.length > 0) {
+          avgResponseTime = Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length);
+        }
+
+        // 计算解决时间
+        let resolutionTime = 0;
+        if (s.endedAt && messages.length > 0) {
+          const firstMsg = messages[0];
+          resolutionTime = Math.round(
+            (new Date(s.endedAt).getTime() - new Date(firstMsg.sentAt).getTime()) / 1000
+          );
+        }
+
+        return {
+          sessionId: s.id,
+          agentId: s.agentId,
+          agentName: s.agentId ? (agentNameMap.get(s.agentId) || s.agentId) : null,
+          startedAt: s.startedAt.toISOString(),
+          endedAt: s.endedAt?.toISOString() ?? null,
+          sessionDuration: s.endedAt ? Math.floor((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000) : null,
+          rating: s.rating,
+          firstResponseTime,
+          avgResponseTime,
+          waitTime: 0,
+          resolutionTime,
+          messageCount: messages.length,
+          agentMessageCount: agentMsgs.length,
+          customerMessageCount: customerMsgs.length,
+        };
+      });
+
+      // 排序：
+      if (sortBy === 'sessionId' || sortBy === 'startedAt') {
+        records.sort((a, b) => {
+          const aTime = new Date(a.startedAt).getTime();
+          const bTime = new Date(b.startedAt).getTime();
+          return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+        });
+      } else if (sortBy === 'endedAt') {
+        records.sort((a, b) => {
+          const aTime = a.endedAt ? new Date(a.endedAt).getTime() : 0;
+          const bTime = b.endedAt ? new Date(b.endedAt).getTime() : 0;
+          return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+        });
+      } else if (sortBy === 'sessionDuration') {
+        records.sort((a, b) => {
+          const aVal = a.sessionDuration ?? 0;
+          const bVal = b.sessionDuration ?? 0;
+          return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+        });
+      } else {
+        const sortKey = sortFieldMap[sortBy] as keyof typeof records[0];
+        records.sort((a, b) => {
+          const aVal = a[sortKey] as number;
+          const bVal = b[sortKey] as number;
+          return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+        });
+      }
+
+      // 分页
+      const pagedRecords = records.slice((page - 1) * pageSize, page * pageSize);
+
+      return {
+        page,
+        pageSize,
+        total,
+        records: pagedRecords,
+      };
+    }
+
+    const total = await this.prisma.udescSessionMetrics.count({
+      where: { session: sessionWhere },
+    });
+
+    // 获取所有 agentId 并关联 AgentProfile
+    const agentIds = [...new Set(metricsRows.map((m) => m.session.agentId).filter((id): id is string => !!id))];
+    const agentProfiles = agentIds.length > 0 ? await this.prisma.agentProfile.findMany({
+      where: { agentId: { in: agentIds } },
+      select: { agentId: true, displayName: true },
+    }) : [];
+    const agentNameMap = new Map(agentProfiles.map((a) => [a.agentId, a.displayName]));
+
+    // 构建记录
+    let records = metricsRows.map((m) => {
+      const startedAtDate = m.session.startedAt instanceof Date ? m.session.startedAt : new Date(m.session.startedAt);
+      const endedAtDate = m.session.endedAt ? (m.session.endedAt instanceof Date ? m.session.endedAt : new Date(m.session.endedAt)) : null;
+      console.log('DEBUG session:', {
+        sessionId: m.sessionId,
+        startedAt: m.session.startedAt,
+        startedAtType: typeof m.session.startedAt,
+        endedAt: m.session.endedAt,
+        endedAtType: typeof m.session.endedAt,
+        endedAtDate,
+        endedAtDateValid: endedAtDate && !isNaN(endedAtDate.getTime()),
+        startedAtDateValid: !isNaN(startedAtDate.getTime()),
+      });
+      const sessionDuration = endedAtDate && !isNaN(endedAtDate.getTime()) ? Math.floor((endedAtDate.getTime() - startedAtDate.getTime()) / 1000) : null;
+      return {
         sessionId: m.sessionId,
         agentId: m.session.agentId,
-        sessionStartedAt: m.session.startedAt.toISOString(),
+        agentName: m.session.agentId ? (agentNameMap.get(m.session.agentId) || m.session.agentId) : null,
+        startedAt: m.session.startedAt.toISOString(),
+        endedAt: m.session.endedAt?.toISOString() ?? null,
+        sessionDuration,
         rating: m.session.rating,
         firstResponseTime: m.firstResponseTime,
         avgResponseTime: m.avgResponseTime,
@@ -568,14 +786,32 @@ export class UdescService {
         messageCount: m.messageCount,
         agentMessageCount: m.agentMessageCount,
         customerMessageCount: m.customerMessageCount,
-      })),
+      };
+    });
+
+    // sessionDuration 内存排序
+    if (isComputedSort) {
+      records.sort((a, b) => {
+        const aVal = a.sessionDuration ?? 0;
+        const bVal = b.sessionDuration ?? 0;
+        return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+      });
+      records = records.slice((page - 1) * pageSize, page * pageSize);
+    }
+
+    return {
+      page,
+      pageSize,
+      total,
+      records,
     };
   }
 
   async getMetricsSummary(startDate?: string, endDate?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
 
-    const metrics = await this.prisma.udescSessionMetrics.findMany({
+    // 先尝试从 metrics 表取
+    let metrics = await this.prisma.udescSessionMetrics.findMany({
       where: {
         session: { startedAt: { gte: start, lte: end } },
       },
@@ -590,22 +826,93 @@ export class UdescService {
       },
     });
 
+    // 如果 metrics 表为空，从消息计算
     if (metrics.length === 0) {
+      const sessions = await this.prisma.udescSession.findMany({
+        where: { startedAt: { gte: start, lte: end } },
+        include: {
+          messages: {
+            orderBy: { sentAt: 'asc' },
+          },
+        },
+      });
+
+      if (sessions.length === 0) {
+        return {
+          dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+          avgFirstResponseTime: null,
+          avgResponseTime: null,
+          avgWaitTime: null,
+          avgResolutionTime: null,
+          totalMessages: 0,
+          avgMessagesPerSession: 0,
+        };
+      }
+
+      let totalFirstResponseTime = 0;
+      let firstResponseCount = 0;
+      let totalAvgResponseTime = 0;
+      let avgResponseCount = 0;
+      let totalResolutionTime = 0;
+      let resolutionCount = 0;
+      let totalMessages = 0;
+
+      for (const s of sessions) {
+        const messages = s.messages;
+        const agentMsgs = messages.filter((m) => 
+          m.senderType === 'agent' || 
+          (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
+        );
+        const customerMsgs = messages.filter((m) => 
+          m.senderType === 'customer' || 
+          (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
+        );
+        
+        // 首次响应时间
+        if (customerMsgs.length > 0 && agentMsgs.length > 0) {
+          const firstCustomerMsg = customerMsgs[0];
+          const firstAgentMsg = agentMsgs.find((a) => new Date(a.sentAt) > new Date(firstCustomerMsg.sentAt));
+          if (firstAgentMsg) {
+            totalFirstResponseTime += (new Date(firstAgentMsg.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000;
+            firstResponseCount++;
+          }
+        }
+        
+        // 平均响应时间
+        for (let i = 0; i < customerMsgs.length; i++) {
+          const agentReply = agentMsgs.find(
+            (a) => new Date(a.sentAt) > new Date(customerMsgs[i].sentAt)
+          );
+          if (agentReply) {
+            totalAvgResponseTime += (new Date(agentReply.sentAt).getTime() - new Date(customerMsgs[i].sentAt).getTime()) / 1000;
+            avgResponseCount++;
+          }
+        }
+        
+        // 解决时间
+        if (s.endedAt && messages.length > 0) {
+          totalResolutionTime += (new Date(s.endedAt).getTime() - new Date(messages[0].sentAt).getTime()) / 1000;
+          resolutionCount++;
+        }
+        
+        totalMessages += messages.length;
+      }
+
       return {
         dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
-        avgFirstResponseTime: null,
-        avgResponseTime: null,
-        avgWaitTime: null,
-        avgResolutionTime: null,
-        totalMessages: 0,
-        avgMessagesPerSession: 0,
+        avgFirstResponseTime: firstResponseCount > 0 ? Math.round(totalFirstResponseTime / firstResponseCount) : 0,
+        avgResponseTime: avgResponseCount > 0 ? Math.round(totalAvgResponseTime / avgResponseCount) : 0,
+        avgWaitTime: 0,
+        avgResolutionTime: resolutionCount > 0 ? Math.round(totalResolutionTime / resolutionCount) : 0,
+        totalMessages,
+        avgMessagesPerSession: sessions.length > 0 ? Math.round(totalMessages / sessions.length) : 0,
       };
     }
 
     const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
     const avg = (arr: (number | null)[]) => {
       const filtered = arr.filter((v): v is number => v !== null);
-      return filtered.length > 0 ? sum(filtered) / filtered.length : null;
+      return filtered.length > 0 ? sum(filtered) / filtered.length : 0;
     };
 
     const firstResponseTimes = metrics.map((m) => m.firstResponseTime).filter((v): v is number => v !== null);
@@ -616,10 +923,10 @@ export class UdescService {
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
-      avgFirstResponseTime: firstResponseTimes.length > 0 ? Math.round(sum(firstResponseTimes) / firstResponseTimes.length) : null,
-      avgResponseTime: avgResponseTimes.length > 0 ? Math.round(avg(avgResponseTimes)!) : null,
-      avgWaitTime: waitTimes.length > 0 ? Math.round(sum(waitTimes) / waitTimes.length) : null,
-      avgResolutionTime: resolutionTimes.length > 0 ? Math.round(sum(resolutionTimes) / resolutionTimes.length) : null,
+      avgFirstResponseTime: firstResponseTimes.length > 0 ? Math.round(sum(firstResponseTimes) / firstResponseTimes.length) : 0,
+      avgResponseTime: avgResponseTimes.length > 0 ? Math.round(avg(avgResponseTimes)) : 0,
+      avgWaitTime: waitTimes.length > 0 ? Math.round(sum(waitTimes) / waitTimes.length) : 0,
+      avgResolutionTime: resolutionTimes.length > 0 ? Math.round(sum(resolutionTimes) / resolutionTimes.length) : 0,
       totalMessages: sum(messageCounts),
       avgMessagesPerSession: metrics.length > 0 ? Number((sum(messageCounts) / metrics.length).toFixed(2)) : 0,
     };
