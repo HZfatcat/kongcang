@@ -25,6 +25,7 @@ import {
   Progress,
   Select,
   Switch,
+  Tooltip,
   Tree,
   Typography,
   Upload,
@@ -1463,25 +1464,148 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           rowKey="id"
           loading={opportunityLoading}
           dataSource={opportunities}
+          scroll={{ x: 1600 }}
+          size="small"
           columns={[
             {
               title: '日期',
               dataIndex: 'createdAt',
               key: 'createdAt',
-              width: 120,
+              width: 110,
               render: (value: string) => dayjs(value).format('YYYY-MM-DD'),
             },
-            { title: '用户名', dataIndex: 'username', key: 'username', width: 100, render: (v?: string) => v ?? '-' },
-            { title: '姓名', dataIndex: 'name', key: 'name', width: 80, render: (v?: string) => v ?? '-' },
-            { title: '手机号', dataIndex: 'phone', key: 'phone', width: 120, render: (v?: string) => v ?? '-' },
-            { title: '邮箱', dataIndex: 'email', key: 'email', width: 150, render: (v?: string) => v ?? '-' },
-            { title: '公司名称', dataIndex: 'companyName', key: 'companyName', width: 150, render: (v?: string) => v ?? '-' },
-            { title: '诉求类型', dataIndex: 'requestType', key: 'requestType', width: 100, render: (v?: string) => v ?? '-' },
-            { title: '标题', dataIndex: 'title', key: 'title', width: 150 },
-            { title: '诉求详情', dataIndex: 'requestDetails', key: 'requestDetails', width: 200, ellipsis: true, render: (v?: string) => v ?? '-' },
-            { title: '反馈渠道', dataIndex: 'feedbackChannel', key: 'feedbackChannel', width: 100, render: (v?: string) => v ?? '-' },
-            { title: '反馈人', dataIndex: 'feedbackPerson', key: 'feedbackPerson', width: 80, render: (v?: string) => v ?? '-' },
-            { title: '反馈结果', dataIndex: 'feedbackResult', key: 'feedbackResult', width: 100, render: (v?: string) => v ?? '-' },
+            {
+              title: '用户名',
+              dataIndex: 'username',
+              key: 'username',
+              width: 90,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '姓名',
+              dataIndex: 'name',
+              key: 'name',
+              width: 80,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '手机号',
+              dataIndex: 'phone',
+              key: 'phone',
+              width: 120,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '邮箱',
+              dataIndex: 'email',
+              key: 'email',
+              width: 160,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '公司名称',
+              dataIndex: 'companyName',
+              key: 'companyName',
+              width: 140,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '诉求类型',
+              dataIndex: 'requestType',
+              key: 'requestType',
+              width: 100,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '标题',
+              dataIndex: 'title',
+              key: 'title',
+              width: 180,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '诉求详情',
+              dataIndex: 'requestDetails',
+              key: 'requestDetails',
+              width: 220,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '反馈渠道',
+              dataIndex: 'feedbackChannel',
+              key: 'feedbackChannel',
+              width: 80,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '反馈人',
+              dataIndex: 'feedbackPerson',
+              key: 'feedbackPerson',
+              width: 80,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: '反馈结果',
+              dataIndex: 'feedbackResult',
+              key: 'feedbackResult',
+              width: 120,
+              ellipsis: { showTitle: false },
+              render: (v?: string) => (
+                <Tooltip title={v ?? '-'}>
+                  <span>{v ?? '-'}</span>
+                </Tooltip>
+              ),
+            },
             {
               title: '操作',
               key: 'actions',
@@ -1523,6 +1647,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             current: opportunityPage,
             pageSize: opportunityPageSize,
             total: opportunityTotal,
+            showSizeChanger: true,
+            showTotal: (t) => `共 ${t} 条`,
             onChange: (nextPageNumber, nextPageSizeNumber) => {
               void loadOpportunities(nextPageNumber, nextPageSizeNumber);
             },
