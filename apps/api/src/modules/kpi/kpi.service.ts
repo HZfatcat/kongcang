@@ -7,7 +7,14 @@ export class KpiService {
   constructor(private readonly prisma: PrismaService) {}
 
   resolveRange(startDate?: string, endDate?: string, lookbackDays = 90) {
-    const end = endDate ? new Date(endDate) : new Date();
+    let end: Date;
+    if (endDate) {
+      // 将 endDate 设置为当天的 23:59:59.999，确保包含当天所有数据
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end = new Date();
+    }
     const start = startDate
       ? new Date(startDate)
       : new Date(end.getTime() - 1000 * 60 * 60 * 24 * lookbackDays);
@@ -41,7 +48,7 @@ export class KpiService {
           not: null,
         },
         status: {
-          in: [RequirementStatus.DONE, RequirementStatus.CLOSED],
+          in: [RequirementStatus.DONE, RequirementStatus.CLOSED, RequirementStatus.REJECTED],
         },
         completedAtSource: {
           gte: start,
@@ -76,9 +83,20 @@ export class KpiService {
       },
     };
 
-    const [totalIdentifiedCount, completedCount, linkedSessionCount, bugCount, bugCompletedCount, statusGroups, longTermCount] =
+    // 需求总数（含长期演进，排除 Bug）
+    const totalWithLongTerm = await this.prisma.zouwuRequirement.count({
+      where: {
+        ...baseWhere,
+        OR: [
+          { issueType: { not: 1 } },
+          { issueType: null },
+        ],
+      },
+    });
+
+    const [completedCount, rejectedCount, linkedSessionCount, bugCount, bugCompletedCount, bugRejectedCount, bugLongTermCount, statusGroups, longTermCount] =
       await Promise.all([
-        // 需求总数（issueType != 1，即非Bug，排除长期演进）
+        // 需求结单数（CLOSED，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
@@ -87,9 +105,10 @@ export class KpiService {
               { issueType: { not: 1 } },
               { issueType: null },
             ],
+            status: RequirementStatus.CLOSED,
           },
         }),
-        // 需求结单数（DONE + CLOSED + REJECTED，排除长期演进）
+        // 需求拒绝数（REJECTED，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
@@ -98,9 +117,7 @@ export class KpiService {
               { issueType: { not: 1 } },
               { issueType: null },
             ],
-            status: {
-              in: [RequirementStatus.DONE, RequirementStatus.CLOSED, RequirementStatus.REJECTED],
-            },
+            status: RequirementStatus.REJECTED,
           },
         }),
         this.prisma.zouwuRequirement.count({
@@ -109,23 +126,37 @@ export class KpiService {
             sourceSessionId: { not: null },
           },
         }),
-        // Bug 总数（issueType = 1，排除长期演进）
+        // Bug 总数（issueType = 1，包含长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
-            isLongTerm: false,
             issueType: 1,
           },
         }),
-        // Bug 结单数（DONE + CLOSED + REJECTED，排除长期演进）
+        // Bug 结单数（CLOSED，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
             isLongTerm: false,
             issueType: 1,
-            status: {
-              in: [RequirementStatus.DONE, RequirementStatus.CLOSED, RequirementStatus.REJECTED],
-            },
+            status: RequirementStatus.CLOSED,
+          },
+        }),
+        // Bug 拒绝数（REJECTED，排除长期演进）
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            isLongTerm: false,
+            issueType: 1,
+            status: RequirementStatus.REJECTED,
+          },
+        }),
+        // Bug 长期演进数量
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            issueType: 1,
+            isLongTerm: true,
           },
         }),
         this.prisma.zouwuRequirement.groupBy({
@@ -133,11 +164,15 @@ export class KpiService {
           where: baseWhere,
           _count: { id: true },
         }),
-        // 长期演进数量
+        // 长期演进数量（排除 Bug）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
             isLongTerm: true,
+            OR: [
+              { issueType: { not: 1 } },
+              { issueType: null },
+            ],
           },
         }),
       ]);
@@ -164,7 +199,7 @@ export class KpiService {
       ORDER BY day ASC
     `;
 
-    // 按月统计需求（不含 bug，即 issueType != 1）
+    // 按月统计需求（不含 bug，即 issueType != 1，包含长期演进）
     const monthlyRequirementCreatedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
@@ -176,20 +211,61 @@ export class KpiService {
       ORDER BY month ASC
     `;
 
+    // 月度需求完成统计：按创建时间月份分组，统计已完成状态
     const monthlyRequirementCompletedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
-      SELECT DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource")) AS month, COUNT(*)::bigint AS count
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
       FROM "ZouwuRequirement" r
-      WHERE COALESCE(r."completedAtSource", r."updatedAtSource") IS NOT NULL
-        AND COALESCE(r."completedAtSource", r."updatedAtSource") >= ${start} AND COALESCE(r."completedAtSource", r."updatedAtSource") <= ${end}
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
-        AND r.status IN ('DONE', 'CLOSED', 'REJECTED')
-      GROUP BY DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource"))
+        AND r."isLongTerm" = false
+        AND r.status = 'CLOSED'
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
 
-    // 按月统计 bug
+    // 月度需求拒绝统计：按创建时间月份分组，统计已拒绝状态
+    const monthlyRequirementRejectedRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r."isLongTerm" = false
+        AND r.status = 'REJECTED'
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
+      ORDER BY month ASC
+    `;
+
+    // 按月统计长期演进需求数量（不含 bug）
+    const monthlyLongTermRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r."isLongTerm" = true
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
+      ORDER BY month ASC
+    `;
+
+    // 按月统计 bug 长期演进数量
+    const monthlyBugLongTermRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+        AND r."isLongTerm" = true
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
+      ORDER BY month ASC
+    `;
+
+    // 按月统计 bug 总数（包含长期演进）
     const monthlyBugCreatedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
@@ -201,16 +277,31 @@ export class KpiService {
       ORDER BY month ASC
     `;
 
+    // 月度Bug完成统计：按创建时间月份分组，统计已完成状态（排除长期演进）
     const monthlyBugCompletedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
-      SELECT DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource")) AS month, COUNT(*)::bigint AS count
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
       FROM "ZouwuRequirement" r
-      WHERE COALESCE(r."completedAtSource", r."updatedAtSource") IS NOT NULL
-        AND COALESCE(r."completedAtSource", r."updatedAtSource") >= ${start} AND COALESCE(r."completedAtSource", r."updatedAtSource") <= ${end}
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND r."issueType" = 1
-        AND r.status IN ('DONE', 'CLOSED', 'REJECTED')
-      GROUP BY DATE_TRUNC('month', COALESCE(r."completedAtSource", r."updatedAtSource"))
+        AND r."isLongTerm" = false
+        AND r.status = 'CLOSED'
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
+      ORDER BY month ASC
+    `;
+
+    // 月度 Bug 拒绝统计：按创建时间月份分组，统计已拒绝状态
+    const monthlyBugRejectedRows = await this.prisma.$queryRaw<
+      Array<{ month: Date; count: bigint }>
+    >`
+      SELECT DATE_TRUNC('month', r."createdAtSource") AS month, COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+        AND r."isLongTerm" = false
+        AND r.status = 'REJECTED'
+      GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
 
@@ -222,6 +313,7 @@ export class KpiService {
         title: true,
         status: true,
         issueType: true,
+        isLongTerm: true,
         sourceSessionId: true,
         createdById: true,
         createdByName: true,
@@ -246,19 +338,21 @@ export class KpiService {
       daySet.add(day);
     }
 
-    // 构建按月统计数据 - 生成本年度全部月份
-    const currentYear = end.getFullYear();
-    const currentMonth = end.getMonth();
+    // 构建按月统计数据 - 根据时间窗口生成月份
     const allMonths: string[] = [];
-    for (let m = 0; m <= currentMonth; m++) {
-      const monthStr = `${currentYear}-${String(m + 1).padStart(2, '0')}`;
+    const startMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+    const iterMonth = new Date(startMonth);
+    while (iterMonth <= endMonth) {
+      const monthStr = `${iterMonth.getFullYear()}-${String(iterMonth.getMonth() + 1).padStart(2, '0')}`;
       allMonths.push(monthStr);
+      iterMonth.setMonth(iterMonth.getMonth() + 1);
     }
 
-    const monthlyRequirementMap = new Map<string, { created: number; completed: number }>();
+    const monthlyRequirementMap = new Map<string, { created: number; completed: number; rejectedCount: number; longTermCount: number }>();
     // 初始化所有月份
     for (const month of allMonths) {
-      monthlyRequirementMap.set(month, { created: 0, completed: 0 });
+      monthlyRequirementMap.set(month, { created: 0, completed: 0, rejectedCount: 0, longTermCount: 0 });
     }
     // 填充实际数据
     for (const row of monthlyRequirementCreatedRows) {
@@ -275,11 +369,25 @@ export class KpiService {
         prev.completed = Number(row.count);
       }
     }
+    for (const row of monthlyLongTermRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyRequirementMap.get(month);
+      if (prev) {
+        prev.longTermCount = Number(row.count);
+      }
+    }
+    for (const row of monthlyRequirementRejectedRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyRequirementMap.get(month);
+      if (prev) {
+        prev.rejectedCount = Number(row.count);
+      }
+    }
 
-    const monthlyBugMap = new Map<string, { created: number; completed: number }>();
+    const monthlyBugMap = new Map<string, { created: number; completed: number; rejectedCount: number; longTermCount: number }>();
     // 初始化所有月份
     for (const month of allMonths) {
-      monthlyBugMap.set(month, { created: 0, completed: 0 });
+      monthlyBugMap.set(month, { created: 0, completed: 0, rejectedCount: 0, longTermCount: 0 });
     }
     // 填充实际数据
     for (const row of monthlyBugCreatedRows) {
@@ -296,26 +404,46 @@ export class KpiService {
         prev.completed = Number(row.count);
       }
     }
-
+    for (const row of monthlyBugLongTermRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyBugMap.get(month);
+      if (prev) {
+        prev.longTermCount = Number(row.count);
+      }
+    }
+    for (const row of monthlyBugRejectedRows) {
+      const month = new Date(row.month).toISOString().slice(0, 7);
+      const prev = monthlyBugMap.get(month);
+      if (prev) {
+        prev.rejectedCount = Number(row.count);
+      }
+    }
     const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
     const statusBreakdown = statusGroups.reduce<Record<string, number>>((acc, item) => {
       acc[item.status] = item._count.id;
       return acc;
     }, {});
 
+    // 分母 = 需求总数 - 长期演进
+    const totalIdentifiedCount = totalWithLongTerm - longTermCount;
+
     return {
       dateRange: {
         startDate: start.toISOString(),
         endDate: end.toISOString(),
       },
+      totalWithLongTerm,
+      longTermCount,
       totalIdentifiedCount,
       completedCount,
-      completionRate: totalIdentifiedCount > 0 ? completedCount / totalIdentifiedCount : 0,
+      rejectedCount,
+      completionRate: totalIdentifiedCount > 0 ? (completedCount + rejectedCount) / totalIdentifiedCount : 0,
       linkedSessionCount,
       bugCount,
+      bugLongTermCount,
       bugCompletedCount,
-      bugCompletionRate: bugCount > 0 ? bugCompletedCount / bugCount : 0,
-      longTermCount,
+      bugRejectedCount,
+      bugCompletionRate: (bugCount - bugLongTermCount) > 0 ? (bugCompletedCount + bugRejectedCount) / (bugCount - bugLongTermCount) : 0,
       statusBreakdown,
       daily: {
         days,
@@ -327,7 +455,11 @@ export class KpiService {
           month,
           created: value.created,
           completed: value.completed,
-          completionRate: value.created > 0 ? value.completed / value.created : 0,
+          rejectedCount: value.rejectedCount,
+          longTermCount: value.longTermCount,
+          completionRate: (value.created - value.longTermCount) > 0 
+            ? (value.completed + value.rejectedCount) / (value.created - value.longTermCount) 
+            : 0,
         }))
         .sort((a, b) => a.month.localeCompare(b.month)),
       monthlyBug: Array.from(monthlyBugMap.entries())
@@ -335,7 +467,11 @@ export class KpiService {
           month,
           created: value.created,
           completed: value.completed,
-          completionRate: value.created > 0 ? value.completed / value.created : 0,
+          rejectedCount: value.rejectedCount,
+          longTermCount: value.longTermCount,
+          completionRate: (value.created - value.longTermCount) > 0 
+            ? (value.completed + value.rejectedCount) / (value.created - value.longTermCount) 
+            : 0,
         }))
         .sort((a, b) => a.month.localeCompare(b.month)),
       recentRequirements: recentRequirements.map((item) => ({

@@ -1066,24 +1066,51 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const requirementTabContent = (
     <>
       <Row gutter={16}>
-        <Col span={8}>
-          <Card style={{ height: 120 }}>
-            <Statistic title="识别需求总数" value={demandOverview?.totalIdentifiedCount ?? 0} />
-          </Card>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>需求总数</span>} 
+              value={demandOverview?.totalWithLongTerm ?? 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </div>
+        </Col>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>需求已结单</span>} 
+              value={demandOverview?.completedCount ?? 0}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </div>
+        </Col>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>已拒绝需求数</span>} 
+              value={demandOverview?.rejectedCount ?? 0}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </div>
+        </Col>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>长期演进</span>} 
+              value={demandOverview?.longTermCount ?? 0}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </div>
         </Col>
         <Col span={8}>
-          <Card style={{ height: 120 }}>
-            <Statistic title="已结单需求数" value={demandOverview?.completedCount ?? 0} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card style={{ height: 120 }}>
+          <div style={{ padding: '20px 24px' }}>
             <Statistic
-              title="需求结单率"
+              title={<span style={{ color: '#666' }}>需求结单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
+              valueStyle={{ color: '#52c41a' }}
             />
-          </Card>
+          </div>
         </Col>
       </Row>
       <Row gutter={16} style={{ marginTop: 16 }}>
@@ -1123,26 +1150,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           columns={requirementColumns}
         />
       </Card>
-      <Card title="按月需求结单率" style={{ marginTop: 16 }}>
-        <Table
-          rowKey="month"
-          dataSource={demandMonthlyRows}
-          pagination={false}
-          size="small"
-          columns={[
-            { title: '月份', dataIndex: 'month', key: 'month', sorter: true },
-            { title: '识别需求数', dataIndex: 'created', key: 'created', sorter: true },
-            { title: '完成需求数', dataIndex: 'completed', key: 'completed', sorter: true },
-            {
-              title: '完成率',
-              dataIndex: 'completionRate',
-              key: 'completionRate',
-              sorter: true,
-              render: (value: number) => `${(value * 100).toFixed(2)}%`,
-            },
-          ]}
-        />
-      </Card>
     </>
   );
 
@@ -1150,24 +1157,51 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const bugTabContent = (
     <>
       <Row gutter={16}>
-        <Col span={8}>
-          <Card style={{ height: 120 }}>
-            <Statistic title="识别 Bug 总数" value={demandOverview?.bugCount ?? 0} />
-          </Card>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 总数</span>} 
+              value={demandOverview?.bugCount ?? 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </div>
+        </Col>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 已结单</span>} 
+              value={demandOverview?.bugCompletedCount ?? 0}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </div>
+        </Col>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>已拒绝 Bug 数</span>} 
+              value={demandOverview?.bugRejectedCount ?? 0}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </div>
+        </Col>
+        <Col span={4}>
+          <div style={{ padding: '20px 16px' }}>
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>长期演进</span>} 
+              value={demandOverview?.bugLongTermCount ?? 0}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </div>
         </Col>
         <Col span={8}>
-          <Card style={{ height: 120 }}>
-            <Statistic title="已结单 Bug 数" value={demandOverview?.bugCompletedCount ?? 0} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card style={{ height: 120 }}>
+          <div style={{ padding: '20px 24px' }}>
             <Statistic
-              title="Bug 结单率"
+              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
+              valueStyle={{ color: '#52c41a' }}
             />
-          </Card>
+          </div>
         </Col>
       </Row>
       <Card title="Bug 明细" style={{ marginTop: 16 }}>
@@ -1179,34 +1213,131 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           columns={bugColumns}
         />
       </Card>
-      <Card title="按月 Bug 结单率" style={{ marginTop: 16 }}>
-        <Table
-          rowKey="month"
-          dataSource={bugMonthlyRows}
-          pagination={false}
-          size="small"
-          columns={[
-            { title: '月份', dataIndex: 'month', key: 'month', sorter: true },
-            { title: '识别 Bug 数', dataIndex: 'created', key: 'created', sorter: true },
-            { title: '完成 Bug 数', dataIndex: 'completed', key: 'completed', sorter: true },
-            {
-              title: '完成率',
-              dataIndex: 'completionRate',
-              key: 'completionRate',
-              sorter: true,
-              render: (value: number) => `${(value * 100).toFixed(2)}%`,
-            },
-          ]}
-        />
-      </Card>
     </>
   );
+
+  // 按月汇总表格（需求和 Bug 合并，带汇总行）
+  const mergedMonthlyRows = useMemo(() => {
+    const months = new Set<string>();
+    demandMonthlyRows.forEach(r => months.add(r.month));
+    bugMonthlyRows.forEach(r => months.add(r.month));
+    
+    const rows: Array<{
+      month: string;
+      reqCreated: number;
+      reqCompleted: number;
+      reqRejected: number;
+      reqLongTerm: number;
+      reqCompletionRate: number;
+      bugCreated: number;
+      bugCompleted: number;
+      bugRejected: number;
+      bugLongTerm: number;
+      bugCompletionRate: number;
+    }> = [];
+    
+    const sortedMonths = Array.from(months).sort();
+    
+    sortedMonths.forEach(month => {
+      const reqData = demandMonthlyRows.find(r => r.month === month);
+      const bugData = bugMonthlyRows.find(r => r.month === month);
+      
+      const reqCreated = reqData?.created ?? 0;
+      const reqCompleted = reqData?.completed ?? 0;
+      const reqRejected = reqData?.rejectedCount ?? 0;
+      const reqLongTerm = reqData?.longTermCount ?? 0;
+      
+      const bugCreated = bugData?.created ?? 0;
+      const bugCompleted = bugData?.completed ?? 0;
+      const bugRejected = bugData?.rejectedCount ?? 0;
+      const bugLongTerm = bugData?.longTermCount ?? 0;
+      
+      const reqEffectiveTotal = reqCreated - reqLongTerm;
+      const reqCompletionRate = reqEffectiveTotal > 0 ? (reqCompleted + reqRejected) / reqEffectiveTotal : 0;
+      
+      const bugEffectiveTotal = bugCreated - bugLongTerm;
+      const bugCompletionRate = bugEffectiveTotal > 0 ? (bugCompleted + bugRejected) / bugEffectiveTotal : 0;
+      
+      rows.push({
+        month,
+        reqCreated,
+        reqCompleted,
+        reqRejected,
+        reqLongTerm,
+        reqCompletionRate,
+        bugCreated,
+        bugCompleted,
+        bugRejected,
+        bugLongTerm,
+        bugCompletionRate,
+      });
+    });
+    
+    // 汇总行：直接使用 demandOverview 的聚合字段，与需求详情页/Bug详情页保持一致
+    rows.push({
+      month: '汇总',
+      reqCreated: demandOverview?.totalWithLongTerm ?? 0,
+      reqCompleted: demandOverview?.completedCount ?? 0,
+      reqRejected: demandOverview?.rejectedCount ?? 0,
+      reqLongTerm: demandOverview?.longTermCount ?? 0,
+      reqCompletionRate: demandOverview?.completionRate ?? 0,
+      bugCreated: demandOverview?.bugCount ?? 0,
+      bugCompleted: demandOverview?.bugCompletedCount ?? 0,
+      bugRejected: demandOverview?.bugRejectedCount ?? 0,
+      bugLongTerm: demandOverview?.bugLongTermCount ?? 0,
+      bugCompletionRate: demandOverview?.bugCompletionRate ?? 0,
+    });
+    
+    return rows;
+  }, [demandMonthlyRows, bugMonthlyRows, demandOverview]);
+
+  // 按月汇总表格的列定义
+  const mergedMonthlyColumns = [
+    { title: '月份', dataIndex: 'month', key: 'month', width: 80, fixed: 'left' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 90 },
+    { title: '需求已完成', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 100 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 100 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 110 },
+    {
+      title: '需求结单率',
+      key: 'reqCompletionRate',
+      width: 100,
+      render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
+        `${(record.reqCompletionRate * 100).toFixed(2)}%`,
+    },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 90 },
+    { title: 'Bug已完成', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 100 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 100 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 110 },
+    {
+      title: 'Bug结单率',
+      key: 'bugCompletionRate',
+      width: 100,
+      render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
+        `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+  ];
 
   // 需求主Tab（包含需求和Bug两个子Tab）
   const demandTab = (
     <Tabs defaultActiveKey="requirement" items={[
       { key: 'requirement', label: '需求', children: requirementTabContent },
       { key: 'bug', label: 'Bug', children: bugTabContent },
+      { 
+        key: 'monthly', 
+        label: '按月汇总', 
+        children: (
+          <Card>
+            <Table
+              rowKey="month"
+              dataSource={mergedMonthlyRows}
+              pagination={false}
+              size="small"
+              columns={mergedMonthlyColumns}
+            />
+          </Card>
+        )
+      },
     ]} />
   );
 

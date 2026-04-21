@@ -96,11 +96,14 @@ describe('KpiService', () => {
   describe('getDemandOverview', () => {
     it('should return demand statistics', async () => {
       mockPrismaService.zouwuRequirement.count
-        .mockResolvedValueOnce(100) // totalIdentifiedCount
+        .mockResolvedValueOnce(100) // totalWithLongTerm
         .mockResolvedValueOnce(80) // completedCount
+        .mockResolvedValueOnce(5) // rejectedCount
         .mockResolvedValueOnce(10) // linkedSessionCount
         .mockResolvedValueOnce(30) // bugCount
-        .mockResolvedValueOnce(25); // bugCompletedCount
+        .mockResolvedValueOnce(25) // bugCompletedCount
+        .mockResolvedValueOnce(6) // bugLongTermCount
+        .mockResolvedValueOnce(4); // longTermCount
 
       mockPrismaService.$queryRaw.mockResolvedValue([]);
       mockPrismaService.zouwuRequirement.groupBy.mockResolvedValue([]);
@@ -108,10 +111,13 @@ describe('KpiService', () => {
 
       const result = await service.getDemandOverview();
 
-      expect(result.totalIdentifiedCount).toBe(100);
+      expect(result.totalWithLongTerm).toBe(100);
       expect(result.completedCount).toBe(80);
+      expect(result.rejectedCount).toBe(5);
       expect(result.bugCount).toBe(30);
+      expect(result.bugLongTermCount).toBe(6);
       expect(result.bugCompletedCount).toBe(25);
+      expect(result.longTermCount).toBe(4);
     });
   });
 });

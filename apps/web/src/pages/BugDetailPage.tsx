@@ -11,6 +11,7 @@ interface BugRow {
   title: string;
   status: string;
   issueType?: number;
+  isLongTerm?: boolean;
   sourceSessionId?: string | null;
   createdById?: string | null;
   createdByName?: string | null;
@@ -22,6 +23,8 @@ interface MonthlyRow {
   month: string;
   created: number;
   completed: number;
+  rejectedCount: number;
+  longTermCount: number;
   completionRate: number;
 }
 
@@ -74,6 +77,22 @@ export function BugDetailPage() {
       width: 110,
     },
     {
+      title: '长期演进',
+      dataIndex: 'isLongTerm',
+      key: 'isLongTerm',
+      sorter: (a: BugRow, b: BugRow) => (a.isLongTerm ? 1 : 0) - (b.isLongTerm ? 1 : 0),
+      filters: [
+        { text: '是', value: 'true' },
+        { text: '否', value: 'false' },
+      ],
+      onFilter: (value: unknown, record: BugRow) => {
+        if (value === 'true') return record.isLongTerm === true;
+        return record.isLongTerm !== true;
+      },
+      render: (value?: boolean) => value ? <Tag color="purple">是</Tag> : <Tag>否</Tag>,
+      width: 100,
+    },
+    {
       title: '来源会话',
       dataIndex: 'sourceSessionId',
       key: 'sourceSessionId',
@@ -84,6 +103,8 @@ export function BugDetailPage() {
       title: '创建人',
       dataIndex: 'createdByName',
       key: 'createdByName',
+      filters: [...new Set(bugList.map(r => r.createdByName).filter(Boolean))].map(name => ({ text: name, value: name })),
+      onFilter: (value: unknown, record: BugRow) => record.createdByName === value,
       render: (value?: string | null) => value ?? '-',
       width: 100,
     },
@@ -119,21 +140,35 @@ export function BugDetailPage() {
       width: 100,
     },
     { 
-      title: '识别 Bug 数', 
+      title: 'Bug 总数', 
       dataIndex: 'created', 
       key: 'created',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.created - b.created,
-      width: 120,
+      width: 100,
     },
     { 
-      title: '完成 Bug 数', 
+      title: '已完成', 
       dataIndex: 'completed', 
       key: 'completed',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
-      width: 120,
+      width: 90,
+    },
+    { 
+      title: '已拒绝', 
+      dataIndex: 'rejectedCount', 
+      key: 'rejectedCount',
+      sorter: (a: MonthlyRow, b: MonthlyRow) => a.rejectedCount - b.rejectedCount,
+      width: 80,
+    },
+    { 
+      title: '长期演进', 
+      dataIndex: 'longTermCount', 
+      key: 'longTermCount',
+      sorter: (a: MonthlyRow, b: MonthlyRow) => a.longTermCount - b.longTermCount,
+      width: 100,
     },
     {
-      title: '完成率',
+      title: '结单率',
       dataIndex: 'completionRate',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completionRate - b.completionRate,
@@ -157,29 +192,55 @@ export function BugDetailPage() {
       </Row>
 
       <Row gutter={16}>
-        <Col span={8}>
+        <Col span={4}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>识别 Bug 总数</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>识别 Bug 总数</span>} 
               value={demandOverview?.bugCount ?? 0}
               valueStyle={{ color: '#faad14' }}
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={4}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>已结单 Bug 数</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>已结单 Bug 数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 16px' }}
+          >
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>已拒绝 Bug 数</span>} 
+              value={demandOverview?.bugRejectedCount ?? 0}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 16px' }}
+          >
+            <Statistic 
+              title={<span style={{ color: '#666', fontSize: 13 }}>长期演进 Bug 数</span>} 
+              value={demandOverview?.bugLongTermCount ?? 0}
+              valueStyle={{ color: '#722ed1' }}
             />
           </Card>
         </Col>

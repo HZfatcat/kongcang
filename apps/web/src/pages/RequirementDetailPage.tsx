@@ -11,6 +11,7 @@ interface RequirementRow {
   title: string;
   status: string;
   issueType?: number;
+  isLongTerm?: boolean;
   sourceSessionId?: string | null;
   createdById?: string | null;
   createdByName?: string | null;
@@ -22,6 +23,8 @@ interface MonthlyRow {
   month: string;
   created: number;
   completed: number;
+  rejectedCount: number;
+  longTermCount: number;
   completionRate: number;
 }
 
@@ -74,6 +77,24 @@ export function RequirementDetailPage() {
       width: 110,
     },
     {
+      title: '长期演进',
+      dataIndex: 'isLongTerm',
+      key: 'isLongTerm',
+      sorter: (a: RequirementRow, b: RequirementRow) => (a.isLongTerm ? 1 : 0) - (b.isLongTerm ? 1 : 0),
+      filters: [
+        { text: '是', value: 'true' },
+        { text: '否', value: 'false' },
+      ],
+      onFilter: (value: unknown, record: RequirementRow) => {
+        if (value === 'true') return record.isLongTerm === true;
+        return record.isLongTerm !== true;
+      },
+      render: (isLongTerm: boolean) => (
+        <Tag color={isLongTerm ? 'orange' : 'default'}>{isLongTerm ? '是' : '否'}</Tag>
+      ),
+      width: 100,
+    },
+    {
       title: '来源会话',
       dataIndex: 'sourceSessionId',
       key: 'sourceSessionId',
@@ -84,6 +105,8 @@ export function RequirementDetailPage() {
       title: '创建人',
       dataIndex: 'createdByName',
       key: 'createdByName',
+      filters: [...new Set(requirementList.map(r => r.createdByName).filter(Boolean))].map(name => ({ text: name, value: name })),
+      onFilter: (value: unknown, record: RequirementRow) => record.createdByName === value,
       render: (value?: string | null) => value ?? '-',
       width: 100,
     },
@@ -119,26 +142,48 @@ export function RequirementDetailPage() {
       width: 100,
     },
     { 
-      title: '识别需求数', 
+      title: '需求总数', 
       dataIndex: 'created', 
       key: 'created', 
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.created - b.created,
-      width: 120,
+      width: 100,
     },
     { 
-      title: '完成需求数', 
+      title: '已完成', 
       dataIndex: 'completed', 
       key: 'completed', 
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
-      width: 120,
+      width: 90,
+    },
+    { 
+      title: '已拒绝', 
+      dataIndex: 'rejectedCount', 
+      key: 'rejectedCount', 
+      sorter: (a: MonthlyRow, b: MonthlyRow) => a.rejectedCount - b.rejectedCount,
+      width: 80,
     },
     {
-      title: '完成率',
-      dataIndex: 'completionRate',
+      title: '长期演进',
+      dataIndex: 'longTermCount',
+      key: 'longTermCount',
+      sorter: (a: MonthlyRow, b: MonthlyRow) => a.longTermCount - b.longTermCount,
+      width: 90,
+    },
+    {
+      title: '结单率',
       key: 'completionRate',
-      sorter: (a: MonthlyRow, b: MonthlyRow) => a.completionRate - b.completionRate,
-      render: (value: number) => `${(value * 100).toFixed(2)}%`,
-      width: 100,
+      sorter: (a: MonthlyRow, b: MonthlyRow) => {
+        const aRate = a.created - a.longTermCount > 0 ? (a.completed + a.rejectedCount) / (a.created - a.longTermCount) : 0;
+        const bRate = b.created - b.longTermCount > 0 ? (b.completed + b.rejectedCount) / (b.created - b.longTermCount) : 0;
+        return aRate - bRate;
+      },
+      render: (_: unknown, record: MonthlyRow) => {
+        const effectiveTotal = record.created - record.longTermCount;
+        if (effectiveTotal <= 0) return '0.00%';
+        const rate = (record.completed + record.rejectedCount) / effectiveTotal;
+        return `${(rate * 100).toFixed(2)}%`;
+      },
+      width: 90,
     },
   ];
 
@@ -157,7 +202,7 @@ export function RequirementDetailPage() {
       </Row>
 
       <Row gutter={16}>
-        <Col span={8}>
+        <Col span={4}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
@@ -165,12 +210,12 @@ export function RequirementDetailPage() {
           >
             <Statistic 
               title={<span style={{ color: '#666' }}>识别需求总数</span>} 
-              value={demandOverview?.totalIdentifiedCount ?? 0}
+              value={demandOverview?.totalWithLongTerm ?? 0}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={4}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
@@ -180,6 +225,32 @@ export function RequirementDetailPage() {
               title={<span style={{ color: '#666' }}>已结单需求数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 24px' }}
+          >
+            <Statistic 
+              title={<span style={{ color: '#666' }}>已拒绝需求数</span>} 
+              value={demandOverview?.rejectedCount ?? 0}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 24px' }}
+          >
+            <Statistic 
+              title={<span style={{ color: '#666' }}>长期演进需求数</span>} 
+              value={demandOverview?.longTermCount ?? 0}
+              valueStyle={{ color: '#fa8c16' }}
             />
           </Card>
         </Col>

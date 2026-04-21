@@ -303,13 +303,23 @@ export class ZouwuClient implements OnModuleInit {
       }
 
       // 解析长期演进标签
+      // 优先使用 label_info_List（完整标签信息），其次尝试 labels
       let isLongTerm = false;
-      const labels = item.labels as Array<Record<string, unknown>> | string[] | undefined;
-      if (Array.isArray(labels)) {
-        isLongTerm = labels.some((label) => {
-          const name = typeof label === 'string' ? label : (label?.name as string);
+      const labelInfoList = item.label_info_List as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(labelInfoList)) {
+        isLongTerm = labelInfoList.some((label) => {
+          const name = label?.label_name as string;
           return name === this.defaultLongTermLabelName;
         });
+      } else {
+        // 备用：检查 labels 字段
+        const labels = item.labels as Array<Record<string, unknown>> | string[] | undefined;
+        if (Array.isArray(labels)) {
+          isLongTerm = labels.some((label) => {
+            const name = typeof label === 'string' ? label : (label?.name as string);
+            return name === this.defaultLongTermLabelName;
+          });
+        }
       }
 
       return {

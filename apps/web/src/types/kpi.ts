@@ -14,6 +14,8 @@ export interface MonthlyCompletion {
   month: string;
   created: number;
   completed: number;
+  rejectedCount: number;
+  longTermCount: number;
   completionRate: number;
 }
 
@@ -23,11 +25,16 @@ export interface DemandOverview {
     endDate: string;
   };
   totalIdentifiedCount: number;
+  totalWithLongTerm: number;
   completedCount: number;
+  rejectedCount: number;
+  longTermCount: number;
   completionRate: number;
   linkedSessionCount: number;
   bugCount: number;
+  bugLongTermCount: number;
   bugCompletedCount: number;
+  bugRejectedCount: number;
   bugCompletionRate: number;
   statusBreakdown: Record<string, number>;
   daily: {
@@ -42,6 +49,7 @@ export interface DemandOverview {
     title: string;
     status: string;
     issueType?: number;
+    isLongTerm?: boolean;
     sourceSessionId?: string | null;
     createdById?: string | null;
     createdByName?: string | null;
