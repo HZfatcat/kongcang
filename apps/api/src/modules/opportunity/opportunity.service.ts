@@ -174,24 +174,42 @@ export class OpportunityService {
       const rowNum = i + 2; // CSV 第1行是表头
 
       try {
-        const title = row['标题'] || row['title'];
-        if (!title) {
-          // 缺少标题的行静默跳过
+        // 提取各字段
+        const username = row['用户名'] || row['username'] || '';
+        const name = row['姓名'] || row['name'] || '';
+        const phone = row['手机号'] || row['phone'] || '';
+        const email = row['邮箱'] || row['email'] || '';
+        const companyName = row['公司名称'] || row['companyName'] || '';
+        const requestType = row['诉求类型'] || row['requestType'] || '';
+        const requestDetails = row['诉求详情'] || row['requestDetails'] || '';
+        const feedbackChannel = row['反馈渠道'] || row['feedbackChannel'] || '';
+        const feedbackPerson = row['反馈人'] || row['feedbackPerson'] || '';
+        const feedbackResult = row['反馈结果'] || row['feedbackResult'] || '';
+
+        // 检查是否为空行（所有关键字段都为空）
+        if (!username && !name && !phone && !email && !companyName && !requestType && !requestDetails) {
           continue;
+        }
+
+        // 标题为空时自动生成：诉求类型-公司名称-姓名
+        let title = row['标题'] || row['title'] || '';
+        if (!title) {
+          const parts = [requestType, companyName, name].filter(Boolean);
+          title = parts.length > 0 ? parts.join('-') : `商机-${Date.now()}-${i}`;
         }
 
         const data = {
           title,
-          username: row['用户名'] || row['username'],
-          name: row['姓名'] || row['name'],
-          phone: row['手机号'] || row['phone'],
-          email: row['邮箱'] || row['email'],
-          companyName: row['公司名称'] || row['companyName'],
-          requestType: row['诉求类型'] || row['requestType'],
-          requestDetails: row['诉求详情'] || row['requestDetails'],
-          feedbackChannel: row['反馈渠道'] || row['feedbackChannel'],
-          feedbackPerson: row['反馈人'] || row['feedbackPerson'],
-          feedbackResult: row['反馈结果'] || row['feedbackResult'],
+          username: username || null,
+          name: name || null,
+          phone: phone || null,
+          email: email || null,
+          companyName: companyName || null,
+          requestType: requestType || null,
+          requestDetails: requestDetails || null,
+          feedbackChannel: feedbackChannel || null,
+          feedbackPerson: feedbackPerson || null,
+          feedbackResult: feedbackResult || null,
           sourceType: OpportunitySourceType.MANUAL,
           status: OpportunityStatus.NEW,
         };
