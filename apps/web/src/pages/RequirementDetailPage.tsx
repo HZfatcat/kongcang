@@ -105,7 +105,7 @@ export function RequirementDetailPage() {
       title: '创建人',
       dataIndex: 'createdByName',
       key: 'createdByName',
-      filters: [...new Set(requirementList.map(r => r.createdByName).filter(Boolean))].map(name => ({ text: name, value: name })),
+      filters: [...new Set(requirementList.map(r => r.createdByName).filter(Boolean))].map(name => ({ text: name as string, value: name as string })),
       onFilter: (value: unknown, record: RequirementRow) => record.createdByName === value,
       render: (value?: string | null) => value ?? '-',
       width: 100,

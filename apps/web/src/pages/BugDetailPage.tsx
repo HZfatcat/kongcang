@@ -103,7 +103,7 @@ export function BugDetailPage() {
       title: '创建人',
       dataIndex: 'createdByName',
       key: 'createdByName',
-      filters: [...new Set(bugList.map(r => r.createdByName).filter(Boolean))].map(name => ({ text: name, value: name })),
+      filters: [...new Set(bugList.map(r => r.createdByName).filter(Boolean))].map(name => ({ text: name as string, value: name as string })),
       onFilter: (value: unknown, record: BugRow) => record.createdByName === value,
       render: (value?: string | null) => value ?? '-',
       width: 100,
