@@ -118,6 +118,17 @@ export class OpportunityService {
       estimatedAmount: payload.estimatedAmount,
       status,
       nextAction: payload.nextAction,
+      // 新增字段
+      username: payload.username,
+      name: payload.name,
+      phone: payload.phone,
+      email: payload.email,
+      companyName: payload.companyName,
+      requestType: payload.requestType,
+      requestDetails: payload.requestDetails,
+      feedbackChannel: payload.feedbackChannel,
+      feedbackPerson: payload.feedbackPerson,
+      feedbackResult: payload.feedbackResult,
       ...(status === OpportunityStatus.WON || status === OpportunityStatus.LOST
         ? { closedAt: new Date() }
         : {}),

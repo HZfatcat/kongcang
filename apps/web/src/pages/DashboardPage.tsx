@@ -1435,49 +1435,29 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           loading={opportunityLoading}
           dataSource={opportunities}
           columns={[
-            { title: '标题', dataIndex: 'title', key: 'title' },
-            { title: '来源', dataIndex: 'sourceType', key: 'sourceType' },
-            { title: '关联会话', dataIndex: 'sourceSessionId', key: 'sourceSessionId', render: (value?: string) => value ?? '-' },
-            { title: '客服', dataIndex: 'agentId', key: 'agentId', render: (value?: string) => getAgentLabel(value) },
-            { title: '客户', dataIndex: 'customerName', key: 'customerName', render: (value?: string) => value ?? '-' },
             {
-              title: '状态',
-              dataIndex: 'status',
-              key: 'status',
-              render: (value: OpportunityStatus, record: OpportunityRecord) => (
-                <Select
-                  value={value}
-                  style={{ width: 140 }}
-                  options={[
-                    { label: '新建', value: 'NEW' },
-                    { label: '已甄别', value: 'QUALIFIED' },
-                    { label: '跟进中', value: 'FOLLOWING' },
-                    { label: '赢单', value: 'WON' },
-                    { label: '输单', value: 'LOST' },
-                  ]}
-                  onChange={async (nextStatus) => {
-                    await updateOpportunityStatus(record.id, { status: nextStatus });
-                    message.success('商机状态已更新');
-                    await loadOpportunities(opportunityPage, opportunityPageSize);
-                  }}
-                />
-              ),
+              title: '日期',
+              dataIndex: 'createdAt',
+              key: 'createdAt',
+              width: 120,
+              render: (value: string) => dayjs(value).format('YYYY-MM-DD'),
             },
-            {
-              title: '估算金额',
-              dataIndex: 'estimatedAmount',
-              key: 'estimatedAmount',
-              render: (value?: number) => (value === undefined ? '-' : value),
-            },
-            {
-              title: '更新时间',
-              dataIndex: 'updatedAt',
-              key: 'updatedAt',
-              render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
-            },
+            { title: '用户名', dataIndex: 'username', key: 'username', width: 100, render: (v?: string) => v ?? '-' },
+            { title: '姓名', dataIndex: 'name', key: 'name', width: 80, render: (v?: string) => v ?? '-' },
+            { title: '手机号', dataIndex: 'phone', key: 'phone', width: 120, render: (v?: string) => v ?? '-' },
+            { title: '邮箱', dataIndex: 'email', key: 'email', width: 150, render: (v?: string) => v ?? '-' },
+            { title: '公司名称', dataIndex: 'companyName', key: 'companyName', width: 150, render: (v?: string) => v ?? '-' },
+            { title: '诉求类型', dataIndex: 'requestType', key: 'requestType', width: 100, render: (v?: string) => v ?? '-' },
+            { title: '标题', dataIndex: 'title', key: 'title', width: 150 },
+            { title: '诉求详情', dataIndex: 'requestDetails', key: 'requestDetails', width: 200, ellipsis: true, render: (v?: string) => v ?? '-' },
+            { title: '反馈渠道', dataIndex: 'feedbackChannel', key: 'feedbackChannel', width: 100, render: (v?: string) => v ?? '-' },
+            { title: '反馈人', dataIndex: 'feedbackPerson', key: 'feedbackPerson', width: 80, render: (v?: string) => v ?? '-' },
+            { title: '反馈结果', dataIndex: 'feedbackResult', key: 'feedbackResult', width: 100, render: (v?: string) => v ?? '-' },
             {
               title: '操作',
               key: 'actions',
+              width: 100,
+              fixed: 'right',
               render: (_: unknown, record: OpportunityRecord) => (
                 <Space>
                   <Button
@@ -2221,9 +2201,59 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           }}
         >
           <Form form={opportunityForm} layout="vertical">
-            <Form.Item name="title" label="商机标题" rules={[{ required: true, message: '请输入商机标题' }]}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="username" label="用户名">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="name" label="姓名">
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="phone" label="手机号">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="email" label="邮箱">
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="companyName" label="公司名称">
               <Input />
             </Form.Item>
+            <Form.Item name="requestType" label="诉求类型">
+              <Input />
+            </Form.Item>
+            <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="requestDetails" label="诉求详情">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="feedbackChannel" label="反馈渠道">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="feedbackPerson" label="反馈人">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="feedbackResult" label="反馈结果">
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
             <Form.Item name="sourceType" label="来源" rules={[{ required: true, message: '请选择来源' }]}>
               <Select
                 options={[
@@ -2247,15 +2277,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 placeholder="可关联客服ID"
               />
             </Form.Item>
-            <Form.Item name="customerName" label="客户名称">
-              <Input />
-            </Form.Item>
-            <Form.Item name="contactInfo" label="联系方式">
-              <Input />
-            </Form.Item>
-            <Form.Item name="estimatedAmount" label="预估金额">
-              <InputNumber min={0} style={{ width: '100%' }} />
-            </Form.Item>
             <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
               <Select
                 options={[
@@ -2266,12 +2287,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                   { label: '输单', value: 'LOST' },
                 ]}
               />
-            </Form.Item>
-            <Form.Item name="nextAction" label="下一步动作">
-              <Input />
-            </Form.Item>
-            <Form.Item name="description" label="商机说明">
-              <Input.TextArea rows={3} />
             </Form.Item>
           </Form>
         </Modal>

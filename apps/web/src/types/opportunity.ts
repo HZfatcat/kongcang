@@ -15,6 +15,17 @@ export interface OpportunityRecord {
   closeReason?: string;
   closedAt?: string;
   nextAction?: string;
+  // 新增字段
+  username?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  companyName?: string;
+  requestType?: string;
+  requestDetails?: string;
+  feedbackChannel?: string;
+  feedbackPerson?: string;
+  feedbackResult?: string;
   createdAt: string;
   updatedAt: string;
 }

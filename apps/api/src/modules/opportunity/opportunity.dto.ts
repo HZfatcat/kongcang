@@ -104,6 +104,57 @@ export class UpsertOpportunityDto {
   @IsString()
   @MaxLength(500)
   nextAction?: string;
+
+  // 新增字段
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  username?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  companyName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  requestType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  requestDetails?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  feedbackChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  feedbackPerson?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  feedbackResult?: string;
 }
 
 export class UpdateOpportunityStatusDto {

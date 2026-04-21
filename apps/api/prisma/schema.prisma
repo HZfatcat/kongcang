@@ -62,6 +62,16 @@ model BusinessOpportunity {
   closeReason      String?
   closedAt         DateTime?
   nextAction       String?
+  username         String?
+  name             String?
+  phone            String?
+  email            String?
+  companyName      String?
+  requestType      String?
+  requestDetails   String?
+  feedbackChannel  String?
+  feedbackPerson   String?
+  feedbackResult   String?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   sourceSession    UdescSession?         @relation(fields: [sourceSessionId], references: [id], onDelete: SetNull)
