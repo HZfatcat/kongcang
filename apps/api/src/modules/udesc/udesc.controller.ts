@@ -25,11 +25,13 @@ export class UdescController {
 
   @Get('sessions')
   getSessions(@Query() query: UdescSessionQueryDto) {
+    console.log('[Controller] getSessions query:', JSON.stringify(query));
     return this.udescService.getSessions({
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,
       agentIds: query.agentIds,
+      sessionId: query.sessionId,
       page: query.page,
       pageSize: query.pageSize,
     });
@@ -92,11 +94,13 @@ export class UdescController {
 
   @Get('metrics')
   getSessionMetrics(@Query() query: UdescMetricsQueryDto) {
+    console.log('[Controller] getSessionMetrics query:', JSON.stringify(query));
     return this.udescService.getSessionMetrics({
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,
       agentIds: query.agentIds,
+      sessionId: query.sessionId,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       page: query.page,
@@ -105,7 +109,13 @@ export class UdescController {
   }
 
   @Get('metrics/summary')
-  getMetricsSummary(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getMetricsSummary(query.startDate, query.endDate);
+  getMetricsSummary(@Query() query: UdescMetricsQueryDto) {
+    console.log('[Controller] getMetricsSummary query:', JSON.stringify(query));
+    return this.udescService.getMetricsSummary(query.startDate, query.endDate, query.agentId);
+  }
+
+  @Get('metrics/agent-summary')
+  getAgentMetricsSummary(@Query() query: UdescDateRangeDto) {
+    return this.udescService.getAgentMetricsSummary(query.startDate, query.endDate);
   }
 }

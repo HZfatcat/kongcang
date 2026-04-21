@@ -289,7 +289,7 @@ export interface UdescMetricsSummary {
   dateRange: { startDate: string; endDate: string };
   totalSessions: number;
   avgFirstResponseTime: number | null;
-  avgAvgResponseTime: number | null;
+  avgResponseTime: number | null;
   avgWaitTime: number | null;
   avgResolutionTime: number | null;
   totalMessages: number;

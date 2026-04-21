@@ -21,6 +21,10 @@ export class UdescSessionQueryDto extends UdescDateRangeDto {
   agentIds?: string;
 
   @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -106,6 +110,10 @@ export class UdescMetricsQueryDto extends UdescDateRangeDto {
   @IsOptional()
   @IsString()
   agentIds?: string;
+
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
 
   @IsOptional()
   @IsString()

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Button,
@@ -99,6 +99,8 @@ export function SessionDetailPage() {
   const [opportunityTotal, setOpportunityTotal] = useState(0);
   const [opportunityPage, setOpportunityPage] = useState(1);
   const [opportunityPageSize, setOpportunityPageSize] = useState(20);
+  const [sessionSearchId, setSessionSearchId] = useState('');
+  const activeSessionSearchRef = useRef<string | null>(null);
 
   const apiRange = useMemo(
     () => ({
@@ -121,30 +123,72 @@ export function SessionDetailPage() {
     nextPage?: number,
     nextPageSize?: number,
     nextSessionAgentFilters?: string[],
+    nextSessionId?: string,
   ) => {
     const targetPage = nextPage ?? page;
     const targetPageSize = nextPageSize ?? pageSize;
     const targetSessionAgentFilters = nextSessionAgentFilters ?? sessionAgentFilters;
+    const targetSessionId = nextSessionId ?? sessionSearchId;
+    console.log('[reload] targetSessionId:', targetSessionId, 'nextSessionId:', nextSessionId, 'sessionSearchId:', sessionSearchId);
+
+    // 标记当前活跃的 sessionId 搜索
+    const searchId = Date.now();
+    if (targetSessionId) {
+      activeSessionSearchRef.current = String(searchId);
+    }
+    const mySearchId = activeSessionSearchRef.current;
+
     setLoading(true);
     try {
-      const [overviewData, treeResp, sessionResp] = await Promise.all([
-        fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdescSessions({
+      // 当搜索 sessionId 时，只加载该会话，不加载 overview 和 tree
+      if (targetSessionId) {
+        console.log('[reload] calling fetchUdescSessions with sessionId:', targetSessionId);
+        const sessionResp = await fetchUdescSessions({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
-          page: targetPage,
-          pageSize: targetPageSize,
-          agentIds:
-            targetSessionAgentFilters.length > 0 ? targetSessionAgentFilters.join(',') : undefined,
-        }),
-      ]);
-      setOverview(overviewData);
-      setTreeData(Array.isArray(treeResp) ? treeResp : []);
-      setSessions(sessionResp.records);
-      setTotal(sessionResp.total);
-      setPage(sessionResp.page);
-      setPageSize(sessionResp.pageSize);
+          page: 1,
+          pageSize: 1,
+          sessionId: targetSessionId,
+        });
+        // 检查是否仍然是最新的搜索
+        if (activeSessionSearchRef.current === mySearchId) {
+          setSessions(sessionResp.records);
+          setTotal(sessionResp.total);
+          setPage(sessionResp.page);
+          setPageSize(sessionResp.pageSize);
+          // 清空筛选
+          setOverview(null);
+          setTreeData([]);
+          setSessionAgentFilters([]);
+          activeSessionSearchRef.current = null;
+        } else {
+          console.log('[reload] skipped - outdated search');
+        }
+      } else {
+        // 如果当前有活跃的 sessionId 搜索，跳过这次普通搜索
+        if (activeSessionSearchRef.current) {
+          console.log('[reload] skipped - active session search exists');
+          return;
+        }
+        const [overviewData, treeResp, sessionResp] = await Promise.all([
+          fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+          fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+          fetchUdescSessions({
+            startDate: apiRange.startDateIso,
+            endDate: apiRange.endDateIso,
+            page: targetPage,
+            pageSize: targetPageSize,
+            agentIds:
+              targetSessionAgentFilters.length > 0 ? targetSessionAgentFilters.join(',') : undefined,
+          }),
+        ]);
+        setOverview(overviewData);
+        setTreeData(Array.isArray(treeResp) ? treeResp : []);
+        setSessions(sessionResp.records);
+        setTotal(sessionResp.total);
+        setPage(sessionResp.page);
+        setPageSize(sessionResp.pageSize);
+      }
     } catch {
       message.error('加载数据失败');
     } finally {
@@ -189,7 +233,38 @@ export function SessionDetailPage() {
     loadAgents();
   }, []);
 
+  // 处理从 MetricsPage 导航过来的 highlightSessionId 参数
+  const highlightSessionId = searchParams.get('highlightSessionId');
+  // 在渲染阶段就标记，防止日期变化 effect 先执行
+  if (highlightSessionId && !activeSessionSearchRef.current) {
+    activeSessionSearchRef.current = highlightSessionId;
+  }
+  const skipDateChangeEffect = useRef(false);
   useEffect(() => {
+    if (highlightSessionId) {
+      console.log('[highlightSessionId from URL]', highlightSessionId);
+      setSessionSearchId(highlightSessionId);
+      // 清除 URL 参数，避免重复触发
+      searchParams.delete('highlightSessionId');
+      setSearchParams(searchParams, { replace: true });
+      // 通知日期变化 effect 跳过本次
+      skipDateChangeEffect.current = true;
+      // 延迟触发搜索，确保 state 已更新
+      setTimeout(() => {
+        void reload(undefined, undefined, undefined, highlightSessionId);
+      }, 50);
+    }
+  }, [highlightSessionId]); // 只在参数变化时触发
+
+  useEffect(() => {
+    // 日期变化时重置 sessionSearchId
+    // 如果 URL 中有 highlightSessionId 参数，跳过（让 highlightSessionId effect 处理）
+    const urlHighlightId = searchParams.get('highlightSessionId');
+    if (urlHighlightId) {
+      console.log('[date change] skipped - highlightSessionId in URL:', urlHighlightId);
+      return;
+    }
+    setSessionSearchId('');
     void reload();
   }, [apiRange.startDateIso, apiRange.endDateIso]);
 
@@ -205,13 +280,27 @@ export function SessionDetailPage() {
         key: 'id',
         width: 280,
         render: (value: string) => (
-          <Typography.Text
-            copyable
-            style={{ fontSize: 12 }}
-            type={searchParams.get('highlightSessionId') === value ? 'success' : undefined}
-          >
-            {value}
-          </Typography.Text>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Typography.Link
+              style={{ fontSize: 12 }}
+              type={searchParams.get('highlightSessionId') === value ? 'success' : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (!value) return;
+                console.log('[CLICK SESSION ID v3]', value);
+                alert('点击了会话ID: ' + value);
+                setSessionSearchId(value);
+                void reload(undefined, undefined, undefined, value);
+              }}
+            >
+              {value}
+            </Typography.Link>
+            <Typography.Link
+              copyable={{ text: value, tooltips: ['复制', '已复制'] }}
+              style={{ fontSize: 12 }}
+            />
+          </span>
         ),
       },
       {
@@ -377,6 +466,18 @@ export function SessionDetailPage() {
       {/* 咨询记录 */}
       <Card title="咨询记录">
         <Space wrap style={{ marginBottom: 12 }}>
+          <Input.Search
+            placeholder="搜索会话ID [v3]"
+            allowClear
+            style={{ width: 200 }}
+            value={sessionSearchId}
+            onChange={(e) => setSessionSearchId(e.target.value)}
+            onSearch={(value) => {
+              setSessionSearchId(value);
+              setPage(1);
+              void reload(1, pageSize, sessionAgentFilters, value);
+            }}
+          />
           <Tag
             color={sessionAgentFilters.length === 0 ? 'processing' : 'default'}
             style={{ cursor: 'pointer' }}
@@ -418,7 +519,7 @@ export function SessionDetailPage() {
           onChange={(pagination, filters) => {
             const agentIds = ((filters.agentId as string[] | null) ?? []).filter(Boolean);
             setSessionAgentFilters(agentIds);
-            void reload(pagination.current ?? 1, pagination.pageSize ?? pageSize, agentIds);
+            void reload(pagination.current ?? 1, pagination.pageSize ?? pageSize, agentIds, sessionSearchId || undefined);
           }}
           pagination={{
             current: page,
@@ -461,7 +562,7 @@ export function SessionDetailPage() {
                         {isAgent ? '客服' : '客户'}
                       </Tag>
                       <Typography.Text type="secondary" style={{ marginLeft: 8 }}>
-                        {dayjs(msg.sentAt).format('HH:mm:ss')}
+                        {dayjs(msg.sentAt).format('MM-DD HH:mm:ss')}
                       </Typography.Text>
                       <div style={{ marginTop: 4 }}>{renderMessageContent(msg.content)}</div>
                     </div>

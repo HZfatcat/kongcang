@@ -1,20 +1,18 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, DatePicker, Row, Col, Statistic, Table, Typography, Spin, message, Select, Space, Button } from 'antd';
+import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { fetchUdescMetrics, fetchUdescMetricsSummary, fetchUdescAgents } from '../api/udesc';
-import type { UdescSessionMetrics, UdescMetricsSummary, UdescAgentDetail } from '../types/udesc';
+import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, type AgentMetricsSummary } from '../api/udesc';
+import type { UdescSessionMetrics, AgentProfile } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
 
 export function MetricsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const [data, setData] = useState<{ records: UdescSessionMetrics[]; total: number } | null>(null);
-  const [summary, setSummary] = useState<UdescMetricsSummary | null>(null);
-  const [agents, setAgents] = useState<UdescAgentDetail[]>([]);
+  const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
     const end = dayjs();
     const start = end.subtract(30, 'day');
@@ -23,10 +21,11 @@ export function MetricsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [agentId, setAgentId] = useState<string | undefined>();
-  const [tempAgentId, setTempAgentId] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState<string>('sessionId');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [agentFilter, setAgentFilter] = useState<string[] | null>(null);
+  const [agentSummary, setAgentSummary] = useState<AgentMetricsSummary[]>([]);
+  const [agentSummaryLoading, setAgentSummaryLoading] = useState(false);
   const apiRange = useMemo(
     () => ({
       startDateIso: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
@@ -51,8 +50,8 @@ export function MetricsPage() {
 
   const loadAgents = async () => {
     try {
-      const resp = await fetchUdescAgents({ enabled: true });
-      setAgents(resp.records ?? []);
+      const resp = await fetchAgents();
+      setAgents(resp.filter((a) => a.enabled));
     } catch {
       // ignore
     }
@@ -79,31 +78,29 @@ export function MetricsPage() {
     }
   };
 
-  const loadSummary = async () => {
-    setSummaryLoading(true);
+  const loadAgentSummary = async () => {
+    setAgentSummaryLoading(true);
     try {
-      const resp = await fetchUdescMetricsSummary({
+      const resp = await fetchUdescAgentMetricsSummary({
         startDate: apiRange.startDateIso,
         endDate: apiRange.endDateIso,
       });
-      setSummary(resp);
+      setAgentSummary(resp);
     } catch {
-      message.error('加载汇总数据失败');
+      message.error('加载客服汇总数据失败');
     } finally {
-      setSummaryLoading(false);
+      setAgentSummaryLoading(false);
     }
   };
 
   useEffect(() => {
     loadAgents();
+    loadAgentSummary();
   }, []);
 
   useEffect(() => {
-    loadSummary();
-  }, [apiRange.startDateIso, apiRange.endDateIso]);
-
-  useEffect(() => {
     loadData();
+    loadAgentSummary();
   }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, agentId, agentFilter, sortBy, sortOrder]);
 
   const formatTime = (seconds: number | null) => {
@@ -227,7 +224,7 @@ export function MetricsPage() {
 
   const agentOptions = [
     { label: '全部客服', value: undefined },
-    ...agents.map((a) => ({ label: a.name || a.id, value: a.id })),
+    ...agents.map((a) => ({ label: a.displayName || a.agentId, value: a.agentId })),
   ];
 
   return (
@@ -246,54 +243,38 @@ export function MetricsPage() {
           />
           <Select
             options={agentOptions}
-            value={tempAgentId}
-            onChange={setTempAgentId}
+            value={agentId}
+            onChange={(val) => { setAgentId(val); setPage(1); }}
             style={{ width: 200 }}
             placeholder="选择客服"
+            allowClear
           />
-          <Button type="primary" onClick={() => { setAgentId(tempAgentId); setPage(1); }}>
-            筛选
-          </Button>
-          <Button onClick={() => { setTempAgentId(undefined); setAgentId(undefined); setPage(1); }}>
+          <Button onClick={() => { setAgentId(undefined); setPage(1); }}>
             重置
           </Button>
         </Space>
       </Card>
 
-      <Spin spinning={summaryLoading}>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={4}>
-            <Card>
-              <Statistic title="总会话数" value={summary?.totalSessions ?? 0} />
-            </Card>
-          </Col>
-          <Col span={4}>
-            <Card>
-              <Statistic title="平均首次响应" value={formatTime(summary?.avgFirstResponseTime ?? null)} />
-            </Card>
-          </Col>
-          <Col span={4}>
-            <Card>
-              <Statistic title="平均响应时间" value={formatTime(summary?.avgAvgResponseTime ?? null)} />
-            </Card>
-          </Col>
-          <Col span={4}>
-            <Card>
-              <Statistic title="平均等待时间" value={formatTime(summary?.avgWaitTime ?? null)} />
-            </Card>
-          </Col>
-          <Col span={4}>
-            <Card>
-              <Statistic title="平均解决时间" value={formatTime(summary?.avgResolutionTime ?? null)} />
-            </Card>
-          </Col>
-          <Col span={4}>
-            <Card>
-              <Statistic title="平均消息/会话" value={summary?.avgMessagesPerSession?.toFixed(1) ?? '-'} />
-            </Card>
-          </Col>
-        </Row>
-      </Spin>
+      <Card title="客服人员统计" style={{ marginBottom: 16 }}>
+        <Spin spinning={agentSummaryLoading}>
+          <Table
+            rowKey="agentId"
+            size="small"
+            pagination={false}
+            dataSource={agentSummary}
+            columns={[
+              { title: '客服', dataIndex: 'agentName', width: 120 },
+              { title: '会话数', dataIndex: 'sessionCount', width: 80, align: 'right', sorter: (a, b) => a.sessionCount - b.sessionCount },
+              { title: '平均首次响应', dataIndex: 'avgFirstResponseTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
+              { title: '平均响应时间', dataIndex: 'avgResponseTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
+              { title: '平均等待时间', dataIndex: 'avgWaitTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
+              { title: '平均解决时间', dataIndex: 'avgResolutionTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
+              { title: '平均消息/会话', dataIndex: 'avgMessagesPerSession', width: 120, align: 'right' },
+            ]}
+            scroll={{ x: 800 }}
+          />
+        </Spin>
+      </Card>
 
       <Card>
         <Spin spinning={loading}>

@@ -43,8 +43,11 @@ export async function fetchUdescSessions(params: {
   pageSize?: number;
   agentId?: string;
   agentIds?: string;
+  sessionId?: string;
 }) {
+  console.log('[API] fetchUdescSessions params:', JSON.stringify(params));
   const resp = await apiClient.get<UdescSessionListResp>('/udesc/sessions', { params });
+  console.log('[API] fetchUdescSessions response:', resp.data.total, 'records');
   return resp.data;
 }
 
@@ -220,8 +223,24 @@ export async function fetchUdescMetrics(params: {
   return resp.data;
 }
 
-export async function fetchUdescMetricsSummary(params: { startDate?: string; endDate?: string }) {
+export async function fetchUdescMetricsSummary(params: { startDate?: string; endDate?: string; agentId?: string }) {
   const resp = await apiClient.get<UdescMetricsSummary>('/udesc/metrics/summary', { params });
   return resp.data;
+}
+
+export async function fetchUdescAgentMetricsSummary(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<AgentMetricsSummary[]>('/udesc/metrics/agent-summary', { params });
+  return resp.data;
+}
+
+export interface AgentMetricsSummary {
+  agentId: string;
+  agentName: string;
+  sessionCount: number;
+  avgFirstResponseTime: number | null;
+  avgResponseTime: number | null;
+  avgWaitTime: number | null;
+  avgResolutionTime: number | null;
+  avgMessagesPerSession: number;
 }
 
