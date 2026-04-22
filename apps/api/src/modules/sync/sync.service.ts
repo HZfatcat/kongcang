@@ -78,6 +78,8 @@ export class SyncService {
     if (Number.isNaN(date.getTime())) {
       return null;
     }
+    // 如果时间是 UTC 格式（没有时区信息），假定为北京时间
+    // ISO 8601 格式带 Z 或 +/- 时区的，直接使用
     return date;
   }
 

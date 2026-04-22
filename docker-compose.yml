@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-kefumonitor}
       POSTGRES_USER: ${POSTGRES_USER:-kefu}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kefu_pass}
+      TZ: Asia/Shanghai
     ports:
       - '5432:5432'
     volumes:
@@ -25,10 +26,11 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://kefu:kefu_pass@postgres:5432/kefumonitor?schema=public
+      DATABASE_URL: postgresql://kefu:kefu_pass@postgres:5432/kefumonitor?schema=public&timezone=Asia/Shanghai
       REDIS_URL: redis://redis:6379
       PORT: 3000
       CORS_ORIGIN: http://localhost:8080
+      TZ: Asia/Shanghai
     depends_on:
       - postgres
       - redis
@@ -47,6 +49,8 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api/v1}
         VITE_DISABLE_AUTH: ${VITE_DISABLE_AUTH:-true}
     container_name: kefu-web
+    environment:
+      TZ: Asia/Shanghai
     depends_on:
       - api
     ports:

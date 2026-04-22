@@ -10,6 +10,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-kefumonitor}
       POSTGRES_USER: ${POSTGRES_USER:-kefu}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kefu_pass}
+      TZ: Asia/Shanghai
     volumes:
       - postgres_data:/var/libpostgresql/data
     healthcheck:
@@ -37,11 +38,12 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-kefu}:${POSTGRES_PASSWORD:-kefu_pass}@postgres:5432/${POSTGRES_DB:-kefumonitor}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kefu}:${POSTGRES_PASSWORD:-kefu_pass}@postgres:5432/${POSTGRES_DB:-kefumonitor}?schema=public&timezone=Asia/Shanghai
       REDIS_URL: redis://redis:6379
       PORT: 3000
       NODE_ENV: production
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      TZ: Asia/Shanghai
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +71,8 @@ services:
         VITE_DISABLE_AUTH: ${VITE_DISABLE_AUTH:-false}
     container_name: kefu-web
     restart: always
+    environment:
+      TZ: Asia/Shanghai
     ports:
       - '8080:80'
     depends_on:

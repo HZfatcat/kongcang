@@ -772,16 +772,6 @@ export class UdescService {
     let records = metricsRows.map((m) => {
       const startedAtDate = m.session.startedAt instanceof Date ? m.session.startedAt : new Date(m.session.startedAt);
       const endedAtDate = m.session.endedAt ? (m.session.endedAt instanceof Date ? m.session.endedAt : new Date(m.session.endedAt)) : null;
-      console.log('DEBUG session:', {
-        sessionId: m.sessionId,
-        startedAt: m.session.startedAt,
-        startedAtType: typeof m.session.startedAt,
-        endedAt: m.session.endedAt,
-        endedAtType: typeof m.session.endedAt,
-        endedAtDate,
-        endedAtDateValid: endedAtDate && !isNaN(endedAtDate.getTime()),
-        startedAtDateValid: !isNaN(startedAtDate.getTime()),
-      });
       const sessionDuration = endedAtDate && !isNaN(endedAtDate.getTime()) ? Math.floor((endedAtDate.getTime() - startedAtDate.getTime()) / 1000) : null;
       return {
         sessionId: m.sessionId,
