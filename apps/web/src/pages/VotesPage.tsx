@@ -89,10 +89,10 @@ export function VotesPage() {
       render: (d: string | null) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm:ss') : '-'),
     },
     {
-      title: '客服ID',
+      title: '客服',
       dataIndex: 'agentId',
       width: 120,
-      render: (id: string | undefined) => id || '-',
+      render: (id: string | undefined, record: any) => record.agentName || id || '-',
     },
     {
       title: '会话时间',

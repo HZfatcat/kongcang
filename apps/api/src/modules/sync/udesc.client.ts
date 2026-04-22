@@ -424,17 +424,24 @@ export class UdescClient {
     pageSize: number;
   }): Promise<SyncFetchResult<UdescAgentRecord>> {
     if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+      this.logger.warn('UDESC_BASE_URL not configured, skipping agent fetch');
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
     const endpoint = process.env.UDESC_AGENTS_PATH ?? 'agents';
-    const resp = await this.openApiGet(endpoint, {
-      page: String(page),
-      page_size: String(params.pageSize),
-    });
-    const data = (resp.data ?? {}) as Record<string, unknown>;
-    const items = this.extractItems(data);
+    this.logger.log(`Fetching agents from ${endpoint}, page=${page}`);
+    
+    try {
+      const resp = await this.openApiGet(endpoint, {
+        page: String(page),
+        page_size: String(params.pageSize),
+      });
+      const data = (resp.data ?? {}) as Record<string, unknown>;
+      this.logger.debug(`Agent API response keys: ${Object.keys(data).join(', ')}`);
+      
+      const items = this.extractItems(data);
+      this.logger.log(`Agent API returned ${items.length} items`);
     const records: UdescAgentRecord[] = items.map((item) => ({
       id: this.pickString(item, ['id', 'agent_id', 'user_id']) ?? `${Date.now()}-${randomBytes(4).toString('hex')}`,
       name: this.pickString(item, ['name', 'nick_name', 'nickname', 'display_name']),
@@ -455,6 +462,11 @@ export class UdescClient {
     const nextCursor = hasMore ? String(currentPage + 1) : undefined;
 
     return { records, nextCursor, hasMore };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Failed to fetch agents: ${msg}`);
+      return { records: [], hasMore: false };
+    }
   }
 
   /**

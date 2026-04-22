@@ -689,7 +689,8 @@ export class SyncService {
         }
         this.progress.agentSynced = agentSynced;
       } catch (e) {
-        this.logger.warn('agent sync failed, continuing');
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`agent sync failed: ${msg}`);
       }
 
       await this.finishRun(run.id, {

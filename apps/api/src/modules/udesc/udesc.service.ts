@@ -518,6 +518,26 @@ export class UdescService {
       }),
     ]);
 
+    // 获取客服名字映射（优先 AgentProfile，fallback 到 UdescAgent）
+    const agentIds = [...new Set(rows.map((r) => r.session.agentId).filter(Boolean))] as string[];
+    const [agentProfiles, udescAgents] = await Promise.all([
+      this.prisma.agentProfile.findMany({
+        where: { agentId: { in: agentIds } },
+      }),
+      this.prisma.udescAgent.findMany({
+        where: { id: { in: agentIds } },
+      }),
+    ]);
+    const agentNameMap = new Map<string, string>();
+    // 先从 UdescAgent 填充名字
+    for (const a of udescAgents) {
+      if (a.name) agentNameMap.set(a.id, a.name);
+    }
+    // AgentProfile 覆盖优先级更高
+    for (const a of agentProfiles) {
+      if (a.displayName) agentNameMap.set(a.agentId, a.displayName);
+    }
+
     const avgRatingResult = await this.prisma.udescSessionVote.aggregate({
       where: { ...where, rating: { not: null } },
       _avg: { rating: true },
@@ -544,8 +564,9 @@ export class UdescService {
         tags: vote.tags,
         comment: vote.comment,
         voterName: vote.voterName,
-      votedAt: vote.votedAt ? toLocalISOString(vote.votedAt) : null,
+        votedAt: vote.votedAt ? toLocalISOString(vote.votedAt) : null,
         agentId: vote.session.agentId,
+        agentName: vote.session.agentId ? (agentNameMap.get(vote.session.agentId) || vote.session.agentId) : null,
         sessionStartedAt: toLocalISOString(vote.session.startedAt),
       })),
       avgRating: avgRatingResult._avg.rating ?? null,
@@ -651,13 +672,25 @@ export class UdescService {
 
       const total = sessions.length;
 
-      // 获取所有 agentId 并关联 AgentProfile
+      // 获取所有 agentId 并关联 AgentProfile，fallback 到 UdescAgent
       const agentIds = [...new Set(sessions.map((s) => s.agentId).filter((id): id is string => !!id))];
-      const agentProfiles = agentIds.length > 0 ? await this.prisma.agentProfile.findMany({
-        where: { agentId: { in: agentIds } },
-        select: { agentId: true, displayName: true },
-      }) : [];
-      const agentNameMap = new Map(agentProfiles.map((a) => [a.agentId, a.displayName]));
+      const [agentProfiles, udescAgents] = agentIds.length > 0 ? await Promise.all([
+        this.prisma.agentProfile.findMany({
+          where: { agentId: { in: agentIds } },
+          select: { agentId: true, displayName: true },
+        }),
+        this.prisma.udescAgent.findMany({
+          where: { id: { in: agentIds } },
+          select: { id: true, name: true },
+        }),
+      ]) : [[], []];
+      const agentNameMap = new Map<string, string>();
+      for (const a of udescAgents) {
+        if (a.name) agentNameMap.set(a.id, a.name);
+      }
+      for (const a of agentProfiles) {
+        if (a.displayName) agentNameMap.set(a.agentId, a.displayName);
+      }
 
       // 计算每个会话的指标
       const records = sessions.map((s) => {
@@ -770,13 +803,25 @@ export class UdescService {
       where: { session: sessionWhere },
     });
 
-    // 获取所有 agentId 并关联 AgentProfile
+    // 获取所有 agentId 并关联 AgentProfile，fallback 到 UdescAgent
     const agentIds = [...new Set(metricsRows.map((m) => m.session.agentId).filter((id): id is string => !!id))];
-    const agentProfiles = agentIds.length > 0 ? await this.prisma.agentProfile.findMany({
-      where: { agentId: { in: agentIds } },
-      select: { agentId: true, displayName: true },
-    }) : [];
-    const agentNameMap = new Map(agentProfiles.map((a) => [a.agentId, a.displayName]));
+    const [agentProfiles, udescAgents] = agentIds.length > 0 ? await Promise.all([
+      this.prisma.agentProfile.findMany({
+        where: { agentId: { in: agentIds } },
+        select: { agentId: true, displayName: true },
+      }),
+      this.prisma.udescAgent.findMany({
+        where: { id: { in: agentIds } },
+        select: { id: true, name: true },
+      }),
+    ]) : [[], []];
+    const agentNameMap = new Map<string, string>();
+    for (const a of udescAgents) {
+      if (a.name) agentNameMap.set(a.id, a.name);
+    }
+    for (const a of agentProfiles) {
+      if (a.displayName) agentNameMap.set(a.agentId, a.displayName);
+    }
 
     // 构建记录
     let records = metricsRows.map((m) => {
@@ -1028,13 +1073,25 @@ export class UdescService {
       }
     }
 
-    // 获取客服名称
+    // 获取客服名称（优先 AgentProfile，fallback 到 UdescAgent）
     const agentIds = Array.from(agentSessionMap.keys());
-    const agentProfiles = await this.prisma.agentProfile.findMany({
-      where: { agentId: { in: agentIds } },
-      select: { agentId: true, displayName: true },
-    });
-    const agentNameMap = new Map(agentProfiles.map(a => [a.agentId, a.displayName]));
+    const [agentProfiles, udescAgents] = await Promise.all([
+      this.prisma.agentProfile.findMany({
+        where: { agentId: { in: agentIds } },
+        select: { agentId: true, displayName: true },
+      }),
+      this.prisma.udescAgent.findMany({
+        where: { id: { in: agentIds } },
+        select: { id: true, name: true },
+      }),
+    ]);
+    const agentNameMap = new Map<string, string>();
+    for (const a of udescAgents) {
+      if (a.name) agentNameMap.set(a.id, a.name);
+    }
+    for (const a of agentProfiles) {
+      if (a.displayName) agentNameMap.set(a.agentId, a.displayName);
+    }
 
     // 获取所有消息
     const allSessionIds = sessions.map(s => s.id);
