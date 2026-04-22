@@ -15,6 +15,7 @@ RUN npm run build --workspace apps/api
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV TZ=Asia/Shanghai
 
 RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 

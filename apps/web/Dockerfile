@@ -23,6 +23,7 @@ COPY . .
 RUN npm run build --workspace apps/web
 
 FROM nginx:1.27-alpine
+ENV TZ=Asia/Shanghai
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
