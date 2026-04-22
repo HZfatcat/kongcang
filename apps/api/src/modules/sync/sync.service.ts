@@ -774,6 +774,10 @@ export class SyncService {
                 firstResponseTime = Math.floor(diffMs / 1000);
               }
             }
+            // 客户有消息但客服未回复，首次响应时间设为 100 小时
+            if (firstCustomerMsg && !firstAgentMsg) {
+              firstResponseTime = 100 * 60 * 60; // 360000 秒 = 100 小时
+            }
           }
         }
         if (avgRespSeconds !== null && avgRespSeconds > 0) {

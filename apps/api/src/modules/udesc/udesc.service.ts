@@ -707,15 +707,24 @@ export class UdescService {
           (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
         );
 
-        // 计算首次响应时间
-        let firstResponseTime = 0;
-        if (customerMsgs.length > 0 && agentMsgs.length > 0) {
-          const firstCustomerMsg = customerMsgs[0];
-          const firstAgentMsg = agentMsgs.find((a) => new Date(a.sentAt) > new Date(firstCustomerMsg.sentAt));
-          if (firstAgentMsg) {
-            firstResponseTime = Math.round(
-              (new Date(firstAgentMsg.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
-            );
+        // 计算首次响应时间（无法计算时返回 null）
+        let firstResponseTime: number | null = null;
+        if (customerMsgs.length > 0) {
+          if (agentMsgs.length > 0) {
+            const firstCustomerMsg = customerMsgs[0];
+            const firstAgentMsg = agentMsgs.find((a) => new Date(a.sentAt) > new Date(firstCustomerMsg.sentAt));
+            if (firstAgentMsg) {
+              const diff = Math.round(
+                (new Date(firstAgentMsg.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
+              );
+              if (diff > 0) {
+                firstResponseTime = diff;
+              }
+            }
+          }
+          // 客户有消息但客服未回复，首次响应时间设为 100 小时
+          if (agentMsgs.length === 0) {
+            firstResponseTime = 100 * 60 * 60; // 360000 秒 = 100 小时
           }
         }
 
@@ -934,18 +943,25 @@ export class UdescService {
     let totalMessages = 0;
     let sessionsWithMessages = 0;
 
+    const HUNDRED_HOURS = 100 * 60 * 60; // 360000 秒
+
     for (const row of metricsData) {
-      if (row.first_customer_msg && row.first_agent_msg) {
-        const diffMs = new Date(row.first_agent_msg).getTime() - new Date(row.first_customer_msg).getTime();
-        if (diffMs >= 0) {
-          firstResponseTimes.push(Math.round(diffMs / 1000)); // 转为秒
+      if (row.first_customer_msg) {
+        if (row.first_agent_msg) {
+          const diffMs = new Date(row.first_agent_msg).getTime() - new Date(row.first_customer_msg).getTime();
+          if (diffMs > 0) {
+            firstResponseTimes.push(Math.round(diffMs / 1000)); // 转为秒
+          }
+        } else {
+          // 客户有消息但客服未回复，首次响应时间设为 100 小时
+          firstResponseTimes.push(HUNDRED_HOURS);
         }
       }
       totalMessages += Number(row.total_msgs);
       sessionsWithMessages++;
     }
 
-    // 计算平均首次响应时间（秒）
+    // 计算平均首次响应时间（秒），排除无效值
     const avgFirstResponseTime = firstResponseTimes.length > 0
       ? Math.round(firstResponseTimes.reduce((a, b) => a + b, 0) / firstResponseTimes.length)
       : null;
@@ -1138,17 +1154,27 @@ export class UdescService {
         const customerMsgs = messages.filter(m => m.senderType === 'customer');
         const agentMsgs = messages.filter(m => m.senderType === 'agent');
 
+        const HUNDRED_HOURS = 100 * 60 * 60; // 360000 秒
+
         // 首次响应时间
-        if (customerMsgs.length > 0 && agentMsgs.length > 0) {
-          const firstCustomerMsg = customerMsgs[0];
-          const firstAgentMsgAfter = agentMsgs.find(a => 
-            new Date(a.sentAt).getTime() > new Date(firstCustomerMsg.sentAt).getTime()
-          );
-          if (firstAgentMsgAfter) {
-            const diff = Math.round(
-              (new Date(firstAgentMsgAfter.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
+        if (customerMsgs.length > 0) {
+          if (agentMsgs.length > 0) {
+            const firstCustomerMsg = customerMsgs[0];
+            const firstAgentMsgAfter = agentMsgs.find(a => 
+              new Date(a.sentAt).getTime() > new Date(firstCustomerMsg.sentAt).getTime()
             );
-            totalFirstResponseTime += diff;
+            if (firstAgentMsgAfter) {
+              const diff = Math.round(
+                (new Date(firstAgentMsgAfter.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
+              );
+              if (diff > 0) {
+                totalFirstResponseTime += diff;
+                firstResponseCount++;
+              }
+            }
+          } else {
+            // 客户有消息但客服未回复，首次响应时间设为 100 小时
+            totalFirstResponseTime += HUNDRED_HOURS;
             firstResponseCount++;
           }
         }
