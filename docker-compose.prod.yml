@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kefu_pass}
       TZ: Asia/Shanghai
     volumes:
-      - postgres_data:/var/libpostgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kefu} -d ${POSTGRES_DB:-kefumonitor}"]
       interval: 10s

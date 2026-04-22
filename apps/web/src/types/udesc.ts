@@ -196,27 +196,6 @@ export interface UdescVoteListResp {
   ratingDistribution: Record<number, number>;
 }
 
-export interface UdescCustomer {
-  id: string;
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  wechat: string | null;
-  enterprise: string | null;
-  tags: string[];
-  customFields: Record<string, unknown> | null;
-  updatedAtSource: string | null;
-  syncedAt: string;
-  sessionCount?: number;
-}
-
-export interface UdescCustomerListResp {
-  page: number;
-  pageSize: number;
-  total: number;
-  records: UdescCustomer[];
-}
-
 export interface UdescAgentDetail {
   id: string;
   name: string | null;

@@ -12,8 +12,6 @@ import type {
   UdescTreeNode,
   ZouwuFeedbackStatistics,
   UdescVoteListResp,
-  UdescCustomerListResp,
-  UdescCustomer,
   UdescAgentListResp,
   UdescAgentPerformance,
   UdescMetricsListResp,
@@ -178,22 +176,6 @@ export async function fetchUdescVotes(params: {
   pageSize?: number;
 }) {
   const resp = await apiClient.get<UdescVoteListResp>('/udesc/votes', { params });
-  return resp.data;
-}
-
-// ========== 客户管理 ==========
-export async function fetchUdescCustomers(params: {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  enterprise?: string;
-}) {
-  const resp = await apiClient.get<UdescCustomerListResp>('/udesc/customers', { params });
-  return resp.data;
-}
-
-export async function fetchUdescCustomerDetail(id: string) {
-  const resp = await apiClient.get<UdescCustomer>(`/udesc/customers/${encodeURIComponent(id)}`);
   return resp.data;
 }
 
