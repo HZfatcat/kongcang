@@ -161,17 +161,17 @@ export function VotesPage() {
       </Card>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+        <Col span={4}>
           <Card>
             <Statistic title="总会话数" value={data?.totalSessions ?? 0} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={4}>
           <Card>
             <Statistic title="总评价数" value={data?.total ?? 0} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={4}>
           <Card>
             <Statistic
               title="平均评分"
