@@ -195,6 +195,14 @@ export class UdescClient {
         this.toNumber(nested.rating ?? nested.score ?? nested.vote_score ?? nested.satisfaction_level),
       );
     }
+    // resolved_state: "0" = 已解决(满意,5分), "1" = 未解决(不满意,1分)
+    const resolvedState = this.toStringValue(item.resolved_state);
+    if (resolvedState === '0') {
+      return 5; // 已解决=满意
+    }
+    if (resolvedState === '1') {
+      return 1; // 未解决=不满意
+    }
     return undefined;
   }
 

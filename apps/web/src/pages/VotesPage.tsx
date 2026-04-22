@@ -2,12 +2,14 @@ import { useEffect, useState, useMemo } from 'react';
 import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, message, Rate, Select, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 import { fetchUdescVotes } from '../api/udesc';
 import type { UdescSessionVote, UdescVoteListResp } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
 
 export function VotesPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<UdescVoteListResp | null>(null);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
@@ -57,6 +59,11 @@ export function VotesPage() {
       dataIndex: 'sessionId',
       width: 120,
       ellipsis: true,
+      render: (id: string) => (
+        <Typography.Link onClick={() => navigate(`/udesc/sessions?highlightSessionId=${id}`)}>
+          {id}
+        </Typography.Link>
+      ),
     },
     {
       title: '评分',
