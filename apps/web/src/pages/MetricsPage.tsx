@@ -306,8 +306,10 @@ export function MetricsPage() {
                 setSortBy(field);
                 setSortOrder(order === 'ascend' ? 'asc' : 'desc');
                 setPage(1); // 排序变化时重置页码
+              } else if (!agentFilterValue || agentFilterValue.length === 0) {
+                // 只有筛选变化时才重置页码（排序已处理）
+                setPage(1);
               }
-              setPage(1); // 筛选变化时也重置页码
             }}
           />
         </Spin>
