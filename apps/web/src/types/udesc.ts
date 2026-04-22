@@ -191,6 +191,7 @@ export interface UdescVoteListResp {
   page: number;
   pageSize: number;
   total: number;
+  totalSessions: number;
   records: UdescSessionVote[];
   avgRating: number | null;
   ratingDistribution: Record<number, number>;

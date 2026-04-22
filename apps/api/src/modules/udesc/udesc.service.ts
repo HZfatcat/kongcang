@@ -543,6 +543,13 @@ export class UdescService {
       _avg: { rating: true },
     });
 
+    // 统计时间范围内的总会话数
+    const totalSessions = await this.prisma.udescSession.count({
+      where: {
+        startedAt: { gte: start, lte: end },
+      },
+    });
+
     const ratingDistribution: Record<number, number> = {};
     for (let i = 1; i <= 5; i++) {
       ratingDistribution[i] = 0;
@@ -557,6 +564,7 @@ export class UdescService {
       page,
       pageSize,
       total,
+      totalSessions,
       records: rows.map((vote) => ({
         id: vote.id,
         sessionId: vote.sessionId,

@@ -68,8 +68,17 @@ export function VotesPage() {
     {
       title: '评分',
       dataIndex: 'rating',
-      width: 150,
-      render: (rating: number | null) => (rating ? <Rate disabled value={rating} /> : '-'),
+      width: 100,
+      sorter: true,
+      filters: [
+        { text: '5分', value: 5 },
+        { text: '4分', value: 4 },
+        { text: '3分', value: 3 },
+        { text: '2分', value: 2 },
+        { text: '1分', value: 1 },
+      ],
+      filterMultiple: false,
+      render: (rating: number | null) => rating ?? '-',
     },
     {
       title: '标签',
@@ -152,6 +161,11 @@ export function VotesPage() {
       </Card>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <Card>
+            <Statistic title="总会话数" value={data?.totalSessions ?? 0} />
+          </Card>
+        </Col>
         <Col span={6}>
           <Card>
             <Statistic title="总评价数" value={data?.total ?? 0} />
