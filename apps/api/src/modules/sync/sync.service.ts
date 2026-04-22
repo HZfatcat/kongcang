@@ -74,12 +74,18 @@ export class SyncService {
     if (!value) {
       return null;
     }
-    const date = new Date(value);
+    // Udesk API 返回的时间可能是 "2026-04-22T09:58:58Z" 格式
+    // 但实际表示北京时间，不是 UTC。需要移除 Z 后按本地时间解析
+    let normalized = value.trim();
+    const isUTCSuffix = normalized.endsWith('Z');
+    if (isUTCSuffix) {
+      // 移除 Z，按本地时间解析
+      normalized = normalized.slice(0, -1);
+    }
+    const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) {
       return null;
     }
-    // 如果时间是 UTC 格式（没有时区信息），假定为北京时间
-    // ISO 8601 格式带 Z 或 +/- 时区的，直接使用
     return date;
   }
 
