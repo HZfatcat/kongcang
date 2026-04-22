@@ -248,7 +248,7 @@ export function MetricsPage() {
   }, [pageSize, setPage, setPageSizeCB]);
 
   // 表格变化处理（筛选、排序）
-  const handleTableChange = useCallback((_pagination: TablePaginationConfig, filters: Record<string, (string | number | boolean)[] | null>, sorter: any) => {
+const handleTableChange = useCallback((_pagination: TablePaginationConfig, filters: Record<string, any>, sorter: any) => {
     // 处理客服人员筛选
     const agentFilterValue = filters.agentName as string[] | null;
     setAgentFilter(agentFilterValue);
@@ -276,7 +276,7 @@ export function MetricsPage() {
           style={{ width: 200 }}
           placeholder="筛选客服"
           allowClear
-          options={agents.map((a) => ({ label: a.name, value: a.id }))}
+          options={agents.map((a) => ({ label: a.displayName, value: a.agentId }))}
           onChange={(v) => {
             setAgentId(v);
             setPage(1);
