@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, type AgentMetricsSummary } from '../api/udesc';
 import type { UdescSessionMetrics, AgentProfile } from '../types/udesc';
@@ -10,6 +10,9 @@ const { RangePicker } = DatePicker;
 
 export function MetricsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // 状态
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<{ records: UdescSessionMetrics[]; total: number } | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -18,14 +21,52 @@ export function MetricsPage() {
     const start = end.subtract(30, 'day');
     return [start.startOf('day'), end.endOf('day')];
   });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [agentId, setAgentId] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState<string>('sessionId');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [agentFilter, setAgentFilter] = useState<string[] | null>(null);
   const [agentSummary, setAgentSummary] = useState<AgentMetricsSummary[]>([]);
   const [agentSummaryLoading, setAgentSummaryLoading] = useState(false);
+  
+  // 从 URL 初始化分页状态，并监听 URL 变化（浏览器后退）
+  const pageFromUrl = parseInt(searchParams.get('page') || '1', 10);
+  const pageSizeFromUrl = parseInt(searchParams.get('pageSize') || '20', 10);
+  const [page, setPageState] = useState(pageFromUrl);
+  const [pageSize, setPageSizeState] = useState(pageSizeFromUrl);
+  
+  // 监听 URL 变化（浏览器后退/前进）
+  useEffect(() => {
+    const urlPage = parseInt(searchParams.get('page') || '1', 10);
+    const urlPageSize = parseInt(searchParams.get('pageSize') || '20', 10);
+    if (urlPage !== page) {
+      setPageState(urlPage);
+    }
+    if (urlPageSize !== pageSize) {
+      setPageSizeState(urlPageSize);
+    }
+  }, [searchParams, page, pageSize]);
+  
+  // 用 ref 保存最新值，避免闭包问题
+  const stateRef = useRef({ page, pageSize, sortBy, sortOrder, agentFilter, agentId, range });
+  stateRef.current = { page, pageSize, sortBy, sortOrder, agentFilter, agentId, range };
+  
+  // 同步更新 URL 和 state（不使用 replace，让浏览器后退生效）
+  const setPage = useCallback((p: number) => {
+    setPageState(p);
+    setSearchParams(prev => {
+      prev.set('page', String(p));
+      return prev;
+    });
+  }, [setSearchParams]);
+  
+  const setPageSizeCB = useCallback((ps: number) => {
+    setPageSizeState(ps);
+    setSearchParams(prev => {
+      prev.set('pageSize', String(ps));
+      return prev;
+    });
+  }, [setSearchParams]);
+  
   const apiRange = useMemo(
     () => ({
       startDateIso: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
@@ -48,25 +89,31 @@ export function MetricsPage() {
     return Array.from(agentMap.values());
   }, [data?.records]);
 
-  const loadAgents = async () => {
-    try {
-      const resp = await fetchAgents();
-      setAgents(resp.filter((a) => a.enabled));
-    } catch {
-      // ignore
-    }
-  };
+  // 加载客服列表
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const resp = await fetchAgents();
+        setAgents(resp.filter((a) => a.enabled));
+      } catch {
+        // ignore
+      }
+    };
+    loadAgents();
+  }, []);
 
-  const loadData = async () => {
+  // 加载数据 - 使用 ref 避免 useEffect 依赖过多
+  const loadData = useCallback(async (p: number, ps: number) => {
+    const { sortBy, sortOrder, agentFilter, agentId, range } = stateRef.current;
     setLoading(true);
     try {
       const resp = await fetchUdescMetrics({
-        startDate: apiRange.startDateIso,
-        endDate: apiRange.endDateIso,
+        startDate: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
+        endDate: range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         agentId,
         agentIds: agentFilter && agentFilter.length > 0 ? agentFilter.join(',') : undefined,
-        page,
-        pageSize,
+        page: p,
+        pageSize: ps,
         sortBy,
         sortOrder,
       });
@@ -76,9 +123,10 @@ export function MetricsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadAgentSummary = async () => {
+  // 加载客服汇总
+  const loadAgentSummary = useCallback(async () => {
     setAgentSummaryLoading(true);
     try {
       const resp = await fetchUdescAgentMetricsSummary({
@@ -91,17 +139,21 @@ export function MetricsPage() {
     } finally {
       setAgentSummaryLoading(false);
     }
-  };
+  }, [apiRange]);
 
+  // 初始加载
   useEffect(() => {
-    loadAgents();
+    loadData(page, pageSize);
     loadAgentSummary();
-  }, []);
+  }, [page, pageSize, loadData, loadAgentSummary, apiRange]);
 
+  // 客服筛选/排序变化时重置页码并重新加载
   useEffect(() => {
-    loadData();
-    loadAgentSummary();
-  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, agentId, agentFilter, sortBy, sortOrder]);
+    if (page !== 1) {
+      setPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentFilter, sortBy, sortOrder, agentId]);
 
   const formatTime = (seconds: number | null) => {
     if (seconds === null || seconds === undefined) return '-';
@@ -114,146 +166,130 @@ export function MetricsPage() {
     {
       title: '会话ID',
       dataIndex: 'sessionId',
-      width: 120,
-      ellipsis: true,
-      sorter: true,
-      sortOrder: sortBy === 'sessionId' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
-      render: (sessionId: string) => (
-        <Typography.Link
-          onClick={() => navigate(`/udesc/sessions?highlightSessionId=${sessionId}`)}
-          style={{ cursor: 'pointer' }}
-        >
-          {sessionId}
+      width: 280,
+      render: (id: string, record) => (
+        <Typography.Link onClick={() => navigate(`/udesc/sessions?highlightSessionId=${id}`)}>
+          {id}
         </Typography.Link>
       ),
+    },
+    {
+      title: '客服',
+      dataIndex: 'agentName',
+      width: 100,
+      ellipsis: true,
+    },
+    {
+      title: '满意度',
+      dataIndex: ['satisfaction', 'rating'],
+      width: 80,
+      align: 'center',
+      render: (v: number | null) => v ? `⭐ ${v}` : '-',
     },
     {
       title: '首次响应',
       dataIndex: 'firstResponseTime',
       width: 100,
-      render: (v: number | null) => formatTime(v),
+      align: 'right',
       sorter: true,
-      sortOrder: sortBy === 'firstResponseTime' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      render: (v: number | null) => formatTime(v),
     },
     {
       title: '平均响应',
       dataIndex: 'avgResponseTime',
       width: 100,
-      render: (v: number | null) => formatTime(v),
+      align: 'right',
       sorter: true,
-      sortOrder: sortBy === 'avgResponseTime' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      render: (v: number | null) => formatTime(v),
     },
     {
       title: '等待时间',
-      dataIndex: 'waitTime',
+      dataIndex: 'totalWaitTime',
       width: 100,
-      render: (v: number | null) => formatTime(v),
+      align: 'right',
       sorter: true,
-      sortOrder: sortBy === 'waitTime' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      render: (v: number | null) => formatTime(v),
     },
     {
       title: '解决时间',
       dataIndex: 'resolutionTime',
       width: 100,
-      render: (v: number | null) => formatTime(v),
+      align: 'right',
       sorter: true,
-      sortOrder: sortBy === 'resolutionTime' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      render: (v: number | null) => formatTime(v),
     },
     {
       title: '消息数',
       dataIndex: 'messageCount',
       width: 80,
-      render: (v: number) => v ?? 0,
-      sorter: true,
-      sortOrder: sortBy === 'messageCount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      align: 'right',
     },
     {
-      title: '客服消息',
-      dataIndex: 'agentMessageCount',
-      width: 80,
-      render: (v: number) => v ?? 0,
-      sorter: true,
-      sortOrder: sortBy === 'agentMessageCount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      title: '开始时间',
+      dataIndex: ['session', 'startedAt'],
+      width: 160,
+      render: (v: string) => v ? dayjs(v).format('MM-DD HH:mm:ss') : '-',
     },
     {
-      title: '客户消息',
-      dataIndex: 'customerMessageCount',
-      width: 80,
-      render: (v: number) => v ?? 0,
-      sorter: true,
-      sortOrder: sortBy === 'customerMessageCount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
-    },
-    {
-      title: '客服人员',
-      dataIndex: 'agentName',
-      width: 120,
-      render: (name: string | null, record) => name || record.session?.agentId || '-',
-      filters: agentFilterOptions.map((a) => ({ text: a.name, value: a.id })),
-      filteredValue: agentFilter,
-      onFilter: () => true, // 前端不过滤，由后端处理
-    },
-    {
-      title: '会话开始时间',
-      dataIndex: 'startedAt',
-      width: 170,
-      sorter: true,
-      render: (d: string | undefined) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm:ss') : '-'),
-    },
-    {
-      title: '会话结束时间',
-      dataIndex: 'endedAt',
-      width: 170,
-      sorter: true,
-      render: (d: string | undefined) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm:ss') : '-'),
-    },
-    {
-      title: '会话时长',
-      dataIndex: 'sessionDuration',
-      width: 100,
-      sorter: true,
-      render: (duration: number | null) => {
-        if (duration == null) return '-';
-        if (duration < 60) return `${duration}秒`;
-        if (duration < 3600) return `${Math.floor(duration / 60)}分${duration % 60}秒`;
-        const hours = Math.floor(duration / 3600);
-        const mins = Math.floor((duration % 3600) / 60);
-        return `${hours}小时${mins}分`;
-      },
+      title: '结束时间',
+      dataIndex: ['session', 'endedAt'],
+      width: 160,
+      render: (v: string) => v ? dayjs(v).format('MM-DD HH:mm:ss') : '-',
     },
   ];
 
-  const agentOptions = [
-    { label: '全部客服', value: undefined },
-    ...agents.map((a) => ({ label: a.displayName || a.agentId, value: a.agentId })),
-  ];
+  // 分页变化处理
+  const handlePaginationChange = useCallback((p: number, ps: number) => {
+    setPage(p);
+    if (ps !== pageSize) {
+      setPageSizeCB(ps);
+      setPage(1); // 切换每页条数时回到第一页
+    }
+  }, [pageSize, setPage, setPageSizeCB]);
+
+  // 表格变化处理（筛选、排序）
+  const handleTableChange = useCallback((_pagination: TablePaginationConfig, filters: Record<string, (string | number | boolean)[] | null>, sorter: any) => {
+    // 处理客服人员筛选
+    const agentFilterValue = filters.agentName as string[] | null;
+    setAgentFilter(agentFilterValue);
+    
+    // 处理排序
+    if (!Array.isArray(sorter) && sorter.field) {
+      setSortBy(sorter.field as string);
+      setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
+    }
+  }, []);
 
   return (
     <div style={{ padding: 24 }}>
-      <Typography.Title level={4}>会话性能指标</Typography.Title>
-
-      <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <RangePicker
-            value={range}
-            onChange={(dates) => dates && setRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
-            presets={[
-              { label: '近7天', value: () => [dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day')] as [dayjs.Dayjs, dayjs.Dayjs] },
-              { label: '近30天', value: () => [dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day')] as [dayjs.Dayjs, dayjs.Dayjs] },
-            ]}
-          />
-          <Select
-            options={agentOptions}
-            value={agentId}
-            onChange={(val) => { setAgentId(val); setPage(1); }}
-            style={{ width: 200 }}
-            placeholder="选择客服"
-            allowClear
-          />
-          <Button onClick={() => { setAgentId(undefined); setPage(1); }}>
-            重置
-          </Button>
-        </Space>
-      </Card>
+      <Space style={{ marginBottom: 16 }} size="middle">
+        <RangePicker
+          value={range}
+          onChange={(dates) => {
+            if (dates && dates[0] && dates[1]) {
+              setRange([dates[0], dates[1]]);
+              setPage(1);
+            }
+          }}
+        />
+        <Select
+          style={{ width: 200 }}
+          placeholder="筛选客服"
+          allowClear
+          options={agents.map((a) => ({ label: a.name, value: a.id }))}
+          onChange={(v) => {
+            setAgentId(v);
+            setPage(1);
+          }}
+        />
+        <Button onClick={() => {
+          setPage(1);
+          loadData(1, pageSize);
+          loadAgentSummary();
+        }}>
+          刷新
+        </Button>
+      </Space>
 
       <Card title="客服人员统计" style={{ marginBottom: 16 }}>
         <Spin spinning={agentSummaryLoading}>
@@ -288,29 +324,10 @@ export function MetricsPage() {
               total: data?.total ?? 0,
               showSizeChanger: true,
               showTotal: (total) => `共 ${total} 条`,
-              onChange: (p, ps) => {
-                setPage(p);
-                setPageSize(ps);
-              },
+              onChange: handlePaginationChange,
             }}
             scroll={{ x: 1100 }}
-            onChange={(pagination, filters, sorter) => {
-              // 处理客服人员筛选
-              const agentFilterValue = filters.agentName as string[] | null;
-              setAgentFilter(agentFilterValue);
-              
-              if (Array.isArray(sorter)) return;
-              const field = sorter.field as string;
-              const order = sorter.order;
-              if (field && order) {
-                setSortBy(field);
-                setSortOrder(order === 'ascend' ? 'asc' : 'desc');
-                setPage(1); // 排序变化时重置页码
-              } else if (!agentFilterValue || agentFilterValue.length === 0) {
-                // 只有筛选变化时才重置页码（排序已处理）
-                setPage(1);
-              }
-            }}
+            onChange={handleTableChange}
           />
         </Spin>
       </Card>
