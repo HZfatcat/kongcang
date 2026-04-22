@@ -402,39 +402,7 @@ export class SyncService {
               // vote sync is optional
             }
 
-            // 同步会话统计指标
-            try {
-              const stats = await this.withRetry('udesc.fetchSessionStats', () =>
-                this.udescClient.fetchSessionStats(record.id),
-              );
-              if (stats) {
-                await this.prisma.udescSessionMetrics.upsert({
-                  where: { sessionId: record.id },
-                  create: {
-                    sessionId: record.id,
-                    firstResponseTime: stats.firstResponseTime ?? null,
-                    avgResponseTime: stats.avgResponseTime ?? null,
-                    waitTime: stats.waitTime ?? null,
-                    resolutionTime: stats.resolutionTime ?? null,
-                    messageCount: stats.messageCount ?? 0,
-                    customerMessageCount: stats.customerMessageCount ?? 0,
-                    agentMessageCount: stats.agentMessageCount ?? 0,
-                  },
-                  update: {
-                    firstResponseTime: stats.firstResponseTime ?? null,
-                    avgResponseTime: stats.avgResponseTime ?? null,
-                    waitTime: stats.waitTime ?? null,
-                    resolutionTime: stats.resolutionTime ?? null,
-                    messageCount: stats.messageCount ?? 0,
-                    customerMessageCount: stats.customerMessageCount ?? 0,
-                    agentMessageCount: stats.agentMessageCount ?? 0,
-                  },
-                });
-                metricsSynced += 1;
-              }
-            } catch (e) {
-              // metrics sync is optional
-            }
+            // 会话统计指标在消息同步完成后从本地消息计算，不调用第三方接口
 
             if (!syncLogs) {
               continue;
@@ -693,6 +661,11 @@ export class SyncService {
         this.logger.error(`agent sync failed: ${msg}`);
       }
 
+      // 从本地消息计算会话指标（不调用第三方接口）
+      this.progress.note = '计算会话指标';
+      metricsSynced = await this.calculateSessionMetricsFromLocal();
+      this.progress.metricsSynced = metricsSynced;
+
       await this.finishRun(run.id, {
         status: 'SUCCESS',
         recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
@@ -717,10 +690,134 @@ export class SyncService {
       });
 
       this.progress.isRunning = false;
-      this.progress.finishedAt = new Date().toISOString();
       this.progress.note = `同步失败: ${message}`;
       throw error;
     }
+  }
+
+  /**
+   * 重新计算所有会话指标
+   */
+  async recalculateMetrics(): Promise<number> {
+    this.logger.log('手动触发重新计算会话指标...');
+    return this.calculateSessionMetricsFromLocal();
+  }
+
+  /**
+   * 从 Udesk 原始数据同步会话指标，并用本地消息记录验证修正
+   */
+  private async calculateSessionMetricsFromLocal(): Promise<number> {
+    this.logger.log('开始从 Udesk 原始数据同步会话指标...');
+    
+    const sessions = await this.prisma.udescSession.findMany();
+
+    let count = 0;
+    for (const session of sessions) {
+      const rawPayload = session.rawPayload as Record<string, unknown> | null;
+
+      // 先统计实际消息数量（用于验证 UDesk 数据）
+      const actualMessages = await this.prisma.udescSessionMessage.groupBy({
+        by: ['senderType'],
+        where: { sessionId: session.id },
+        _count: true,
+      });
+      
+      const actualAgentMsgCount = actualMessages.find(m => m.senderType === 'agent')?._count ?? 0;
+      const actualCustomerMsgCount = actualMessages.find(m => m.senderType === 'customer')?._count ?? 0;
+
+      // 从 Udesk 原始数据提取指标
+      let firstResponseTime: number | null = null;
+      let avgResponseTime: number | null = null;
+      let waitTime: number | null = null;
+      let resolutionTime: number | null = null;
+      let messageCount = 0;
+      let agentMessageCount = actualAgentMsgCount;
+      let customerMessageCount = actualCustomerMsgCount;
+
+      // 从 rawPayload 提取
+      if (rawPayload) {
+        const extractNumber = (value: unknown): number | null => {
+          if (typeof value === 'number') return value;
+          if (typeof value === 'string') {
+            const parsed = parseFloat(value);
+            return isNaN(parsed) ? null : parsed;
+          }
+          return null;
+        };
+
+        const respSeconds = extractNumber(rawPayload.resp_seconds);
+        const avgRespSeconds = extractNumber(rawPayload.avg_resp_seconds);
+        const sustainSeconds = extractNumber(rawPayload.sustain_seconds);
+        const queueSeconds = extractNumber(rawPayload.queue_seconds);
+
+        // 只有当实际有客户消息时，才计算首次响应时间
+        if (actualCustomerMsgCount > 0) {
+          // UDesk 数据可能不准确：resp_seconds=0 但实际有时间间隔
+          if (respSeconds !== null && respSeconds > 0) {
+            // UDesk 数据有效，直接使用
+            firstResponseTime = respSeconds;
+          } else {
+            // UDesk 数据为 0 或无效，从本地消息记录计算
+            const firstCustomerMsg = await this.prisma.udescSessionMessage.findFirst({
+              where: { sessionId: session.id, senderType: 'customer' },
+              orderBy: { sentAt: 'asc' },
+              select: { sentAt: true },
+            });
+            const firstAgentMsg = await this.prisma.udescSessionMessage.findFirst({
+              where: { sessionId: session.id, senderType: 'agent' },
+              orderBy: { sentAt: 'asc' },
+              select: { sentAt: true },
+            });
+            if (firstCustomerMsg && firstAgentMsg) {
+              const diffMs = firstAgentMsg.sentAt.getTime() - firstCustomerMsg.sentAt.getTime();
+              if (diffMs > 0) {
+                firstResponseTime = Math.floor(diffMs / 1000);
+              }
+            }
+          }
+        }
+        if (avgRespSeconds !== null && avgRespSeconds > 0) {
+          avgResponseTime = avgRespSeconds;
+        }
+        if (sustainSeconds !== null && sustainSeconds > 0) {
+          resolutionTime = sustainSeconds;
+        }
+        // queue_seconds 可能是 "未排队" 字符串，此时 extractNumber 返回 null
+        if (queueSeconds !== null && queueSeconds >= 0) {
+          waitTime = queueSeconds;
+        }
+
+        // 消息总数 = 实际客服消息数 + 实际客户消息数
+        messageCount = actualAgentMsgCount + actualCustomerMsgCount;
+      }
+
+      await this.prisma.udescSessionMetrics.upsert({
+        where: { sessionId: session.id },
+        create: {
+          sessionId: session.id,
+          firstResponseTime,
+          avgResponseTime,
+          waitTime,
+          resolutionTime,
+          messageCount,
+          agentMessageCount,
+          customerMessageCount,
+        },
+        update: {
+          firstResponseTime,
+          avgResponseTime,
+          waitTime,
+          resolutionTime,
+          messageCount,
+          agentMessageCount,
+          customerMessageCount,
+        },
+      });
+      count++;
+    }
+
+    this.logger.log(`会话指标同步完成，共 ${count} 条`);
+    return count;
   }
 
   async syncZouwu(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {

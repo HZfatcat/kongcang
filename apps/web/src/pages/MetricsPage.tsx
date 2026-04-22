@@ -34,18 +34,6 @@ export function MetricsPage() {
   const [page, setPageState] = useState(pageFromUrl);
   const [pageSize, setPageSizeState] = useState(pageSizeFromUrl);
   
-  // 监听 URL 变化（浏览器后退/前进）
-  useEffect(() => {
-    const urlPage = parseInt(searchParams.get('page') || '1', 10);
-    const urlPageSize = parseInt(searchParams.get('pageSize') || '20', 10);
-    if (urlPage !== page) {
-      setPageState(urlPage);
-    }
-    if (urlPageSize !== pageSize) {
-      setPageSizeState(urlPageSize);
-    }
-  }, [searchParams, page, pageSize]);
-  
   // 用 ref 保存最新值，避免闭包问题
   const stateRef = useRef({ page, pageSize, sortBy, sortOrder, agentFilter, agentId, range });
   stateRef.current = { page, pageSize, sortBy, sortOrder, agentFilter, agentId, range };
@@ -104,6 +92,7 @@ export function MetricsPage() {
 
   // 加载数据 - 使用 ref 避免 useEffect 依赖过多
   const loadData = useCallback(async (p: number, ps: number) => {
+    console.log('[loadData] called with p=', p, 'ps=', ps);
     const { sortBy, sortOrder, agentFilter, agentId, range } = stateRef.current;
     setLoading(true);
     try {
@@ -125,35 +114,29 @@ export function MetricsPage() {
     }
   }, []);
 
-  // 加载客服汇总
-  const loadAgentSummary = useCallback(async () => {
-    setAgentSummaryLoading(true);
-    try {
-      const resp = await fetchUdescAgentMetricsSummary({
-        startDate: apiRange.startDateIso,
-        endDate: apiRange.endDateIso,
-      });
-      setAgentSummary(resp);
-    } catch {
-      message.error('加载客服汇总数据失败');
-    } finally {
-      setAgentSummaryLoading(false);
-    }
-  }, [apiRange]);
 
-  // 初始加载
+  // 加载数据 - 响应所有查询条件变化
   useEffect(() => {
     loadData(page, pageSize);
-    loadAgentSummary();
-  }, [page, pageSize, loadData, loadAgentSummary, apiRange]);
-
-  // 客服筛选/排序变化时重置页码并重新加载
+  }, [page, pageSize, sortBy, sortOrder, agentId, range, loadData]);
+  // 客服汇总 - 独立加载，响应时间范围变化
   useEffect(() => {
-    if (page !== 1) {
-      setPage(1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentFilter, sortBy, sortOrder, agentId]);
+    const loadAgentSummary = async () => {
+      setAgentSummaryLoading(true);
+      try {
+        const resp = await fetchUdescAgentMetricsSummary({
+          startDate: apiRange.startDateIso,
+          endDate: apiRange.endDateIso,
+        });
+        setAgentSummary(resp);
+      } catch {
+        message.error('加载客服汇总数据失败');
+      } finally {
+        setAgentSummaryLoading(false);
+      }
+    };
+    loadAgentSummary();
+  }, [apiRange]);
 
   const formatTime = (seconds: number | null) => {
     if (seconds === null || seconds === undefined) return '-';
@@ -166,7 +149,8 @@ export function MetricsPage() {
     {
       title: '会话ID',
       dataIndex: 'sessionId',
-      width: 280,
+      width: 120,
+      ellipsis: true,
       render: (id: string, record) => (
         <Typography.Link onClick={() => navigate(`/udesc/sessions?highlightSessionId=${id}`)}>
           {id}
@@ -181,84 +165,58 @@ export function MetricsPage() {
     },
     {
       title: '满意度',
-      dataIndex: ['satisfaction', 'rating'],
-      width: 80,
-      align: 'center',
+      dataIndex: 'rating',
+      width: 70,
       render: (v: number | null) => v ? `⭐ ${v}` : '-',
     },
     {
       title: '首次响应',
       dataIndex: 'firstResponseTime',
-      width: 100,
-      align: 'right',
+      width: 90,
       sorter: true,
       render: (v: number | null) => formatTime(v),
     },
     {
       title: '平均响应',
       dataIndex: 'avgResponseTime',
-      width: 100,
-      align: 'right',
+      width: 90,
       sorter: true,
       render: (v: number | null) => formatTime(v),
     },
     {
-      title: '等待时间',
-      dataIndex: 'totalWaitTime',
-      width: 100,
-      align: 'right',
-      sorter: true,
-      render: (v: number | null) => formatTime(v),
-    },
-    {
-      title: '解决时间',
-      dataIndex: 'resolutionTime',
-      width: 100,
-      align: 'right',
-      sorter: true,
-      render: (v: number | null) => formatTime(v),
-    },
-    {
-      title: '消息数',
-      dataIndex: 'messageCount',
+      title: '等待',
+      dataIndex: 'waitTime',
       width: 80,
-      align: 'right',
+      sorter: true,
+      render: (v: number | null) => formatTime(v),
+    },
+    {
+      title: '解决',
+      dataIndex: 'resolutionTime',
+      width: 80,
+      sorter: true,
+      render: (v: number | null) => formatTime(v),
+    },
+    {
+      title: '消息',
+      dataIndex: 'messageCount',
+      width: 65,
     },
     {
       title: '开始时间',
-      dataIndex: ['session', 'startedAt'],
-      width: 160,
+      dataIndex: 'startedAt',
+      width: 130,
       render: (v: string) => v ? dayjs(v).format('MM-DD HH:mm:ss') : '-',
     },
     {
       title: '结束时间',
-      dataIndex: ['session', 'endedAt'],
-      width: 160,
+      dataIndex: 'endedAt',
+      width: 130,
       render: (v: string) => v ? dayjs(v).format('MM-DD HH:mm:ss') : '-',
     },
   ];
 
-  // 分页变化处理
-  const handlePaginationChange = useCallback((p: number, ps: number) => {
-    setPage(p);
-    if (ps !== pageSize) {
-      setPageSizeCB(ps);
-      setPage(1); // 切换每页条数时回到第一页
-    }
-  }, [pageSize, setPage, setPageSizeCB]);
 
-  // 表格变化处理（筛选、排序）
-const handleTableChange = useCallback((_pagination: TablePaginationConfig, filters: Record<string, any>, sorter: any) => {
-    // 处理客服人员筛选
-    const agentFilterValue = filters.agentName as string[] | null;
-    setAgentFilter(agentFilterValue);
-    
-    // 处理排序
-    if (!Array.isArray(sorter) && sorter.field) {
-      setSortBy(sorter.field as string);
-      setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
-    }
-  }, []);
 
   return (
     <div style={{ padding: 24 }}>
@@ -268,27 +226,17 @@ const handleTableChange = useCallback((_pagination: TablePaginationConfig, filte
           onChange={(dates) => {
             if (dates && dates[0] && dates[1]) {
               setRange([dates[0], dates[1]]);
-              setPage(1);
             }
           }}
         />
         <Select
-          style={{ width: 200 }}
-          placeholder="筛选客服"
           allowClear
+          style={{ width: 150 }}
+          placeholder="选择客服"
+          value={agentId}
+          onChange={(v) => setAgentId(v)}
           options={agents.map((a) => ({ label: a.displayName, value: a.agentId }))}
-          onChange={(v) => {
-            setAgentId(v);
-            setPage(1);
-          }}
         />
-        <Button onClick={() => {
-          setPage(1);
-          loadData(1, pageSize);
-          loadAgentSummary();
-        }}>
-          刷新
-        </Button>
       </Space>
 
       <Card title="客服人员统计" style={{ marginBottom: 16 }}>
@@ -299,20 +247,20 @@ const handleTableChange = useCallback((_pagination: TablePaginationConfig, filte
             pagination={false}
             dataSource={agentSummary}
             columns={[
-              { title: '客服', dataIndex: 'agentName', width: 120 },
-              { title: '会话数', dataIndex: 'sessionCount', width: 80, align: 'right', sorter: (a, b) => a.sessionCount - b.sessionCount },
-              { title: '平均首次响应', dataIndex: 'avgFirstResponseTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
-              { title: '平均响应时间', dataIndex: 'avgResponseTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
-              { title: '平均等待时间', dataIndex: 'avgWaitTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
-              { title: '平均解决时间', dataIndex: 'avgResolutionTime', width: 120, align: 'right', render: (v: number | null) => formatTime(v) },
-              { title: '平均消息/会话', dataIndex: 'avgMessagesPerSession', width: 120, align: 'right' },
+              { title: '客服', dataIndex: 'agentName', width: 80, ellipsis: true },
+              { title: '会话数', dataIndex: 'sessionCount', width: 70, sorter: (a, b) => a.sessionCount - b.sessionCount },
+              { title: '首次响应', dataIndex: 'avgFirstResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
+              { title: '平均响应', dataIndex: 'avgResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
+              { title: '等待', dataIndex: 'avgWaitTime', width: 80, render: (v: number | null) => formatTime(v) },
+              { title: '解决', dataIndex: 'avgResolutionTime', width: 80, render: (v: number | null) => formatTime(v) },
+              { title: '消息/会话', dataIndex: 'avgMessagesPerSession', width: 90 },
             ]}
-            scroll={{ x: 800 }}
+            scroll={{ x: 580 }}
           />
         </Spin>
       </Card>
 
-      <Card>
+      <Card title="会话明细">
         <Spin spinning={loading}>
           <Table
             rowKey="sessionId"
@@ -324,10 +272,24 @@ const handleTableChange = useCallback((_pagination: TablePaginationConfig, filte
               total: data?.total ?? 0,
               showSizeChanger: true,
               showTotal: (total) => `共 ${total} 条`,
-              onChange: handlePaginationChange,
             }}
-            scroll={{ x: 1100 }}
-            onChange={handleTableChange}
+            onChange={(pagination, _filters, sorter) => {
+              // 处理分页
+              const p = pagination.current || 1;
+              const ps = pagination.pageSize || 20;
+              if (ps !== pageSize) {
+                setPageSizeCB(ps);
+                setPage(1);
+              } else if (p !== page) {
+                setPage(p);
+              }
+              // 处理排序
+              if (!Array.isArray(sorter) && sorter.field) {
+                setSortBy(sorter.field as string);
+                setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
+              }
+            }}
+            scroll={{ x: 955 }}
           />
         </Spin>
       </Card>

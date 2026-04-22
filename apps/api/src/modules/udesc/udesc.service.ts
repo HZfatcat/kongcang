@@ -628,8 +628,11 @@ export class UdescService {
       ...(agentIdList && agentIdList.length > 1 ? { agentId: { in: agentIdList } } : {}),
     };
 
-    // 构建排序条件（sessionDuration 是计算字段，需要内存排序）
+    // sessionDuration 是计算字段，需要内存排序
     const isComputedSort = sortBy === 'sessionDuration';
+    
+    // 构建排序条件 - 直接使用 relation filter，让数据库优化执行计划
+    // 指标字段已在 UdescSessionMetrics 表上有索引，可直接排序
     const orderBy = sortBy === 'sessionId'
       ? { session: { startedAt: sortOrder } }
       : sortBy === 'startedAt'

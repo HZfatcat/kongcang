@@ -282,4 +282,8 @@ model UdescSessionMetrics {
   session               UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+  @@index([firstResponseTime])
+  @@index([avgResponseTime])
+  @@index([waitTime])
+  @@index([resolutionTime])
 }

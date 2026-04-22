@@ -88,4 +88,10 @@ export class SyncController {
     });
     return { ok: true };
   }
+
+  @Post('udesc/recalc-metrics')
+  async recalcMetrics() {
+    const count = await this.syncService.recalculateMetrics();
+    return { ok: true, count };
+  }
 }

@@ -201,20 +201,19 @@ export class UdescClient {
   private mapSession(
     item: Record<string, unknown>,
     fallbackStartDate: string,
-    fallbackEndDate: string,
   ): UdescSessionRecord {
     const startedAt =
       this.pickString(item, ['start_time', 'session_start_at', 'started_at', 'created_at']) ??
       fallbackStartDate;
+    // endedAt 不使用 fallback，未结束的会话应为 null
     const endedAt =
-      this.pickString(item, ['end_time', 'session_end_at', 'ended_at', 'updated_at', 'closed_at']) ??
-      fallbackEndDate;
+      this.pickString(item, ['end_time', 'session_end_at', 'ended_at', 'closed_at']);
     const updatedAt = this.pickString(item, ['updated_at', 'end_time', 'created_at', 'closed_at']);
 
     return {
       id:
         this.pickString(item, ['session_id', 'im_session_id', 'id', 'im_sub_session_id']) ??
-        `${startedAt}-${endedAt}`,
+        `${startedAt}-${endedAt ?? 'ongoing'}`,
       agentId: this.pickString(item, ['agent_id', 'owner_id', 'user_id', 'agent_nick_name']),
       startedAt,
       endedAt,
@@ -273,7 +272,7 @@ export class UdescClient {
     });
     const data = (resp.data ?? {}) as Record<string, unknown>;
     const items = this.extractItems(data);
-    const records = items.map((item) => this.mapSession(item, params.startDate, params.endDate));
+    const records = items.map((item) => this.mapSession(item, params.startDate));
 
     const hasMoreFlag = this.pickBoolean(data, ['has_more']);
     const currentPage = this.toNumber(data.page) ?? page;
