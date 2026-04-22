@@ -450,13 +450,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         title: '咨询开始',
         dataIndex: 'startedAt',
         key: 'startedAt',
-        render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+        render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss') ?? '-',
       },
       {
         title: '咨询结束',
         dataIndex: 'endedAt',
         key: 'endedAt',
-        render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+        render: (value?: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss') ?? '-',
       },
       {
         title: '满意度',

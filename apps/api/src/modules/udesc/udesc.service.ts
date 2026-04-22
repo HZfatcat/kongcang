@@ -1,6 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 
+/**
+ * 将 Date 转为本地时间 ISO 字符串（不含 Z 后缀）
+ * 例如：2026-04-22T11:00:00（北京时间）
+ * 前端 dayjs 解析时会按本地时间处理
+ */
+function toLocalISOString(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 @Injectable()
 export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
@@ -163,8 +173,8 @@ export class UdescService {
       }
       node.sessions.push({
         id: session.id,
-        startedAt: session.startedAt.toISOString(),
-        endedAt: session.endedAt?.toISOString(),
+        startedAt: toLocalISOString(session.startedAt),
+        endedAt: session.endedAt ? toLocalISOString(session.endedAt) : null,
         rating: session.rating,
         messageCount: session._count.messages,
       });
@@ -234,14 +244,14 @@ export class UdescService {
       records: rows.map((item) => ({
         id: item.id,
         agentId: item.agentId,
-        startedAt: item.startedAt.toISOString(),
-        endedAt: item.endedAt?.toISOString(),
+        startedAt: toLocalISOString(item.startedAt),
+        endedAt: item.endedAt ? toLocalISOString(item.endedAt) : null,
         rating: item.rating,
         isConsultToDemand: item.isConsultToDemand,
         messageCount: item.messages.length,
         messages: item.messages.map((msg) => ({
           id: msg.id,
-          sentAt: msg.sentAt.toISOString(),
+          sentAt: toLocalISOString(msg.sentAt),
           senderType: msg.senderType,
           senderId: msg.senderId,
           content: msg.content,
@@ -372,7 +382,7 @@ export class UdescService {
         wechat: item.wechat,
         enterprise: item.enterprise,
         tags: item.tags,
-        syncedAt: item.syncedAt.toISOString(),
+        syncedAt: toLocalISOString(item.syncedAt),
       })),
     };
   }
@@ -395,8 +405,8 @@ export class UdescService {
       enterprise: customer.enterprise,
       tags: customer.tags,
       customFields: customer.customFields,
-      updatedAtSource: customer.updatedAtSource?.toISOString(),
-      syncedAt: customer.syncedAt.toISOString(),
+      updatedAtSource: customer.updatedAtSource ? toLocalISOString(customer.updatedAtSource) : null,
+      syncedAt: toLocalISOString(customer.syncedAt),
     };
   }
 
@@ -534,9 +544,9 @@ export class UdescService {
         tags: vote.tags,
         comment: vote.comment,
         voterName: vote.voterName,
-        votedAt: vote.votedAt?.toISOString(),
+      votedAt: vote.votedAt ? toLocalISOString(vote.votedAt) : null,
         agentId: vote.session.agentId,
-        sessionStartedAt: vote.session.startedAt.toISOString(),
+        sessionStartedAt: toLocalISOString(vote.session.startedAt),
       })),
       avgRating: avgRatingResult._avg.rating ?? null,
       ratingDistribution,
@@ -703,8 +713,8 @@ export class UdescService {
           sessionId: s.id,
           agentId: s.agentId,
           agentName: s.agentId ? (agentNameMap.get(s.agentId) || s.agentId) : null,
-          startedAt: s.startedAt.toISOString(),
-          endedAt: s.endedAt?.toISOString() ?? null,
+        startedAt: toLocalISOString(s.startedAt),
+          endedAt: s.endedAt ? toLocalISOString(s.endedAt) : null,
           sessionDuration: s.endedAt ? Math.floor((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000) : null,
           rating: s.rating,
           firstResponseTime,
@@ -777,8 +787,8 @@ export class UdescService {
         sessionId: m.sessionId,
         agentId: m.session.agentId,
         agentName: m.session.agentId ? (agentNameMap.get(m.session.agentId) || m.session.agentId) : null,
-        startedAt: m.session.startedAt.toISOString(),
-        endedAt: m.session.endedAt?.toISOString() ?? null,
+        startedAt: toLocalISOString(m.session.startedAt),
+        endedAt: m.session.endedAt ? toLocalISOString(m.session.endedAt) : null,
         sessionDuration,
         rating: m.session.rating,
         firstResponseTime: m.firstResponseTime,
