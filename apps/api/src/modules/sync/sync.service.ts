@@ -664,6 +664,21 @@ export class SyncService {
                   rawPayload: this.asJson(agent.rawPayload),
                 },
               });
+              // 同步到 AgentProfile 表，确保前端能获取到客服名字
+              if (agent.name) {
+                await this.prisma.agentProfile.upsert({
+                  where: { agentId: agent.id },
+                  create: {
+                    agentId: agent.id,
+                    displayName: agent.name,
+                    enabled: agent.enabled ?? true,
+                  },
+                  update: {
+                    displayName: agent.name,
+                    enabled: agent.enabled ?? true,
+                  },
+                });
+              }
               agentSynced += 1;
             } catch (e) {
               // ignore individual agent errors

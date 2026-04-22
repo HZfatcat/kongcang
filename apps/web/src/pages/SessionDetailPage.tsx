@@ -114,7 +114,7 @@ export function SessionDetailPage() {
     if (!agentId) return '未知客服';
     const profile = agentProfileMap.get(agentId);
     if (profile) {
-      return `${profile.displayName} (${agentId})`;
+      return profile.displayName;
     }
     return agentId;
   };
