@@ -74,24 +74,12 @@ export class SyncService {
     if (!value) {
       return null;
     }
-    
-    // 检查是否已经带有时区信息（Z 或 +/-HH:MM）
-    const hasTimezone = /[Zz]$/.test(value) || /[+-]\d{2}:?\d{2}$/.test(value);
-    
-    let date: Date;
-    if (hasTimezone) {
-      // 已有时区信息，直接解析
-      date = new Date(value);
-    } else {
-      // 无时区信息，假定为北京时间 (+08:00)
-      // 格式可能是 "2025-04-22 17:58:58" 或 "2025-04-22T17:58:58"
-      const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-      date = new Date(normalized + '+08:00');
-    }
-    
+    const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
       return null;
     }
+    // 如果时间是 UTC 格式（没有时区信息），假定为北京时间
+    // ISO 8601 格式带 Z 或 +/- 时区的，直接使用
     return date;
   }
 
