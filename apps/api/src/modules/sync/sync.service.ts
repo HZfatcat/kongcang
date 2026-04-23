@@ -351,63 +351,7 @@ export class SyncService {
               continue;
             }
 
-            // 同步会话评价详情
-            try {
-              const voteResp = await this.withRetry('udesc.fetchSessionVotes', () =>
-                this.udescClient.fetchSessionVotes({
-                  sessionId: record.id,
-                  pageSize: 10,
-                }),
-              );
-              for (const vote of voteResp.records) {
-                try {
-                  // 查找该会话的评价记录
-                  const existing = await this.prisma.udescSessionVote.findFirst({
-                    where: { sessionId: record.id },
-                  });
-                  if (existing) {
-                    await this.prisma.udescSessionVote.update({
-                      where: { id: existing.id },
-                      data: {
-                        rating: vote.rating ?? null,
-                        tags: vote.tags ?? [],
-                        comment: vote.comment ?? null,
-                        voterId: vote.voterId ?? null,
-                        voterName: vote.voterName ?? null,
-                        votedAt: this.asDateOrNull(vote.votedAt),
-                        rawPayload: this.asJson(vote.rawPayload),
-                      },
-                    });
-                  } else {
-                    await this.prisma.udescSessionVote.create({
-                      data: {
-                        sessionId: record.id,
-                        rating: vote.rating ?? null,
-                        tags: vote.tags ?? [],
-                        comment: vote.comment ?? null,
-                        voterId: vote.voterId ?? null,
-                        voterName: vote.voterName ?? null,
-                        votedAt: this.asDateOrNull(vote.votedAt),
-                        rawPayload: this.asJson(vote.rawPayload),
-                      },
-                    });
-                  }
-                  // 同时更新 UdescSession.rating 字段，确保 KPI 统计能获取到评分
-                  if (vote.rating !== undefined && vote.rating !== null) {
-                    await this.prisma.udescSession.update({
-                      where: { id: record.id },
-                      data: { rating: vote.rating },
-                    });
-                  }
-                  voteSynced += 1;
-                } catch (e) {
-                  // ignore individual vote errors
-                }
-                break; // 每会话只处理第一条评价
-              }
-            } catch (e) {
-              // vote sync is optional
-            }
+            // 评价同步移至会话同步完成后独立处理（im/sessions/vote API 不支持 session_id 过滤）
 
             // 会话统计指标在消息同步完成后从本地消息计算，不调用第三方接口
 
@@ -544,6 +488,64 @@ export class SyncService {
         );
 
         windowStart = nextWindowStart;
+      }
+
+      // 同步评价信息（im/sessions/vote API 不支持 session_id 过滤，需独立同步）
+      this.progress.note = '同步评价信息';
+      try {
+        let voteCursor: string | undefined = undefined;
+        let voteHasMore = true;
+        while (voteHasMore) {
+          const voteResp = await this.withRetry('udesc.fetchSessionVotes', () =>
+            this.udescClient.fetchSessionVotes({
+              cursor: voteCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const vote of voteResp.records) {
+            if (!vote.sessionId) continue;
+            try {
+              await this.prisma.udescSessionVote.upsert({
+                where: { id: `${vote.sessionId}` },
+                create: {
+                  id: `${vote.sessionId}`,
+                  sessionId: vote.sessionId,
+                  rating: vote.rating ?? null,
+                  tags: vote.tags ?? [],
+                  comment: vote.comment ?? null,
+                  voterId: vote.voterId ?? null,
+                  voterName: vote.voterName ?? null,
+                  votedAt: this.asDateOrNull(vote.votedAt),
+                  rawPayload: this.asJson(vote.rawPayload),
+                },
+                update: {
+                  rating: vote.rating ?? null,
+                  tags: vote.tags ?? [],
+                  comment: vote.comment ?? null,
+                  voterId: vote.voterId ?? null,
+                  voterName: vote.voterName ?? null,
+                  votedAt: this.asDateOrNull(vote.votedAt),
+                  rawPayload: this.asJson(vote.rawPayload),
+                },
+              });
+              // 更新 UdescSession.rating 字段
+              if (vote.rating !== undefined && vote.rating !== null) {
+                await this.prisma.udescSession.update({
+                  where: { id: vote.sessionId },
+                  data: { rating: vote.rating },
+                }).catch(() => { /* session may not exist */ });
+              }
+              voteSynced += 1;
+            } catch (e) {
+              // ignore individual vote errors
+            }
+          }
+          voteCursor = voteResp.nextCursor;
+          voteHasMore = voteResp.hasMore;
+        }
+        this.progress.voteSynced = voteSynced;
+      } catch (e) {
+        this.logger.warn('vote sync failed, continuing');
       }
 
       // 同步客户信息

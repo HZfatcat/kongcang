@@ -342,7 +342,7 @@ export class UdescClient {
    * 获取会话评价详情
    */
   async fetchSessionVotes(params: {
-    sessionId: string;
+    sessionId?: string;
     cursor?: string;
     pageSize: number;
   }): Promise<SyncFetchResult<UdescVoteRecord>> {
@@ -353,14 +353,14 @@ export class UdescClient {
     const page = Math.max(1, Number(params.cursor ?? '1'));
     const endpoint = process.env.UDESC_IM_VOTE_PATH ?? 'im/sessions/vote';
     const resp = await this.openApiGet(endpoint, {
-      session_id: params.sessionId,
+      ...(params.sessionId ? { session_id: params.sessionId } : {}),
       page: String(page),
       page_size: String(params.pageSize),
     });
     const data = (resp.data ?? {}) as Record<string, unknown>;
     const items = this.extractItems(data);
     const records: UdescVoteRecord[] = items.map((item) => ({
-      sessionId: params.sessionId,
+      sessionId: String(item.session_id ?? params.sessionId),
       rating: this.pickRating(item),
       tags: this.parseTags(item.tags ?? item.vote_tags),
       comment: this.pickString(item, ['comment', 'content', 'remark', 'vote_comment']),
