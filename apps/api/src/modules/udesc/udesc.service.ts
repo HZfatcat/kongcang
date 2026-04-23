@@ -97,9 +97,16 @@ export class UdescService {
   }
 
   private async getVoteTagStats(start: Date, end: Date) {
+    // 先获取时间范围内的 sessionId
+    const sessionsInRange = await this.prisma.udescSession.findMany({
+      where: { startedAt: { gte: start, lte: end } },
+      select: { id: true },
+    });
+    const sessionIds = sessionsInRange.map((s) => s.id);
+
     const votes = await this.prisma.udescSessionVote.findMany({
       where: {
-        votedAt: { gte: start, lte: end },
+        sessionId: { in: sessionIds },
       },
       select: { tags: true, rating: true },
     });
@@ -487,15 +494,23 @@ export class UdescService {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
 
+    // 先获取时间范围内的 sessionId 列表
+    const sessionsInRange = await this.prisma.udescSession.findMany({
+      where: { startedAt: { gte: start, lte: end } },
+      select: { id: true },
+    });
+    const sessionIds = sessionsInRange.map((s) => s.id);
+
+    // 按会话 startedAt 筛选，而不是 votedAt
     const where = {
-      votedAt: { gte: start, lte: end },
+      sessionId: { in: sessionIds },
       ...(params.minRating !== undefined ? { rating: { gte: params.minRating } } : {}),
       ...(params.maxRating !== undefined
         ? { rating: { ...(params.minRating !== undefined ? { gte: params.minRating } : {}), lte: params.maxRating } }
         : {}),
     };
 
-    const [total, rows, ratingStats] = await Promise.all([
+    const [total, rows, ratingStats, avgRatingResult, totalSessions] = await Promise.all([
       this.prisma.udescSessionVote.count({ where }),
       this.prisma.udescSessionVote.findMany({
         where,
@@ -515,6 +530,13 @@ export class UdescService {
         by: ['rating'],
         where: { ...where, rating: { not: null } },
         _count: { rating: true },
+      }),
+      this.prisma.udescSessionVote.aggregate({
+        where: { ...where, rating: { not: null } },
+        _avg: { rating: true },
+      }),
+      this.prisma.udescSession.count({
+        where: { startedAt: { gte: start, lte: end } },
       }),
     ]);
 
@@ -537,18 +559,6 @@ export class UdescService {
     for (const a of agentProfiles) {
       if (a.displayName) agentNameMap.set(a.agentId, a.displayName);
     }
-
-    const avgRatingResult = await this.prisma.udescSessionVote.aggregate({
-      where: { ...where, rating: { not: null } },
-      _avg: { rating: true },
-    });
-
-    // 统计时间范围内的总会话数
-    const totalSessions = await this.prisma.udescSession.count({
-      where: {
-        startedAt: { gte: start, lte: end },
-      },
-    });
 
     const ratingDistribution: Record<number, number> = {};
     for (let i = 1; i <= 5; i++) {
