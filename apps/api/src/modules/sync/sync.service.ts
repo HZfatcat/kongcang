@@ -392,6 +392,13 @@ export class SyncService {
                       },
                     });
                   }
+                  // 同时更新 UdescSession.rating 字段，确保 KPI 统计能获取到评分
+                  if (vote.rating !== undefined && vote.rating !== null) {
+                    await this.prisma.udescSession.update({
+                      where: { id: record.id },
+                      data: { rating: vote.rating },
+                    });
+                  }
                   voteSynced += 1;
                 } catch (e) {
                   // ignore individual vote errors
