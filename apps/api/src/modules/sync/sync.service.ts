@@ -20,6 +20,8 @@ interface SyncProgressSnapshot {
   customerSynced: number;
   agentSynced: number;
   metricsSynced: number;
+  organizationSynced: number;
+  ticketSynced: number;
   issueCount: number;
   estimatedRemainingRecords: number;
   estimatedRemainingSeconds: number;
@@ -52,6 +54,8 @@ export class SyncService {
     customerSynced: 0,
     agentSynced: 0,
     metricsSynced: 0,
+    organizationSynced: 0,
+    ticketSynced: 0,
     issueCount: 0,
     estimatedRemainingRecords: 0,
     estimatedRemainingSeconds: 0,
@@ -237,6 +241,8 @@ export class SyncService {
     let customerSynced = 0;
     let agentSynced = 0;
     let metricsSynced = 0;
+    let organizationSynced = 0;
+    let ticketSynced = 0;
     let issueCount = 0;
     const syncStartedAt = new Date();
 
@@ -719,6 +725,170 @@ export class SyncService {
         this.logger.error(`agent sync failed: ${msg}`);
       }
 
+      // 同步客户公司/组织
+      this.progress.note = '同步客户公司';
+      try {
+        let orgCursor: string | undefined = undefined;
+        let orgHasMore = true;
+        while (orgHasMore) {
+          const orgResp = await this.withRetry('udesc.fetchOrganizations', () =>
+            this.udescClient.fetchOrganizations({
+              cursor: orgCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const org of orgResp.records) {
+            if (!org.id) continue;
+            try {
+              await this.prisma.udescOrganization.upsert({
+                where: { id: org.id },
+                create: {
+                  id: org.id,
+                  name: org.name ?? null,
+                  domains: org.domains ?? null,
+                  level: org.level ?? null,
+                  description: org.description ?? null,
+                  token: org.token ?? null,
+                  customFields: this.asJson(org.customFields),
+                  rawPayload: this.asJson(org.rawPayload),
+                },
+                update: {
+                  name: org.name ?? null,
+                  domains: org.domains ?? null,
+                  level: org.level ?? null,
+                  description: org.description ?? null,
+                  token: org.token ?? null,
+                  customFields: this.asJson(org.customFields),
+                  rawPayload: this.asJson(org.rawPayload),
+                },
+              });
+              organizationSynced += 1;
+            } catch (e) {
+              // ignore individual org errors
+            }
+          }
+          orgCursor = orgResp.nextCursor;
+          orgHasMore = orgResp.hasMore && Boolean(orgCursor);
+        }
+        this.progress.organizationSynced = organizationSynced;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`organization sync failed: ${msg}`);
+      }
+
+      // 同步工单
+      this.progress.note = '同步工单';
+      try {
+        let ticketCursor: string | undefined = undefined;
+        let ticketHasMore = true;
+        while (ticketHasMore) {
+          const ticketResp = await this.withRetry('udesc.fetchTickets', () =>
+            this.udescClient.fetchTickets({
+              cursor: ticketCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const ticket of ticketResp.records) {
+            if (!ticket.id) continue;
+            try {
+              await this.prisma.udescTicket.upsert({
+                where: { id: ticket.id },
+                create: {
+                  id: ticket.id,
+                  fieldNum: ticket.fieldNum ?? null,
+                  subject: ticket.subject ?? null,
+                  content: ticket.content ?? null,
+                  source: ticket.source ?? null,
+                  contentType: ticket.contentType ?? null,
+                  userId: ticket.userId ?? null,
+                  userName: ticket.userName ?? null,
+                  userEmail: ticket.userEmail ?? null,
+                  userCellphone: ticket.userCellphone ?? null,
+                  organizationId: ticket.organizationId ?? null,
+                  assigneeId: ticket.assigneeId ?? null,
+                  assigneeName: ticket.assigneeName ?? null,
+                  assigneeAvatar: ticket.assigneeAvatar ?? null,
+                  userGroupId: ticket.userGroupId ?? null,
+                  userGroupName: ticket.userGroupName ?? null,
+                  templateId: ticket.templateId ?? null,
+                  priority: ticket.priority ?? null,
+                  status: ticket.status ?? null,
+                  statusEn: ticket.statusEn ?? null,
+                  platform: ticket.platform ?? null,
+                  satisfaction: ticket.satisfaction ?? null,
+                  customFields: this.asJson(ticket.customFields),
+                  tags: ticket.tags ?? null,
+                  creatorId: ticket.creatorId ?? null,
+                  imSubSessionId: ticket.imSubSessionId ?? null,
+                  conversationId: ticket.conversationId ?? null,
+                  createdAt: this.asDateOrNull(ticket.createdAt),
+                  updatedAt: this.asDateOrNull(ticket.updatedAt),
+                  solvingAt: this.asDateOrNull(ticket.solvingAt),
+                  resolvedAt: this.asDateOrNull(ticket.resolvedAt),
+                  closedAt: this.asDateOrNull(ticket.closedAt),
+                  solvedDeadline: this.asDateOrNull(ticket.solvedDeadline),
+                  repliedAt: this.asDateOrNull(ticket.repliedAt),
+                  agentRepliedAt: this.asDateOrNull(ticket.agentRepliedAt),
+                  customerRepliedAt: this.asDateOrNull(ticket.customerRepliedAt),
+                  firstRepliedAt: this.asDateOrNull(ticket.firstRepliedAt),
+                  repliedBy: ticket.repliedBy ?? null,
+                  rawPayload: this.asJson(ticket.rawPayload),
+                },
+                update: {
+                  fieldNum: ticket.fieldNum ?? null,
+                  subject: ticket.subject ?? null,
+                  content: ticket.content ?? null,
+                  source: ticket.source ?? null,
+                  contentType: ticket.contentType ?? null,
+                  userId: ticket.userId ?? null,
+                  userName: ticket.userName ?? null,
+                  userEmail: ticket.userEmail ?? null,
+                  userCellphone: ticket.userCellphone ?? null,
+                  organizationId: ticket.organizationId ?? null,
+                  assigneeId: ticket.assigneeId ?? null,
+                  assigneeName: ticket.assigneeName ?? null,
+                  assigneeAvatar: ticket.assigneeAvatar ?? null,
+                  userGroupId: ticket.userGroupId ?? null,
+                  userGroupName: ticket.userGroupName ?? null,
+                  templateId: ticket.templateId ?? null,
+                  priority: ticket.priority ?? null,
+                  status: ticket.status ?? null,
+                  statusEn: ticket.statusEn ?? null,
+                  platform: ticket.platform ?? null,
+                  satisfaction: ticket.satisfaction ?? null,
+                  customFields: this.asJson(ticket.customFields),
+                  tags: ticket.tags ?? null,
+                  creatorId: ticket.creatorId ?? null,
+                  imSubSessionId: ticket.imSubSessionId ?? null,
+                  conversationId: ticket.conversationId ?? null,
+                  createdAt: this.asDateOrNull(ticket.createdAt),
+                  updatedAt: this.asDateOrNull(ticket.updatedAt),
+                  solvingAt: this.asDateOrNull(ticket.solvingAt),
+                  resolvedAt: this.asDateOrNull(ticket.resolvedAt),
+                  closedAt: this.asDateOrNull(ticket.closedAt),
+                  solvedDeadline: this.asDateOrNull(ticket.solvedDeadline),
+                  repliedAt: this.asDateOrNull(ticket.repliedAt),
+                  agentRepliedAt: this.asDateOrNull(ticket.agentRepliedAt),
+                  customerRepliedAt: this.asDateOrNull(ticket.customerRepliedAt),
+                  firstRepliedAt: this.asDateOrNull(ticket.firstRepliedAt),
+                  repliedBy: ticket.repliedBy ?? null,
+                  rawPayload: this.asJson(ticket.rawPayload),
+                },
+              });
+              ticketSynced += 1;
+            } catch (e) {
+              // ignore individual ticket errors
+            }
+          }
+          ticketCursor = ticketResp.nextCursor;
+          ticketHasMore = ticketResp.hasMore && Boolean(ticketCursor);
+        }
+        this.progress.ticketSynced = ticketSynced;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`ticket sync failed: ${msg}`);
+      }
+
       // 从本地消息计算会话指标（不调用第三方接口）
       this.progress.note = '计算会话指标';
       metricsSynced = await this.calculateSessionMetricsFromLocal();
@@ -726,8 +896,8 @@ export class SyncService {
 
       await this.finishRun(run.id, {
         status: 'SUCCESS',
-        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
-        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},issues=${issueCount}`,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
+        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},organizations=${organizationSynced},tickets=${ticketSynced},issues=${issueCount}`,
       });
 
       this.progress.isRunning = false;
@@ -743,7 +913,7 @@ export class SyncService {
       this.logger.error(`sync udesc failed: ${message}`);
       await this.finishRun(run.id, {
         status: 'FAILED',
-        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
         message,
       });
 
