@@ -32,6 +32,13 @@ export class UdescService {
       },
     };
 
+    // 获取时间范围内的 sessionIds，用于从 UdescSessionVote 表查询评价
+    const sessionsInRange = await this.prisma.udescSession.findMany({
+      where,
+      select: { id: true },
+    });
+    const sessionIds = sessionsInRange.map((s) => s.id);
+
     const [totalSessions, totalMessages, agentCount, ratedCount, avgRating, topAgents, voteStats, customerCount] =
       await Promise.all([
       this.prisma.udescSession.count({ where }),
@@ -50,15 +57,18 @@ export class UdescService {
           select: { agentId: true },
         })
         .then((rows) => rows.length),
-      this.prisma.udescSession.count({
+      // 从 UdescSessionVote 表统计有评价的会话数
+      this.prisma.udescSessionVote.findMany({
         where: {
-          ...where,
+          sessionId: { in: sessionIds },
           rating: { not: null },
         },
-      }),
-      this.prisma.udescSession.aggregate({
+        select: { sessionId: true },
+      }).then((votes) => new Set(votes.map((v) => v.sessionId)).size),
+      // 从 UdescSessionVote 表计算平均评分
+      this.prisma.udescSessionVote.aggregate({
         where: {
-          ...where,
+          sessionId: { in: sessionIds },
           rating: { not: null },
         },
         _avg: { rating: true },
