@@ -255,8 +255,8 @@ export class ZouwuClient implements OnModuleInit {
         continue;
       }
       const item = row as Record<string, unknown>;
-      const name = String(item.label_name ?? item.labelName ?? '');
-      if (name === this.defaultLongTermLabelName) {
+      const name = String(item.label_name ?? item.labelName ?? item.name ?? '');
+            if (name === this.defaultLongTermLabelName) {
         const id = Number(item.id);
         if (Number.isFinite(id)) {
           return id;
