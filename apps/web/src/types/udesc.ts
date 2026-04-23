@@ -75,6 +75,7 @@ export interface SyncIssue {
   externalId?: string;
   errorMessage: string;
   createdAt: string;
+  resolvedAt?: string | null;
 }
 
 export interface SyncRun {

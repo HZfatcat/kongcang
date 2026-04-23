@@ -392,12 +392,23 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     const timer = setInterval(() => {
       void fetchSyncProgress()
         .then((data) => {
+          const wasRunning = syncProgress?.isRunning;
+          const nowRunning = data.isRunning;
           setSyncProgress(data);
+          // 当同步从 RUNNING 变为非 RUNNING 时，刷新同步记录列表
+          if (wasRunning && !nowRunning) {
+            void fetchSyncRuns().then((runs) => {
+              setSyncRuns(runs);
+            });
+            void fetchSyncSummary().then((summary) => {
+              setSyncSummary(summary);
+            });
+          }
         })
         .catch(() => undefined);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [syncProgress?.isRunning]);
 
   useEffect(() => {
     void loadAgents();
@@ -1807,7 +1818,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Card title="历史同步记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={syncRuns}
+          dataSource={syncRuns.filter((item) => item.source === 'udesc')}
           pagination={false}
           size="small"
           columns={[
@@ -1833,7 +1844,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Card title="最近失败记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={syncIssues.slice(0, 50)}
+          dataSource={syncIssues.filter((item) => item.source === 'udesc').slice(0, 50)}
           pagination={false}
           size="small"
           columns={[
@@ -1845,6 +1856,14 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
             },
             { title: '错误', dataIndex: 'errorMessage', key: 'errorMessage' },
+            {
+              title: '状态',
+              key: 'status',
+              render: (_: unknown, record: SyncIssue) =>
+                record.resolvedAt ? (
+                  <Tag color="success">已重试成功</Tag>
+                ) : null,
+            },
           ]}
         />
       </Card>

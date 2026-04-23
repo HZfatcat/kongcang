@@ -134,6 +134,20 @@ export class SyncService {
     });
   }
 
+  private async markIssueResolved(params: { source: string; category: string; externalId: string }) {
+    await this.prisma.syncIssue.updateMany({
+      where: {
+        source: params.source,
+        category: params.category,
+        externalId: params.externalId,
+        resolvedAt: null,
+      },
+      data: {
+        resolvedAt: new Date(),
+      },
+    });
+  }
+
   private resolveUdescStartDate(): Date {
     const configured = process.env.UDESC_SYNC_START_DATE ?? '2026-01-01T00:00:00.000Z';
     const value = new Date(configured);
@@ -336,6 +350,12 @@ export class SyncService {
                 },
               });
               sessionSynced += 1;
+              // 标记之前的失败记录为已解决
+              await this.markIssueResolved({
+                source: 'udesc',
+                category: 'SESSION_UPSERT',
+                externalId: record.id,
+              });
             } catch (error) {
               issueCount += 1;
               const message = error instanceof Error ? error.message : String(error);
@@ -413,6 +433,12 @@ export class SyncService {
                       },
                     });
                     messageSynced += 1;
+                    // 标记之前的失败记录为已解决
+                    await this.markIssueResolved({
+                      source: 'udesc',
+                      category: 'MESSAGE_UPSERT',
+                      externalId: messageRecord.id,
+                    });
                   } catch (error) {
                     issueCount += 1;
                     const upsertError = error instanceof Error ? error.message : String(error);

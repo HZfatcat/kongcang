@@ -149,9 +149,11 @@ model SyncIssue {
   payload             Json?
   errorMessage        String
   createdAt           DateTime @default(now())
+  resolvedAt          DateTime?
 
   @@index([runId, source])
   @@index([source, createdAt])
+  @@index([source, category, externalId])
 }
 
 model SyncConfig {
