@@ -490,58 +490,81 @@ export class SyncService {
         windowStart = nextWindowStart;
       }
 
-      // 同步评价信息（im/sessions/vote API 不支持 session_id 过滤，需独立同步）
+      // 同步评价信息（im/sessions/vote API 只支持 30 天内的数据，需用窗口方式同步）
       this.progress.note = '同步评价信息';
+      console.log('[SYNC] 开始同步评价信息:', { startDate: startDate.toISOString(), endDate: finalEnd.toISOString() });
       try {
-        let voteCursor: string | undefined = undefined;
-        let voteHasMore = true;
-        while (voteHasMore) {
-          const voteResp = await this.withRetry('udesc.fetchSessionVotes', () =>
-            this.udescClient.fetchSessionVotes({
-              cursor: voteCursor,
-              pageSize: 100,
-            }),
-          );
-          for (const vote of voteResp.records) {
-            if (!vote.sessionId) continue;
-            try {
-              await this.prisma.udescSessionVote.upsert({
-                where: { id: `${vote.sessionId}` },
-                create: {
-                  id: `${vote.sessionId}`,
-                  sessionId: vote.sessionId,
-                  rating: vote.rating ?? null,
-                  tags: vote.tags ?? [],
-                  comment: vote.comment ?? null,
-                  voterId: vote.voterId ?? null,
-                  voterName: vote.voterName ?? null,
-                  votedAt: this.asDateOrNull(vote.votedAt),
-                  rawPayload: this.asJson(vote.rawPayload),
-                },
-                update: {
-                  rating: vote.rating ?? null,
-                  tags: vote.tags ?? [],
-                  comment: vote.comment ?? null,
-                  voterId: vote.voterId ?? null,
-                  voterName: vote.voterName ?? null,
-                  votedAt: this.asDateOrNull(vote.votedAt),
-                  rawPayload: this.asJson(vote.rawPayload),
-                },
-              });
-              // 更新 UdescSession.rating 字段
-              if (vote.rating !== undefined && vote.rating !== null) {
-                await this.prisma.udescSession.update({
-                  where: { id: vote.sessionId },
-                  data: { rating: vote.rating },
-                }).catch(() => { /* session may not exist */ });
-              }
-              voteSynced += 1;
-            } catch (e) {
-              // ignore individual vote errors
-            }
+        // Vote API 只支持 30 天，使用 25 天窗口确保不超限
+        const voteWindowDays = 25;
+        let voteWindowStart = new Date(finalEnd);
+        const voteEarliest = this.resolveProviderEarliestDate(new Date());
+
+        while (voteWindowStart > voteEarliest) {
+          const voteWindowEnd = new Date(voteWindowStart);
+          const voteWindowStartActual = new Date(voteWindowStart);
+          voteWindowStartActual.setUTCDate(voteWindowStartActual.getUTCDate() - voteWindowDays);
+          if (voteWindowStartActual < voteEarliest) {
+            voteWindowStartActual.setTime(voteEarliest.getTime());
           }
-          voteCursor = voteResp.nextCursor;
-          voteHasMore = voteResp.hasMore;
+
+          console.log('[SYNC] vote window:', { start: voteWindowStartActual.toISOString(), end: voteWindowEnd.toISOString() });
+
+          let voteCursor: string | undefined = undefined;
+          let voteHasMore = true;
+          while (voteHasMore) {
+            const voteResp = await this.withRetry('udesc.fetchSessionVotes', () =>
+              this.udescClient.fetchSessionVotes({
+                cursor: voteCursor,
+                pageSize: 100,
+                startDate: voteWindowStartActual.toISOString(),
+                endDate: voteWindowEnd.toISOString(),
+              }),
+            );
+            console.log('[SYNC] vote page result:', { records: voteResp.records.length, hasMore: voteResp.hasMore });
+
+            for (const vote of voteResp.records) {
+              if (!vote.sessionId) continue;
+              try {
+                await this.prisma.udescSessionVote.upsert({
+                  where: { id: `${vote.sessionId}` },
+                  create: {
+                    id: `${vote.sessionId}`,
+                    sessionId: vote.sessionId,
+                    rating: vote.rating ?? null,
+                    tags: vote.tags ?? [],
+                    comment: vote.comment ?? null,
+                    voterId: vote.voterId ?? null,
+                    voterName: vote.voterName ?? null,
+                    votedAt: this.asDateOrNull(vote.votedAt),
+                    rawPayload: this.asJson(vote.rawPayload),
+                  },
+                  update: {
+                    rating: vote.rating ?? null,
+                    tags: vote.tags ?? [],
+                    comment: vote.comment ?? null,
+                    voterId: vote.voterId ?? null,
+                    voterName: vote.voterName ?? null,
+                    votedAt: this.asDateOrNull(vote.votedAt),
+                    rawPayload: this.asJson(vote.rawPayload),
+                  },
+                });
+                if (vote.rating !== undefined && vote.rating !== null) {
+                  await this.prisma.udescSession.update({
+                    where: { id: vote.sessionId },
+                    data: { rating: vote.rating },
+                  }).catch(() => { /* session may not exist */ });
+                }
+                voteSynced += 1;
+              } catch (e) {
+                // ignore individual vote errors
+              }
+            }
+            voteCursor = voteResp.nextCursor;
+            voteHasMore = voteResp.hasMore;
+          }
+
+          voteWindowStart = new Date(voteWindowStartActual);
+          voteWindowStart.setUTCMilliseconds(voteWindowStart.getUTCMilliseconds() - 1);
         }
         this.progress.voteSynced = voteSynced;
       } catch (e) {

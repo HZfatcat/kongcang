@@ -85,6 +85,8 @@ export class UdescController {
       endDate: query.endDate,
       minRating: query.minRating,
       maxRating: query.maxRating,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
       page: query.page,
       pageSize: query.pageSize,
     });

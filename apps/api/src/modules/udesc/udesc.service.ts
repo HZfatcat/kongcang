@@ -497,6 +497,8 @@ export class UdescService {
     endDate?: string;
     minRating?: number;
     maxRating?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
     page?: number;
     pageSize?: number;
   }) {
@@ -520,11 +522,25 @@ export class UdescService {
         : {}),
     };
 
+    // 构建排序条件
+    const sortDirection = params.sortOrder ?? 'desc';
+    let orderBy: any;
+    if (params.sortBy === 'comment') {
+      // comment 排序：有内容的排前面，null 排后面
+      orderBy = [
+        { comment: { sort: sortDirection, nulls: 'last' } },
+      ];
+    } else if (params.sortBy === 'rating') {
+      orderBy = { rating: sortDirection };
+    } else {
+      orderBy = { votedAt: sortDirection };
+    }
+
     const [total, rows, ratingStats, avgRatingResult, totalSessions] = await Promise.all([
       this.prisma.udescSessionVote.count({ where }),
       this.prisma.udescSessionVote.findMany({
         where,
-        orderBy: { votedAt: 'desc' },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {

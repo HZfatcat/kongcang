@@ -172,6 +172,8 @@ export async function fetchUdescVotes(params: {
   endDate?: string;
   minRating?: number;
   maxRating?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }) {

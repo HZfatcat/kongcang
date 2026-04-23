@@ -21,6 +21,8 @@ export function VotesPage() {
   const [pageSize, setPageSize] = useState(20);
   const [minRating, setMinRating] = useState<number | undefined>();
   const [maxRating, setMaxRating] = useState<number | undefined>();
+  const [sortBy, setSortBy] = useState<string | undefined>();
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | undefined>();
 
   const apiRange = useMemo(
     () => ({
@@ -38,6 +40,8 @@ export function VotesPage() {
         endDate: apiRange.endDateIso,
         minRating,
         maxRating,
+        sortBy,
+        sortOrder,
         page,
         pageSize,
       });
@@ -51,7 +55,7 @@ export function VotesPage() {
 
   useEffect(() => {
     loadData();
-  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating]);
+  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating, sortBy, sortOrder]);
 
   const columns: ColumnsType<UdescSessionVote> = [
     {
@@ -90,6 +94,7 @@ export function VotesPage() {
       title: '评价内容',
       dataIndex: 'comment',
       ellipsis: true,
+      sorter: true,
       render: (c: string | null) => c || '-',
     },
     {
@@ -212,6 +217,12 @@ export function VotesPage() {
                 setPage(p);
                 setPageSize(ps);
               },
+            }}
+            onChange={(pagination, filters, sorter) => {
+              if (sorter && !Array.isArray(sorter)) {
+                setSortBy(sorter.field as string);
+                setSortOrder(sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : undefined);
+              }
             }}
             scroll={{ x: 1200 }}
           />

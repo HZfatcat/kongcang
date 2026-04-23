@@ -78,7 +78,7 @@ export class UdescVoteQueryDto extends UdescDateRangeDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Min(5)
+  @Max(5)
   minRating?: number;
 
   @IsOptional()
@@ -87,6 +87,14 @@ export class UdescVoteQueryDto extends UdescDateRangeDto {
   @Min(1)
   @Max(5)
   maxRating?: number;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'asc' | 'desc';
 
   @IsOptional()
   @Type(() => Number)

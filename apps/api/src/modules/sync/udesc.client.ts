@@ -345,6 +345,8 @@ export class UdescClient {
     sessionId?: string;
     cursor?: string;
     pageSize: number;
+    startDate?: string;
+    endDate?: string;
   }): Promise<SyncFetchResult<UdescVoteRecord>> {
     if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
       return { records: [], hasMore: false };
@@ -354,6 +356,8 @@ export class UdescClient {
     const endpoint = process.env.UDESC_IM_VOTE_PATH ?? 'im/sessions/vote';
     const resp = await this.openApiGet(endpoint, {
       ...(params.sessionId ? { session_id: params.sessionId } : {}),
+      ...(params.startDate ? { start_time: params.startDate } : {}),
+      ...(params.endDate ? { end_time: params.endDate } : {}),
       page: String(page),
       page_size: String(params.pageSize),
     });
@@ -363,7 +367,7 @@ export class UdescClient {
       sessionId: String(item.session_id ?? params.sessionId),
       rating: this.pickRating(item),
       tags: this.parseTags(item.tags ?? item.vote_tags),
-      comment: this.pickString(item, ['comment', 'content', 'remark', 'vote_comment']),
+      comment: this.pickString(item, ['comment', 'content', 'remark', 'survey_remark', 'vote_comment']),
       voterId: this.pickString(item, ['voter_id', 'customer_id', 'user_id']),
       voterName: this.pickString(item, ['voter_name', 'customer_name', 'user_name']),
       votedAt: this.pickString(item, ['voted_at', 'created_at', 'vote_time']),
