@@ -234,6 +234,7 @@ export class ZouwuClient implements OnModuleInit {
       page: 1,
       pageSize: 1,
     });
+    console.log('[feedbackTotal] params=', JSON.stringify(params), '=> total=', result.total);
     return result.total;
   }
 
@@ -255,9 +256,9 @@ export class ZouwuClient implements OnModuleInit {
         continue;
       }
       const item = row as Record<string, unknown>;
-      const name = String(item.label_name ?? item.labelName ?? '');
+      const name = String(item.label_name ?? item.labelName ?? item.name ?? '');
+      const id = Number(item.id);
       if (name === this.defaultLongTermLabelName) {
-        const id = Number(item.id);
         if (Number.isFinite(id)) {
           return id;
         }
