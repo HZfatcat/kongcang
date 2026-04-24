@@ -1276,5 +1276,228 @@ export class UdescService {
 
     return results;
   }
+
+  // ========== 工单分析 ==========
+
+  async getTickets(params: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    assigneeId?: string;
+    priority?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 20;
+    const sortBy = params.sortBy ?? 'createdAt';
+    const sortOrder = params.sortOrder ?? 'desc';
+
+    const where: any = {
+      createdAt: { gte: start, lte: end },
+    };
+    if (params.status) {
+      where.status = params.status;
+    }
+    if (params.assigneeId) {
+      where.assigneeId = params.assigneeId;
+    }
+    if (params.priority) {
+      where.priority = params.priority;
+    }
+
+    const orderBy: any = {};
+    orderBy[sortBy] = sortOrder;
+
+    const [total, records] = await Promise.all([
+      this.prisma.udescTicket.count({ where }),
+      this.prisma.udescTicket.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      page,
+      pageSize,
+      total,
+      records: records.map((t) => ({
+        id: t.id,
+        fieldNum: t.fieldNum,
+        subject: t.subject,
+        source: t.source,
+        status: t.status,
+        statusEn: t.statusEn,
+        priority: t.priority,
+        satisfaction: t.satisfaction,
+        userName: t.userName,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assigneeName,
+        userGroupName: t.userGroupName,
+        createdAt: t.createdAt ? toLocalISOString(t.createdAt) : null,
+        firstRepliedAt: t.firstRepliedAt ? toLocalISOString(t.firstRepliedAt) : null,
+        resolvedAt: t.resolvedAt ? toLocalISOString(t.resolvedAt) : null,
+        closedAt: t.closedAt ? toLocalISOString(t.closedAt) : null,
+        imSubSessionId: t.imSubSessionId,
+      })),
+    };
+  }
+
+  async getTicketSummary(params: {
+    startDate?: string;
+    endDate?: string;
+    assigneeId?: string;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+
+    const where: any = {
+      createdAt: { gte: start, lte: end },
+    };
+    if (params.assigneeId) {
+      where.assigneeId = params.assigneeId;
+    }
+
+    // 基础统计
+    const [total, byStatus, byPriority, byAssignee] = await Promise.all([
+      // 总数
+      this.prisma.udescTicket.count({ where }),
+
+      // 按状态分组
+      this.prisma.udescTicket.groupBy({
+        by: ['status'],
+        where,
+        _count: { id: true },
+      }),
+
+      // 按优先级分组
+      this.prisma.udescTicket.groupBy({
+        by: ['priority'],
+        where,
+        _count: { id: true },
+      }),
+
+      // 按受理人分组（取前10）
+      this.prisma.udescTicket.groupBy({
+        by: ['assigneeId', 'assigneeName'],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 10,
+      }),
+    ]);
+
+    // 计算平均解决时间
+    const resolvedTickets = await this.prisma.udescTicket.findMany({
+      where: {
+        ...where,
+        createdAt: { not: null },
+        resolvedAt: { not: null },
+      },
+      select: {
+        createdAt: true,
+        resolvedAt: true,
+      },
+    });
+
+    let totalResolutionHours = 0;
+    let resolvedCount = 0;
+    for (const t of resolvedTickets) {
+      if (t.createdAt && t.resolvedAt) {
+        const hours = (t.resolvedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
+        totalResolutionHours += hours;
+        resolvedCount++;
+      }
+    }
+    const avgResolutionHours = resolvedCount > 0 ? totalResolutionHours / resolvedCount : null;
+
+    // 计算首次响应时间
+    const firstReplyTickets = await this.prisma.udescTicket.findMany({
+      where: {
+        ...where,
+        createdAt: { not: null },
+        firstRepliedAt: { not: null },
+      },
+      select: {
+        createdAt: true,
+        firstRepliedAt: true,
+      },
+    });
+
+    let totalFirstReplyHours = 0;
+    let firstReplyCount = 0;
+    for (const t of firstReplyTickets) {
+      if (t.createdAt && t.firstRepliedAt) {
+        const hours = (t.firstRepliedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
+        totalFirstReplyHours += hours;
+        firstReplyCount++;
+      }
+    }
+    const avgFirstReplyHours = firstReplyCount > 0 ? totalFirstReplyHours / firstReplyCount : null;
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      total,
+      byStatus: Object.fromEntries(byStatus.map((s) => [s.status ?? '未知', s._count.id])),
+      byPriority: Object.fromEntries(byPriority.map((p) => [p.priority ?? '未知', p._count.id])),
+      byAssignee: byAssignee.map((a) => ({
+        assigneeId: a.assigneeId,
+        assigneeName: a.assigneeName,
+        count: a._count.id,
+      })),
+      avgResolutionHours,
+      avgFirstReplyHours,
+      resolvedCount,
+      totalResolutionHours,
+      totalFirstReplyHours,
+    };
+  }
+
+  async getTicketDailyStats(params: {
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+
+    // 生成日期范围
+    const days: string[] = [];
+    const current = new Date(start);
+    while (current <= end) {
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // 按天统计创建数
+    const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
+      SELECT DATE("createdAt") as date, COUNT(*) as count
+      FROM "UdescTicket"
+      WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+      GROUP BY DATE("createdAt")
+      ORDER BY date
+    `;
+
+    // 按天统计解决数
+    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
+      SELECT DATE("resolvedAt") as date, COUNT(*) as count
+      FROM "UdescTicket"
+      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+      GROUP BY DATE("resolvedAt")
+      ORDER BY date
+    `;
+
+    const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      days,
+      created: days.map((d) => createdMap.get(d) ?? 0),
+      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
+    };
+  }
 }
 

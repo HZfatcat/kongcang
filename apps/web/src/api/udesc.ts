@@ -228,3 +228,86 @@ export interface AgentMetricsSummary {
   avgMessagesPerSession: number;
 }
 
+// ========== 工单分析 ==========
+
+export interface UdescTicket {
+  id: string;
+  fieldNum?: string;
+  subject?: string;
+  source?: string;
+  status?: string;
+  statusEn?: string;
+  priority?: string;
+  satisfaction?: number | null;
+  userName?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  userGroupName?: string;
+  createdAt?: string | null;
+  firstRepliedAt?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  imSubSessionId?: string;
+}
+
+export interface UdescTicketListResp {
+  page: number;
+  pageSize: number;
+  total: number;
+  records: UdescTicket[];
+}
+
+export interface UdescTicketSummary {
+  dateRange: { startDate: string; endDate: string };
+  total: number;
+  byStatus: Record<string, number>;
+  byPriority: Record<string, number>;
+  byAssignee: Array<{
+    assigneeId?: string;
+    assigneeName?: string;
+    count: number;
+  }>;
+  avgResolutionHours: number | null;
+  avgFirstReplyHours: number | null;
+  resolvedCount: number;
+}
+
+export interface UdescTicketDailyStats {
+  dateRange: { startDate: string; endDate: string };
+  days: string[];
+  created: number[];
+  resolved: number[];
+}
+
+export async function fetchUdescTickets(params: {
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  assigneeId?: string;
+  priority?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}): Promise<UdescTicketListResp> {
+  const resp = await apiClient.get<UdescTicketListResp>('/udesc/tickets', { params });
+  return resp.data;
+}
+
+export async function fetchUdescTicketSummary(params: {
+  startDate?: string;
+  endDate?: string;
+  assigneeId?: string;
+}): Promise<UdescTicketSummary> {
+  const resp = await apiClient.get<UdescTicketSummary>('/udesc/tickets/summary', { params });
+  return resp.data;
+}
+
+export async function fetchUdescTicketDailyStats(params: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<UdescTicketDailyStats> {
+  const resp = await apiClient.get<UdescTicketDailyStats>('/udesc/tickets/daily-stats', { params });
+  return resp.data;
+}
+

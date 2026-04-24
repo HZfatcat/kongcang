@@ -14,6 +14,7 @@ import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { UsersPage } from './pages/UsersPage';
 import { LogsPage } from './pages/LogsPage';
 import { VotesPage } from './pages/VotesPage';
+import { TicketsPage } from './pages/TicketsPage';
 
 import { MetricsPage } from './pages/MetricsPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
@@ -68,6 +69,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       children: [
         { key: '/udesc/votes', label: '评价分析' },
         { key: '/udesc/metrics', label: '会话指标' },
+        { key: '/udesc/tickets', label: '工单分析' },
         { key: '/udesc/sessions', label: '咨询详情' },
       ],
     },
@@ -213,6 +215,7 @@ function AppRoutes() {
       <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
       <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
       <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
+      <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
       <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
       <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
       <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
