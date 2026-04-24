@@ -13,7 +13,7 @@ import {
   PermissionLogQueryDto,
 } from './permission.dto';
 
-@Controller('api')
+@Controller()
 export class PermissionController {
   constructor(private readonly permissionService: PermissionService) {}
 

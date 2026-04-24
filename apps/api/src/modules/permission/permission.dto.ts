@@ -22,7 +22,7 @@ export class RoleListQueryDto {
 
 export class AddRoleDto {
   @IsString()
-  roleName: string;
+  roleName!: string;
 
   @IsOptional()
   @IsString()
@@ -33,10 +33,10 @@ export class AddRoleDto {
 
 export class EditRoleDto {
   @IsInt()
-  roleId: number;
+  roleId!: number;
 
   @IsString()
-  roleName: string;
+  roleName!: string;
 
   @IsOptional()
   @IsString()
@@ -47,7 +47,7 @@ export class EditRoleDto {
 
 export class DeleteRoleDto {
   @IsInt()
-  roleId: number;
+  roleId!: number;
 }
 
 // ========== 用户角色分配 DTO ==========
@@ -71,26 +71,26 @@ export class UserPermissionListQueryDto {
 
 export class BindRoleDto {
   @IsString()
-  userId: string;
+  userId!: string;
 
   @IsArray()
   @IsInt({ each: true })
-  roleIds: number[];
+  roleIds!: number[];
 }
 
 export class ClearRoleDto {
   @IsString()
-  userId: string;
+  userId!: string;
 }
 
 // ========== 菜单权限 DTO ==========
 export class SaveRoleMenuDto {
   @IsInt()
-  roleId: number;
+  roleId!: number;
 
   @IsArray()
   @IsInt({ each: true })
-  menuIds: number[];
+  menuIds!: number[];
 
   @IsOptional()
   @IsString()
@@ -100,10 +100,10 @@ export class SaveRoleMenuDto {
 // ========== 数据权限 DTO ==========
 export class SaveDataScopeDto {
   @IsString()
-  userId: string;
+  userId!: string;
 
   @IsInt()
-  dataScope: number;
+  dataScope!: number;
 }
 
 // ========== 权限日志 DTO ==========

@@ -629,12 +629,13 @@ export class SyncService {
       // 消息同步时已获取会话日志，其中包含真实评价时间
       this.progress.note = '更新评价时间';
       try {
+        // JSONB 转 text 后双引号会被转义，需用更宽松的匹配
         const voteTimeUpdates = await this.prisma.$executeRaw`
           UPDATE "UdescSessionVote" v
           SET "votedAt" = m."sentAt", "syncedAt" = NOW()
           FROM "UdescSessionMessage" m
           WHERE m."sessionId" = v."sessionId"
-            AND m."rawPayload"::text LIKE '%"type":"survey"%'
+            AND m."rawPayload"::text LIKE '%"type":%survey%'
             AND m."rawPayload"::text LIKE '%客户评价%'
             AND (v."votedAt" IS NULL OR v."votedAt" != m."sentAt")
         `;

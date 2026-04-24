@@ -548,13 +548,49 @@ export class UdescService {
       }),
     ]);
 
+    // 按天统计
+    const dailySessions = await this.prisma.udescSession.groupBy({
+      by: ['startedAt'],
+      where: {
+        agentId,
+        startedAt: { gte: start, lte: end },
+      },
+      _count: { id: true },
+      _avg: { rating: true },
+    });
+
+    // 按日期聚合
+    const dailyMap = new Map<string, { sessions: number; totalRating: number; ratedCount: number }>();
+    for (const s of dailySessions) {
+      const date = s.startedAt.toISOString().slice(0, 10);
+      const existing = dailyMap.get(date) ?? { sessions: 0, totalRating: 0, ratedCount: 0 };
+      existing.sessions += s._count.id;
+      if (s._avg.rating !== null) {
+        existing.totalRating += s._avg.rating ?? 0;
+        existing.ratedCount += 1;
+      }
+      dailyMap.set(date, existing);
+    }
+
+    const dailyStats = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, stats]) => ({
+        date,
+        sessions: stats.sessions,
+        avgRating: stats.ratedCount > 0 ? stats.totalRating / stats.ratedCount : null,
+        avgResponseTime: null,
+      }));
+
     return {
       agentId,
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       totalSessions: sessionStats[0]?._count.id ?? 0,
       avgRating: ratingStats._avg.rating ?? null,
-      ratedCount: ratingStats._count.rating,
+      avgFirstResponseTime: null,
+      avgResolutionTime: null,
       totalMessages: messageStats._count.id,
+      avgMessagesPerSession: sessionStats[0]?._count.id ? messageStats._count.id / sessionStats[0]._count.id : 0,
+      dailyStats,
     };
   }
 

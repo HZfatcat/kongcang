@@ -347,7 +347,7 @@ export function UsersPage() {
     },
   ];
 
-  const chartOption = perfData
+  const chartOption = perfData?.dailyStats
     ? {
         title: { text: '会话趋势' },
         tooltip: { trigger: 'axis' },
