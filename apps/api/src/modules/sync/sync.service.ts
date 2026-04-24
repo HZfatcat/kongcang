@@ -1508,6 +1508,7 @@ export class SyncService {
     let fixedVotes = 0;
     let fixedMessages = 0;
     let fixedSessions = 0;
+    let fixedVoteTimes = 0;
 
     // 1. 修复评价数据：删除 id = sessionId 的错误记录
     const wrongVotes = await this.prisma.$queryRaw<{ id: string }[]>`
@@ -1521,14 +1522,29 @@ export class SyncService {
       this.logger.log(`已删除 ${fixedVotes} 条错误评价记录`);
     }
 
-    // 2. 后续可扩展：检测其他类型的问题数据
+    // 2. 修复评价时间：从消息表中获取真实评价时间
+    // votedAt 应该等于消息表中的 sentAt（客户的评价消息）
+    fixedVoteTimes = await this.prisma.$executeRaw`
+      UPDATE "UdescSessionVote" v
+      SET "votedAt" = m."sentAt", "syncedAt" = NOW()
+      FROM "UdescSessionMessage" m
+      WHERE m."sessionId" = v."sessionId"
+        AND m."rawPayload"::text LIKE '%survey%' 
+        AND m."rawPayload"::text LIKE '%客户评价%'
+        AND (v."votedAt" IS NULL OR v."votedAt" != m."sentAt")
+    `;
+    if (fixedVoteTimes > 0) {
+      this.logger.log(`已修复 ${fixedVoteTimes} 条评价时间`);
+    }
+
+    // 3. 后续可扩展：检测其他类型的问题数据
     // 例如：孤立消息、孤立评价、重复记录等
 
     // 清除同步检查点，下次同步会重新拉取修复的数据
     await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
 
-    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}`);
+    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}, 评价时间=${fixedVoteTimes}`);
 
-    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, total: fixedVotes + fixedMessages + fixedSessions };
+    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, voteTimes: fixedVoteTimes, total: fixedVotes + fixedMessages + fixedSessions + fixedVoteTimes };
   }
 }
