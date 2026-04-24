@@ -14,9 +14,9 @@ import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { UsersPage } from './pages/UsersPage';
 import { LogsPage } from './pages/LogsPage';
 import { VotesPage } from './pages/VotesPage';
-
 import { MetricsPage } from './pages/MetricsPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
+import { AccessControlPage } from './pages/AccessControlPage';
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,
@@ -29,6 +29,7 @@ import {
   StarOutlined,
   UserOutlined,
   DashboardOutlined,
+  SafetyOutlined,
 } from '@ant-design/icons';
 
 const { Content, Sider, Header } = Layout;
@@ -105,6 +106,11 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       key: '/logs',
       icon: <FileTextOutlined />,
       label: '系统日志',
+    },
+    {
+      key: '/access-control',
+      icon: <SafetyOutlined />,
+      label: '权限管理',
     },
   ];
 
@@ -222,6 +228,7 @@ function AppRoutes() {
       <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
       <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
       <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
+      <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
     </Routes>
   );
 }

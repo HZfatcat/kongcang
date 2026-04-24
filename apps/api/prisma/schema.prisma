@@ -163,6 +163,92 @@ model SyncConfig {
   updatedAt     DateTime @updatedAt
 }
 
+// ========== 权限管理模块 ==========
+
+// 系统角色表
+model SysRole {
+  roleId      BigInt   @id @default(autoincrement())
+  roleName    String   @map("role_name")
+  roleDesc    String?  @map("role_desc")
+  status      Int      @default(1)  // 0=禁用 1=启用
+  createTime  DateTime @default(now()) @map("create_time")
+
+  userRoles   SysUserRole[]
+  roleMenus   SysRoleMenu[]
+
+  @@map("sys_role")
+}
+
+// 用户角色关联表
+model SysUserRole {
+  id     BigInt  @id @default(autoincrement())
+  userId String  @map("user_id")
+  roleId BigInt  @map("role_id")
+
+  role   SysRole @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+
+  @@map("sys_user_role")
+  @@unique([userId, roleId])
+}
+
+// 角色菜单权限表
+model SysRoleMenu {
+  id          BigInt  @id @default(autoincrement())
+  roleId      BigInt  @map("role_id")
+  menuId      BigInt  @map("menu_id")
+  buttonAuth  String? @map("button_auth")  // 按钮权限标识，多个用逗号分隔
+
+  role        SysRole @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+
+  @@map("sys_role_menu")
+  @@unique([roleId, menuId])
+}
+
+// 系统菜单表
+model SysMenu {
+  id          BigInt   @id @default(autoincrement())
+  parentId    BigInt   @default(0) @map("parent_id")
+  menuName    String   @map("menu_name")
+  menuType    Int      @default(1) @map("menu_type")  // 1=目录 2=菜单 3=按钮
+  path        String?
+  component   String?
+  icon        String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  status      Int      @default(1)
+  createTime  DateTime @default(now()) @map("create_time")
+
+  roleMenus   SysRoleMenu[]
+
+  @@map("sys_menu")
+}
+
+// 用户数据权限表
+model SysUserDataScope {
+  id        BigInt  @id @default(autoincrement())
+  userId    String  @map("user_id")
+  dataScope Int     @default(1) @map("data_scope")  // 1=个人 2=部门 3=全部
+
+  @@map("sys_user_data_scope")
+  @@unique([userId])
+}
+
+// 权限操作日志表
+model SysPermissionLog {
+  logId       BigInt   @id @default(autoincrement())
+  operator    String   @map("operator")
+  operateTime DateTime @default(now()) @map("operate_time")
+  operateIp   String?  @map("operate_ip")
+  targetUser  String?  @map("target_user")
+  beforeAuth  String?  @map("before_auth")
+  afterAuth   String?  @map("after_auth")
+  operateType String   @map("operate_type")
+
+  @@map("sys_permission_log")
+  @@index([operateTime])
+  @@index([operator])
+  @@index([targetUser])
+}
+
 // udesc 客服人员
 model AgentProfile {
   agentId      String   @id
