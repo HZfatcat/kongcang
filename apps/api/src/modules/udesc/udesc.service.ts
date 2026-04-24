@@ -1276,5 +1276,332 @@ export class UdescService {
 
     return results;
   }
+
+  // ========== 工单分析 ==========
+
+  async getTickets(params: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    assigneeId?: string;
+    priority?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 20;
+    const sortBy = params.sortBy ?? 'createdAt';
+    const sortOrder = params.sortOrder ?? 'desc';
+
+    const where: any = {
+      createdAt: { gte: start, lte: end },
+    };
+    if (params.status) {
+      where.status = params.status;
+    }
+    if (params.assigneeId) {
+      where.assigneeId = params.assigneeId;
+    }
+    if (params.priority) {
+      where.priority = params.priority;
+    }
+
+    const orderBy: any = {};
+    orderBy[sortBy] = sortOrder;
+
+    const [total, records] = await Promise.all([
+      this.prisma.udescTicket.count({ where }),
+      this.prisma.udescTicket.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      page,
+      pageSize,
+      total,
+      records: records.map((t) => ({
+        id: t.id,
+        fieldNum: t.fieldNum,
+        subject: t.subject,
+        source: t.source,
+        status: t.status,
+        statusEn: t.statusEn,
+        priority: t.priority,
+        satisfaction: t.satisfaction,
+        userName: t.userName,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assigneeName,
+        userGroupName: t.userGroupName,
+        createdAt: t.createdAt ? toLocalISOString(t.createdAt) : null,
+        firstRepliedAt: t.firstRepliedAt ? toLocalISOString(t.firstRepliedAt) : null,
+        resolvedAt: t.resolvedAt ? toLocalISOString(t.resolvedAt) : null,
+        closedAt: t.closedAt ? toLocalISOString(t.closedAt) : null,
+        imSubSessionId: t.imSubSessionId,
+      })),
+    };
+  }
+
+  async getTicketSummary(params: {
+    startDate?: string;
+    endDate?: string;
+    assigneeId?: string;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+
+    const where: any = {
+      createdAt: { gte: start, lte: end },
+    };
+    if (params.assigneeId) {
+      where.assigneeId = params.assigneeId;
+    }
+
+    // 基础统计
+    const [total, byStatus, byPriority, byAssignee] = await Promise.all([
+      // 总数
+      this.prisma.udescTicket.count({ where }),
+
+      // 按状态分组
+      this.prisma.udescTicket.groupBy({
+        by: ['status'],
+        where,
+        _count: { id: true },
+      }),
+
+      // 按优先级分组
+      this.prisma.udescTicket.groupBy({
+        by: ['priority'],
+        where,
+        _count: { id: true },
+      }),
+
+      // 按受理人分组（取前10）
+      this.prisma.udescTicket.groupBy({
+        by: ['assigneeId', 'assigneeName'],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 10,
+      }),
+    ]);
+
+    // 计算平均解决时间
+    const resolvedTickets = await this.prisma.udescTicket.findMany({
+      where: {
+        ...where,
+        createdAt: { not: null },
+        resolvedAt: { not: null },
+      },
+      select: {
+        createdAt: true,
+        resolvedAt: true,
+      },
+    });
+
+    let totalResolutionHours = 0;
+    let resolvedCount = 0;
+    for (const t of resolvedTickets) {
+      if (t.createdAt && t.resolvedAt) {
+        const hours = (t.resolvedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
+        totalResolutionHours += hours;
+        resolvedCount++;
+      }
+    }
+    const avgResolutionHours = resolvedCount > 0 ? totalResolutionHours / resolvedCount : null;
+
+    // 计算首次响应时间
+    const firstReplyTickets = await this.prisma.udescTicket.findMany({
+      where: {
+        ...where,
+        createdAt: { not: null },
+        firstRepliedAt: { not: null },
+      },
+      select: {
+        createdAt: true,
+        firstRepliedAt: true,
+      },
+    });
+
+    let totalFirstReplyHours = 0;
+    let firstReplyCount = 0;
+    for (const t of firstReplyTickets) {
+      if (t.createdAt && t.firstRepliedAt) {
+        const hours = (t.firstRepliedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
+        totalFirstReplyHours += hours;
+        firstReplyCount++;
+      }
+    }
+    const avgFirstReplyHours = firstReplyCount > 0 ? totalFirstReplyHours / firstReplyCount : null;
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      total,
+      byStatus: Object.fromEntries(byStatus.map((s) => [s.status ?? '未知', s._count.id])),
+      byPriority: Object.fromEntries(byPriority.map((p) => [p.priority ?? '未知', p._count.id])),
+      byAssignee: byAssignee.map((a) => ({
+        assigneeId: a.assigneeId,
+        assigneeName: a.assigneeName,
+        count: a._count.id,
+      })),
+      avgResolutionHours,
+      avgFirstReplyHours,
+      resolvedCount,
+      totalResolutionHours,
+      totalFirstReplyHours,
+    };
+  }
+
+  async getTicketDailyStats(params: {
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+
+    // 生成日期范围
+    const days: string[] = [];
+    const current = new Date(start);
+    while (current <= end) {
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // 按天统计创建数
+    const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
+      SELECT DATE("createdAt") as date, COUNT(*) as count
+      FROM "UdescTicket"
+      WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+      GROUP BY DATE("createdAt")
+      ORDER BY date
+    `;
+
+    // 按天统计解决数
+    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
+      SELECT DATE("resolvedAt") as date, COUNT(*) as count
+      FROM "UdescTicket"
+      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+      GROUP BY DATE("resolvedAt")
+      ORDER BY date
+    `;
+
+    const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      days,
+      created: days.map((d) => createdMap.get(d) ?? 0),
+      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
+    };
+  }
+
+  // ========== 时段热力图 ==========
+
+  /**
+   * 获取时段热力图数据
+   * 返回 24小时 x 7天 的矩阵，用于排班优化
+   */
+  async getHeatmap(params: {
+    startDate?: string;
+    endDate?: string;
+    agentId?: string;
+    type: 'session' | 'ticket';
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const { agentId, type } = params;
+
+    // 初始化 7天 x 24小时 矩阵
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+    // 初始化数据矩阵
+    const matrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+
+    if (type === 'session') {
+      // 查询会话数据
+      const sessions = await this.prisma.udescSession.findMany({
+        where: {
+          startedAt: { gte: start, lte: end },
+          agentId: agentId,
+        },
+        select: { startedAt: true },
+      });
+
+      // 统计每小时每天的会话数
+      for (const session of sessions) {
+        const d = new Date(session.startedAt);
+        const dayOfWeek = d.getDay(); // 0-6
+        const hour = d.getHours(); // 0-23
+        matrix[dayOfWeek][hour]++;
+      }
+    } else {
+      // 查询工单数据
+      const tickets = await this.prisma.udescTicket.findMany({
+        where: {
+          createdAt: { gte: start, lte: end },
+          assigneeId: agentId,
+        },
+        select: { createdAt: true },
+      });
+
+      // 统计每小时每天的工单数
+      for (const ticket of tickets) {
+        if (!ticket.createdAt) continue;
+        const d = new Date(ticket.createdAt);
+        const dayOfWeek = d.getDay();
+        const hour = d.getHours();
+        matrix[dayOfWeek][hour]++;
+      }
+    }
+
+    // 计算峰值和总量
+    let max = 0;
+    let total = 0;
+    for (const row of matrix) {
+      for (const val of row) {
+        total += val;
+        if (val > max) max = val;
+      }
+    }
+
+    // 找出最繁忙时段（按小时降序）
+    const peakHours: { hour: number; count: number }[] = [];
+    for (let h = 0; h < 24; h++) {
+      let count = 0;
+      for (let d = 0; d < 7; d++) {
+        count += matrix[d][h];
+      }
+      peakHours.push({ hour: h, count });
+    }
+    peakHours.sort((a, b) => b.count - a.count);
+
+    // 找出最繁忙天（按天降序）
+    const peakDays: { day: number; dayName: string; count: number }[] = [];
+    for (let d = 0; d < 7; d++) {
+      let count = 0;
+      for (let h = 0; h < 24; h++) {
+        count += matrix[d][h];
+      }
+      peakDays.push({ day: d, dayName: days[d], count });
+    }
+    peakDays.sort((a, b) => b.count - a.count);
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      type,
+      hours,
+      days,
+      matrix, // days[dayOfWeek][hour] -> count
+      max,
+      total,
+      peakHours: peakHours.slice(0, 5), // Top 5 繁忙时段
+      peakDays: peakDays.slice(0, 3), // Top 3 繁忙天
+    };
+  }
 }
 

@@ -375,3 +375,71 @@ model UdescSessionMetrics {
   @@index([waitTime])
   @@index([resolutionTime])
 }
+
+// Udesk 客户公司/组织
+model UdescOrganization {
+  id            String   @id
+  name          String?
+  domains       String?  // 关联域名
+  level         String?  // 等级: normal, vip, etc
+  description   String?  // 描述
+  token         String?  // 组织标识
+  customFields  Json?    // 自定义字段
+  rawPayload    Json?
+  updatedAtSource DateTime?
+  syncedAt      DateTime @default(now())
+
+  @@index([name])
+}
+
+// Udesk 工单
+model UdescTicket {
+  id                  String   @id
+  fieldNum            String?  // 工单编号 如 #4
+  subject             String?  // 主题
+  content             String?  // 内容
+  source              String?  // 来源
+  contentType         String?  // 内容类型
+  userId              String?  // 用户ID
+  userName            String?  // 用户名
+  userEmail           String?  // 用户邮箱
+  userCellphone       String?  // 用户电话
+  organizationId      String?  // 公司ID
+  assigneeId          String?  // 受理人ID
+  assigneeName        String?  // 受理人名称
+  assigneeAvatar      String?  // 受理人头像
+  userGroupId         String?  // 客服组ID
+  userGroupName       String?  // 客服组名称
+  templateId          String?  // 模板ID
+  priority            String?  // 优先级
+  status              String?  // 状态(中文)
+  statusEn            String?  // 状态(英文)
+  platform            String?  // 平台
+  satisfaction        String?  // 满意度
+  customFields        Json?    // 自定义字段
+  tags                String?  // 标签
+  creatorId           String?  // 创建人ID
+  imSubSessionId      String?  // 关联会话ID
+  conversationId      String?  // 对话ID
+  createdAt           DateTime?
+  updatedAt           DateTime?
+  solvingAt           DateTime?  // 解决时间
+  resolvedAt          DateTime?  // 完成时间
+  closedAt            DateTime?  // 关闭时间
+  solvedDeadline      DateTime?  // 解决截止时间
+  repliedAt           DateTime?  // 最后回复时间
+  agentRepliedAt      DateTime?  // 客服最后回复时间
+  customerRepliedAt   DateTime?  // 客户最后回复时间
+  firstRepliedAt      DateTime?  // 首次回复时间
+  repliedBy           String?  // 最后回复人
+  rawPayload          Json?
+  syncedAt            DateTime @default(now())
+
+  @@index([userId])
+  @@index([assigneeId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([imSubSessionId])
+}

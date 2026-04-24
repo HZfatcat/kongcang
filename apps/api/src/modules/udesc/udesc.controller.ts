@@ -6,6 +6,8 @@ import {
   UdescAgentQueryDto,
   UdescVoteQueryDto,
   UdescMetricsQueryDto,
+  UdescTicketQueryDto,
+  UdescHeatmapQueryDto,
 } from './udesc.dto';
 import { UdescService } from './udesc.service';
 
@@ -119,5 +121,51 @@ export class UdescController {
   @Get('metrics/agent-summary')
   getAgentMetricsSummary(@Query() query: UdescDateRangeDto) {
     return this.udescService.getAgentMetricsSummary(query.startDate, query.endDate);
+  }
+
+  // ========== 工单分析 ==========
+
+  @Get('tickets')
+  getTickets(@Query() query: UdescTicketQueryDto) {
+    return this.udescService.getTickets({
+      startDate: query.startDate,
+      endDate: query.endDate,
+      status: query.status,
+      assigneeId: query.assigneeId,
+      priority: query.priority,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  }
+
+  @Get('tickets/summary')
+  getTicketSummary(@Query() query: UdescTicketQueryDto) {
+    return this.udescService.getTicketSummary({
+      startDate: query.startDate,
+      endDate: query.endDate,
+      assigneeId: query.assigneeId,
+    });
+  }
+
+  @Get('tickets/daily-stats')
+  getTicketDailyStats(@Query() query: UdescDateRangeDto) {
+    return this.udescService.getTicketDailyStats({
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
+  }
+
+  // ========== 时段热力图 ==========
+
+  @Get('heatmap')
+  getHeatmap(@Query() query: UdescHeatmapQueryDto) {
+    return this.udescService.getHeatmap({
+      startDate: query.startDate,
+      endDate: query.endDate,
+      agentId: query.agentId,
+      type: query.type || 'session',
+    });
   }
 }

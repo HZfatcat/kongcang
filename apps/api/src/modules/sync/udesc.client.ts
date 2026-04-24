@@ -8,6 +8,8 @@ import {
   UdescVoteRecord,
   UdescCustomerRecord,
   UdescAgentRecord,
+  UdescOrganizationRecord,
+  UdescTicketRecord,
   UdescSessionStats,
 } from './sync.types';
 
@@ -538,5 +540,145 @@ export class UdescClient {
       return value as Record<string, unknown>;
     }
     return undefined;
+  }
+
+  /**
+   * 获取客户公司/组织列表
+   */
+  async fetchOrganizations(params: {
+    cursor?: string;
+    pageSize: number;
+  }): Promise<SyncFetchResult<UdescOrganizationRecord>> {
+    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+      return { records: [], hasMore: false };
+    }
+
+    const page = Math.max(1, Number(params.cursor ?? '1'));
+    const endpoint = process.env.UDESC_ORGANIZATIONS_PATH ?? 'organizations';
+    this.logger.log(`Fetching organizations from ${endpoint}, page=${page}`);
+    
+    try {
+      const resp = await this.openApiGet(endpoint, {
+        page: String(page),
+        per_page: String(params.pageSize),
+      });
+      const data = (resp.data ?? {}) as Record<string, unknown>;
+      const items = this.extractItems(data);
+      
+      // organizations API 返回格式: { organizations: [...] }
+      const orgItems = Array.isArray(data.organizations) ? data.organizations : items;
+      
+      const records: UdescOrganizationRecord[] = orgItems
+        .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+        .map((item) => ({
+          id: String(item.id ?? ''),
+          name: this.pickString(item, ['name']),
+          domains: this.pickString(item, ['domains', 'domain']),
+          level: this.pickString(item, ['level']),
+          description: this.pickString(item, ['description', 'desc']),
+          token: this.pickString(item, ['token']),
+          customFields: this.parseCustomFields(item.custom_fields),
+          updatedAt: this.pickString(item, ['updated_at', 'updated_at']),
+          rawPayload: item,
+        }));
+
+      const hasMoreFlag = this.pickBoolean(data, ['has_more']);
+      const totalPages = this.toNumber(data.total_pages);
+      const hasMore = hasMoreFlag ?? (totalPages !== undefined ? page < totalPages : records.length >= params.pageSize);
+      const nextCursor = hasMore ? String(page + 1) : undefined;
+
+      return { records, nextCursor, hasMore };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Failed to fetch organizations: ${msg}`);
+      return { records: [], hasMore: false };
+    }
+  }
+
+  /**
+   * 获取工单列表
+   */
+  async fetchTickets(params: {
+    cursor?: string;
+    pageSize: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<SyncFetchResult<UdescTicketRecord>> {
+    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+      return { records: [], hasMore: false };
+    }
+
+    const page = Math.max(1, Number(params.cursor ?? '1'));
+    const endpoint = process.env.UDESC_TICKETS_PATH ?? 'tickets';
+    this.logger.log(`Fetching tickets from ${endpoint}, page=${page}`);
+    
+    try {
+      const resp = await this.openApiGet(endpoint, {
+        page: String(page),
+        per_page: String(params.pageSize),
+        ...(params.startDate ? { start_time: params.startDate } : {}),
+        ...(params.endDate ? { end_time: params.endDate } : {}),
+      });
+      const data = (resp.data ?? {}) as Record<string, unknown>;
+      
+      // tickets API 返回格式: { contents: [{ ticket: {...} }, ...] }
+      const contents = Array.isArray(data.contents) ? data.contents : [];
+      const ticketItems = contents
+        .map((c: any) => c?.ticket)
+        .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null);
+      
+      const records: UdescTicketRecord[] = ticketItems.map((item) => ({
+        id: String(item.id ?? ''),
+        fieldNum: this.pickString(item, ['field_num', 'ticket_num']),
+        subject: this.pickString(item, ['subject', 'title']),
+        content: this.pickString(item, ['content', 'body']),
+        source: this.pickString(item, ['source']),
+        contentType: this.pickString(item, ['content_type']),
+        userId: this.pickString(item, ['user_id', 'customer_id']),
+        userName: this.pickString(item, ['user_name', 'customer_name']),
+        userEmail: this.pickString(item, ['user_email', 'customer_email']),
+        userCellphone: this.pickString(item, ['user_cellphone', 'customer_phone']),
+        organizationId: this.pickString(item, ['organization_id', 'org_id']),
+        assigneeId: this.pickString(item, ['assignee_id', 'agent_id']),
+        assigneeName: this.pickString(item, ['assignee_name', 'agent_name']),
+        assigneeAvatar: this.pickString(item, ['assignee_avatar']),
+        userGroupId: this.pickString(item, ['user_group_id', 'group_id']),
+        userGroupName: this.pickString(item, ['user_group_name', 'group_name']),
+        templateId: this.pickString(item, ['template_id']),
+        priority: this.pickString(item, ['priority']),
+        status: this.pickString(item, ['status']),
+        statusEn: this.pickString(item, ['status_en']),
+        platform: this.pickString(item, ['platform']),
+        satisfaction: this.pickString(item, ['satisfaction']),
+        customFields: this.parseCustomFields(item.custom_fields),
+        tags: this.pickString(item, ['tags']),
+        creatorId: this.pickString(item, ['creator_id']),
+        imSubSessionId: this.pickString(item, ['im_sub_session_id']),
+        conversationId: this.pickString(item, ['conversation_id']),
+        createdAt: this.pickString(item, ['created_at']),
+        updatedAt: this.pickString(item, ['updated_at']),
+        solvingAt: this.pickString(item, ['solving_at']),
+        resolvedAt: this.pickString(item, ['resolved_at']),
+        closedAt: this.pickString(item, ['closed_at']),
+        solvedDeadline: this.pickString(item, ['solved_deadline']),
+        repliedAt: this.pickString(item, ['replied_at']),
+        agentRepliedAt: this.pickString(item, ['agent_replied_at']),
+        customerRepliedAt: this.pickString(item, ['customer_replied_at']),
+        firstRepliedAt: this.pickString(item, ['first_replied_at']),
+        repliedBy: this.pickString(item, ['replied_by']),
+        rawPayload: item,
+      }));
+
+      const hasMoreFlag = this.pickBoolean(data, ['has_more']);
+      const totalPages = this.toNumber(data.total_pages);
+      const hasMore = hasMoreFlag ?? (totalPages !== undefined ? page < totalPages : records.length >= params.pageSize);
+      const nextCursor = hasMore ? String(page + 1) : undefined;
+
+      return { records, nextCursor, hasMore };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Failed to fetch tickets: ${msg}`);
+      return { records: [], hasMore: false };
+    }
   }
 }
