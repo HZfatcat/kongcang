@@ -1913,16 +1913,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
       <Card title="驺吾新增统计（按创建时间）" loading={zouwuStatsLoading}>
         <Row gutter={12}>
-          <Col span={8}>
-            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
-          </Col>
-          <Col span={8}>
-            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
-          </Col>
-          <Col span={8}>
-            <Statistic title="长期演进标签ID" value={zouwuStats?.longTermLabelId ?? '-'} />
-          </Col>
-        </Row>
+                  <Col span={12}>
+                    <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
+                  </Col>
+                </Row>
         <Space direction="vertical" style={{ marginTop: 12 }}>
           <Typography.Text type="secondary">
             统计窗口：{zouwuStats?.startCreatedTime ?? '-'} ~ {zouwuStats?.endCreatedTime ?? '-'}
