@@ -761,7 +761,7 @@ export class UdescService {
               const diff = Math.round(
                 (new Date(firstAgentMsg.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
               );
-              if (diff > 0) {
+              if (diff >= 0) {
                 firstResponseTime = diff;
               }
             }
@@ -993,7 +993,7 @@ export class UdescService {
       if (row.first_customer_msg) {
         if (row.first_agent_msg) {
           const diffMs = new Date(row.first_agent_msg).getTime() - new Date(row.first_customer_msg).getTime();
-          if (diffMs > 0) {
+          if (diffMs >= 0) {
             firstResponseTimes.push(Math.round(diffMs / 1000)); // 转为秒
           }
         } else {
@@ -1211,7 +1211,7 @@ export class UdescService {
               const diff = Math.round(
                 (new Date(firstAgentMsgAfter.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
               );
-              if (diff > 0) {
+              if (diff >= 0) {
                 totalFirstResponseTime += diff;
                 firstResponseCount++;
               }
