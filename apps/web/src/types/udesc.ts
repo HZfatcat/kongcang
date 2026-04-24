@@ -126,6 +126,16 @@ export interface UdescDailyAgentStats {
   }>;
 }
 
+export interface UdescDailyRatingStats {
+  dateRange: { startDate: string; endDate: string };
+  days: string[];
+  series: Array<{
+    agentId: string;
+    ratings: (number | null)[];
+  }>;
+  overall: (number | null)[];
+}
+
 export interface AgentProfile {
   agentId: string;
   displayName: string;

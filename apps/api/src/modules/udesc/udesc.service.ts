@@ -352,6 +352,74 @@ export class UdescService {
     };
   }
 
+  async getDailyRatingStats(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const ratingRows = await this.prisma.$queryRaw<
+      Array<{
+        day: Date;
+        agentId: string | null;
+        avgRating: number | null;
+        ratingCount: bigint;
+      }>
+    >`
+      SELECT
+        DATE_TRUNC('day', s."startedAt") AS day,
+        s."agentId" AS "agentId",
+        AVG(s."rating")::double precision AS "avgRating",
+        COUNT(s."rating")::bigint AS "ratingCount"
+      FROM "UdescSession" s
+      WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
+        AND s."rating" IS NOT NULL
+      GROUP BY DATE_TRUNC('day', s."startedAt"), s."agentId"
+      ORDER BY day ASC
+    `;
+
+    const ratingMap = new Map<string, { sum: number; count: number }>();
+    const daySet = new Set<string>();
+    const agentSet = new Set<string>();
+
+    for (const row of ratingRows) {
+      const day = new Date(row.day).toISOString().slice(0, 10);
+      const agentId = row.agentId ?? '未分配客服';
+      const key = `${day}__${agentId}`;
+      const avg = row.avgRating ?? 0;
+      const cnt = Number(row.ratingCount);
+      ratingMap.set(key, { sum: avg * cnt, count: cnt });
+      daySet.add(day);
+      agentSet.add(agentId);
+    }
+
+    const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
+    const agents = Array.from(agentSet).sort((a, b) => a.localeCompare(b));
+
+    // 计算整体平均评分（按天）
+    const overallMap = new Map<string, { sum: number; count: number }>();
+    for (const row of ratingRows) {
+      const day = new Date(row.day).toISOString().slice(0, 10);
+      const avg = row.avgRating ?? 0;
+      const cnt = Number(row.ratingCount);
+      const prev = overallMap.get(day) ?? { sum: 0, count: 0 };
+      overallMap.set(day, { sum: prev.sum + avg * cnt, count: prev.count + cnt });
+    }
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      days,
+      series: agents.map((agentId) => ({
+        agentId,
+        ratings: days.map((day) => {
+          const entry = ratingMap.get(`${day}__${agentId}`);
+          return entry && entry.count > 0 ? Number((entry.sum / entry.count).toFixed(2)) : null;
+        }),
+      })),
+      overall: days.map((day) => {
+        const entry = overallMap.get(day);
+        return entry && entry.count > 0 ? Number((entry.sum / entry.count).toFixed(2)) : null;
+      }),
+    };
+  }
+
   // ========== 新增 API：客户管理 ==========
 
   async getCustomers(params: {
@@ -501,17 +569,24 @@ export class UdescService {
     sortOrder?: 'asc' | 'desc';
     page?: number;
     pageSize?: number;
+    sessionId?: string;
   }) {
     const { start, end } = this.resolveRange(params.startDate, params.endDate);
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
 
-    // 先获取时间范围内的 sessionId 列表
-    const sessionsInRange = await this.prisma.udescSession.findMany({
-      where: { startedAt: { gte: start, lte: end } },
-      select: { id: true },
-    });
-    const sessionIds = sessionsInRange.map((s) => s.id);
+    // 如果指定了 sessionId，直接搜索该会话的评价
+    let sessionIds: string[] | undefined;
+    if (params.sessionId) {
+      sessionIds = [params.sessionId];
+    } else {
+      // 先获取时间范围内的 sessionId 列表
+      const sessionsInRange = await this.prisma.udescSession.findMany({
+        where: { startedAt: { gte: start, lte: end } },
+        select: { id: true },
+      });
+      sessionIds = sessionsInRange.map((s) => s.id);
+    }
 
     // 按会话 startedAt 筛选，而不是 votedAt
     const where = {

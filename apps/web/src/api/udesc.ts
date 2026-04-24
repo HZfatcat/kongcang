@@ -7,6 +7,7 @@ import type {
   SyncRun,
   SyncSummary,
   UdescDailyAgentStats,
+  UdescDailyRatingStats,
   UdescOverview,
   UdescSessionListResp,
   UdescTreeNode,
@@ -31,6 +32,11 @@ export async function fetchUdescTree(params: { startDate?: string; endDate?: str
 
 export async function fetchUdescDailyAgentStats(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<UdescDailyAgentStats>('/udesc/daily-agent-stats', { params });
+  return resp.data;
+}
+
+export async function fetchUdescDailyRatingStats(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdescDailyRatingStats>('/udesc/daily-rating-stats', { params });
   return resp.data;
 }
 
@@ -81,6 +87,16 @@ export async function fetchSyncSummary() {
 
 export async function retrySyncIssues() {
   const resp = await apiClient.post<{ accepted: boolean; reason: string; issueCount: number }>('/sync/issues/retry');
+  return resp.data;
+}
+
+export async function clearUdescData() {
+  const resp = await apiClient.post<{ ok: boolean; sessions: number; messages: number; votes: number }>('/sync/udesc/clear');
+  return resp.data;
+}
+
+export async function smartFix() {
+  const resp = await apiClient.post<{ ok: boolean; votes: number; messages: number; sessions: number; total: number }>('/sync/udesc/smart-fix');
   return resp.data;
 }
 
@@ -176,6 +192,7 @@ export async function fetchUdescVotes(params: {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+  sessionId?: string;
 }) {
   const resp = await apiClient.get<UdescVoteListResp>('/udesc/votes', { params });
   return resp.data;

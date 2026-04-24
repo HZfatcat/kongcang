@@ -44,6 +44,11 @@ export class UdescController {
     return this.udescService.getDailyAgentStats(query.startDate, query.endDate);
   }
 
+  @Get('daily-rating-stats')
+  getDailyRatingStats(@Query() query: UdescDateRangeDto) {
+    return this.udescService.getDailyRatingStats(query.startDate, query.endDate);
+  }
+
   // ========== 客户管理 ==========
 
   @Get('customers')
@@ -91,6 +96,7 @@ export class UdescController {
       sortOrder: query.sortOrder,
       page: query.page,
       pageSize: query.pageSize,
+      sessionId: query.sessionId,
     });
   }
 

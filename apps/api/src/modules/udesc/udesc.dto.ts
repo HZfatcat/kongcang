@@ -108,6 +108,10 @@ export class UdescVoteQueryDto extends UdescDateRangeDto {
   @Min(1)
   @Max(200)
   pageSize?: number;
+
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
 }
 
 export class UdescMetricsQueryDto extends UdescDateRangeDto {

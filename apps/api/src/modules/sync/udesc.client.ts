@@ -366,6 +366,7 @@ export class UdescClient {
     const data = (resp.data ?? {}) as Record<string, unknown>;
     const items = this.extractItems(data);
     const records: UdescVoteRecord[] = items.map((item) => ({
+      id: String(item.id ?? item.survey_id ?? `${item.session_id}_${item.created_at ?? Date.now()}`),
       sessionId: String(item.session_id ?? params.sessionId),
       rating: this.pickRating(item),
       tags: this.parseTags(item.tags ?? item.vote_tags),

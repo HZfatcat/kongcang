@@ -67,6 +67,8 @@ import {
   fetchWecomEmployees,
   upsertWecomEmployee,
   deleteWecomEmployee,
+  clearUdescData,
+  smartFix,
 } from '../api/udesc';
 import type {
   AgentProfile,
@@ -1727,6 +1729,32 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         >
           失败记录一键补偿重试
         </Button>
+        <Popconfirm
+          title="智能修复"
+          description="自动检测并删除错误数据，保留正确数据，同步时会自动补齐缺失数据"
+          onConfirm={async () => {
+            const resp = await smartFix();
+            message.success(`已修复 ${resp.total} 条错误数据，点击"手动同步"补齐数据`);
+            const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
+            setSyncProgress(progress);
+            setSyncSummary(summary);
+          }}
+        >
+          <Button>智能修复</Button>
+        </Popconfirm>
+        <Popconfirm
+          title="清空全部数据"
+          description="将删除所有 Udesk 数据（会话、消息、评价等），此操作不可恢复！"
+          onConfirm={async () => {
+            const resp = await clearUdescData();
+            message.success(`已清空 ${resp.sessions} 会话, ${resp.messages} 消息, ${resp.votes} 评价`);
+            const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
+            setSyncProgress(progress);
+            setSyncSummary(summary);
+          }}
+        >
+          <Button danger>清空全部数据</Button>
+        </Popconfirm>
       </Space>
 
       <Card title="同步进度实时面板">

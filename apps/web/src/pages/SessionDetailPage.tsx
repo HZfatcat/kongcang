@@ -16,22 +16,24 @@ import {
   Statistic,
   Table,
   Tag,
-  Tree,
   Typography,
 } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
+import ReactECharts from 'echarts-for-react';
 import {
   fetchUdescOverview,
   fetchUdescTree,
   fetchUdescSessions,
   fetchAgents,
+  fetchUdescDailyRatingStats,
 } from '../api/udesc';
 import type {
   AgentProfile,
   UdescSessionRecord,
   UdescTreeNode,
   UdescOverview,
+  UdescDailyRatingStats,
 } from '../types/udesc';
 import { fetchOpportunityList, upsertOpportunity } from '../api/opportunity';
 
@@ -101,6 +103,7 @@ export function SessionDetailPage() {
   const [opportunityPageSize, setOpportunityPageSize] = useState(20);
   const [sessionSearchId, setSessionSearchId] = useState('');
   const activeSessionSearchRef = useRef<string | null>(null);
+  const [dailyRatingStats, setDailyRatingStats] = useState<UdescDailyRatingStats | null>(null);
 
   const apiRange = useMemo(
     () => ({
@@ -170,7 +173,7 @@ export function SessionDetailPage() {
           console.log('[reload] skipped - active session search exists');
           return;
         }
-        const [overviewData, treeResp, sessionResp] = await Promise.all([
+        const [overviewData, treeResp, sessionResp, ratingStats] = await Promise.all([
           fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
           fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
           fetchUdescSessions({
@@ -181,6 +184,7 @@ export function SessionDetailPage() {
             agentIds:
               targetSessionAgentFilters.length > 0 ? targetSessionAgentFilters.join(',') : undefined,
           }),
+          fetchUdescDailyRatingStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         ]);
         setOverview(overviewData);
         setTreeData(Array.isArray(treeResp) ? treeResp : []);
@@ -188,6 +192,7 @@ export function SessionDetailPage() {
         setTotal(sessionResp.total);
         setPage(sessionResp.page);
         setPageSize(sessionResp.pageSize);
+        setDailyRatingStats(ratingStats);
       }
     } catch {
       message.error('加载数据失败');
@@ -455,13 +460,115 @@ export function SessionDetailPage() {
         </Col>
         <Col span={14}>
           <Card 
-            title="客服业务树"
-            styles={{ body: { maxHeight: 200, overflowY: 'auto' } }}
+            title="客服业务统计"
+            styles={{ body: { padding: 0 } }}
           >
-            <Tree treeData={treeNodes} />
+            <Table 
+              dataSource={[...treeData]
+                .sort((a, b) => b.sessionCount - a.sessionCount)
+                .map((agent) => {
+                  const totalMessages = agent.sessions.reduce((sum, s) => sum + s.messageCount, 0);
+                  const avgMessages = agent.sessionCount > 0 
+                    ? (totalMessages / agent.sessionCount).toFixed(2) 
+                    : '-';
+                  return {
+                    key: agent.agentId,
+                    agentId: agent.agentId,
+                    agentName: getAgentLabel(agent.agentId),
+                    sessionCount: agent.sessionCount,
+                    avgRating: agent.avgRating,
+                    avgMessages,
+                  };
+                })}
+              columns={[
+                {
+                  title: '客服',
+                  dataIndex: 'agentName',
+                  key: 'agentName',
+                  render: (text: string) => <span style={{ fontWeight: 500 }}>{text}</span>,
+                },
+                {
+                  title: '咨询数',
+                  dataIndex: 'sessionCount',
+                  key: 'sessionCount',
+                  align: 'right',
+                },
+                {
+                  title: '平均评分',
+                  dataIndex: 'avgRating',
+                  key: 'avgRating',
+                  align: 'center',
+                  render: (v: number | undefined) => {
+                    if (v === undefined || v === null) return <span style={{ color: '#999' }}>-</span>;
+                    const color = v >= 4.5 ? '#52c41a' : v >= 3.5 ? '#faad14' : '#ff4d4f';
+                    return <span style={{ color, fontWeight: 500 }}>{v.toFixed(2)}</span>;
+                  },
+                },
+                {
+                  title: '平均消息数',
+                  dataIndex: 'avgMessages',
+                  key: 'avgMessages',
+                  align: 'right',
+                  render: (v: string) => <span style={{ color: '#666' }}>{v}</span>,
+                },
+              ]}
+              size="small"
+              pagination={false}
+              scroll={{ y: 200 }}
+            />
           </Card>
         </Col>
       </Row>
+
+      {/* 满意度趋势图 */}
+      {dailyRatingStats && dailyRatingStats.days.length > 0 && (
+        <Card title="满意度趋势" style={{ marginBottom: 16 }}>
+          <ReactECharts
+            option={{
+              tooltip: {
+                trigger: 'axis',
+              },
+              legend: {
+                type: 'scroll',
+                bottom: 0,
+              },
+              grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '15%',
+                containLabel: true,
+              },
+              xAxis: {
+                type: 'category',
+                data: dailyRatingStats.days.map(d => dayjs(d).format('MM-DD')),
+              },
+              yAxis: {
+                type: 'value',
+                min: 0,
+                max: 5,
+              },
+              series: [
+                ...dailyRatingStats.series.map((s) => ({
+                  name: getAgentLabel(s.agentId),
+                  type: 'line' as const,
+                  data: s.ratings,
+                  connectNulls: true,
+                })),
+                {
+                  name: '整体平均',
+                  type: 'line' as const,
+                  data: dailyRatingStats.overall,
+                  connectNulls: true,
+                  lineStyle: { width: 3, type: 'dashed' },
+                  symbol: 'circle',
+                  symbolSize: 8,
+                },
+              ],
+            }}
+            style={{ height: 300 }}
+          />
+        </Card>
+      )}
 
       {/* 咨询记录 */}
       <Card title="咨询记录">

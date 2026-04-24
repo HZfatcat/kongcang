@@ -439,6 +439,28 @@ export class SyncService {
                       },
                     });
                     messageSynced += 1;
+
+                    // 检测评价消息，更新评价记录的真实评价时间
+                    // 评价消息特征：content 包含 "type":"survey" 且包含 "客户评价"
+                    try {
+                      const rawPayload = messageRecord.rawPayload;
+                      const content = rawPayload?.['content'];
+                      if (typeof content === 'string' && content.includes('"type":"survey"') && content.includes('客户评价')) {
+                        const surveyOptionId = rawPayload?.['survey_option_id'];
+                        if (surveyOptionId) {
+                          // 找到对应的评价记录，更新 votedAt 为真实评价时间
+                          await this.prisma.$executeRaw`
+                            UPDATE "UdescSessionVote"
+                            SET "votedAt" = ${sentAt}, "syncedAt" = NOW()
+                            WHERE "sessionId" = ${record.id}
+                              AND "rawPayload"::text LIKE ${'%"survey_option_id":' + String(surveyOptionId) + '%'}
+                              AND ("votedAt" IS NULL OR "votedAt" != ${sentAt})
+                          `;
+                        }
+                      }
+                    } catch {
+                      // 评价时间更新失败不影响主流程
+                    }
                     // 标记之前的失败记录为已解决
                     await this.markIssueResolved({
                       source: 'udesc',
@@ -558,9 +580,9 @@ export class SyncService {
               if (!vote.sessionId) continue;
               try {
                 await this.prisma.udescSessionVote.upsert({
-                  where: { id: `${vote.sessionId}` },
+                  where: { id: vote.id },
                   create: {
-                    id: `${vote.sessionId}`,
+                    id: vote.id,
                     sessionId: vote.sessionId,
                     rating: vote.rating ?? null,
                     tags: vote.tags ?? [],
@@ -601,6 +623,26 @@ export class SyncService {
         this.progress.voteSynced = voteSynced;
       } catch (e) {
         this.logger.warn('vote sync failed, continuing');
+      }
+
+      // 评价同步完成后，从消息表中更新真实评价时间
+      // 消息同步时已获取会话日志，其中包含真实评价时间
+      this.progress.note = '更新评价时间';
+      try {
+        const voteTimeUpdates = await this.prisma.$executeRaw`
+          UPDATE "UdescSessionVote" v
+          SET "votedAt" = m."sentAt", "syncedAt" = NOW()
+          FROM "UdescSessionMessage" m
+          WHERE m."sessionId" = v."sessionId"
+            AND m."rawPayload"::text LIKE '%"type":"survey"%'
+            AND m."rawPayload"::text LIKE '%客户评价%'
+            AND (v."votedAt" IS NULL OR v."votedAt" != m."sentAt")
+        `;
+        if (voteTimeUpdates > 0) {
+          this.logger.log(`Updated ${voteTimeUpdates} vote timestamps from message logs`);
+        }
+      } catch (e) {
+        this.logger.warn('vote timestamp update failed, continuing');
       }
 
       // 同步客户信息
@@ -1414,5 +1456,78 @@ export class SyncService {
       rewindCursor: adjustedCursor.toISOString(),
       progress: trigger.progress,
     };
+  }
+
+  /**
+   * 清空 Udesk 全部数据
+   */
+  async clearUdescData() {
+    this.logger.log('开始清空 Udesk 数据...');
+
+    // 按顺序删除，避免外键约束问题
+    const votes = await this.prisma.udescSessionVote.deleteMany({});
+    const metrics = await this.prisma.udescSessionMetrics.deleteMany({});
+    const messages = await this.prisma.udescSessionMessage.deleteMany({});
+    const opportunities = await this.prisma.businessOpportunity.deleteMany({});
+    const sessions = await this.prisma.udescSession.deleteMany({});
+    const customers = await this.prisma.udescCustomer.deleteMany({});
+    const agents = await this.prisma.udescAgent.deleteMany({});
+    const organizations = await this.prisma.udescOrganization.deleteMany({});
+    const tickets = await this.prisma.udescTicket.deleteMany({});
+    const checkpoints = await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
+
+    // 重置进度
+    this.progress.sessionSynced = 0;
+    this.progress.messageSynced = 0;
+    this.progress.voteSynced = 0;
+    this.progress.customerSynced = 0;
+    this.progress.agentSynced = 0;
+
+    this.logger.log('Udesk 数据清空完成');
+
+    return {
+      votes: votes.count,
+      messages: messages.count,
+      sessions: sessions.count,
+      customers: customers.count,
+      agents: agents.count,
+      organizations: organizations.count,
+      tickets: tickets.count,
+      checkpoints: checkpoints.count,
+    };
+  }
+
+  /**
+   * 智能修复数据 - 检测并删除各类错误数据
+   * 同步时会自动补齐缺失数据
+   */
+  async smartFix() {
+    this.logger.log('开始智能修复数据...');
+    
+    let fixedVotes = 0;
+    let fixedMessages = 0;
+    let fixedSessions = 0;
+
+    // 1. 修复评价数据：删除 id = sessionId 的错误记录
+    const wrongVotes = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "UdescSessionVote" WHERE id = "sessionId"
+    `;
+    fixedVotes = wrongVotes.length;
+    if (fixedVotes > 0) {
+      await this.prisma.$executeRaw`
+        DELETE FROM "UdescSessionVote" WHERE id = "sessionId"
+      `;
+      this.logger.log(`已删除 ${fixedVotes} 条错误评价记录`);
+    }
+
+    // 2. 后续可扩展：检测其他类型的问题数据
+    // 例如：孤立消息、孤立评价、重复记录等
+
+    // 清除同步检查点，下次同步会重新拉取修复的数据
+    await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
+
+    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}`);
+
+    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, total: fixedVotes + fixedMessages + fixedSessions };
   }
 }

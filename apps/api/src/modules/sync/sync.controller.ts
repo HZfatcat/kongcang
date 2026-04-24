@@ -94,4 +94,16 @@ export class SyncController {
     const count = await this.syncService.recalculateMetrics();
     return { ok: true, count };
   }
+
+  @Post('udesc/clear')
+  async clearUdescData() {
+    const result = await this.syncService.clearUdescData();
+    return { ok: true, ...result };
+  }
+
+  @Post('udesc/smart-fix')
+  async smartFix() {
+    const result = await this.syncService.smartFix();
+    return { ok: true, ...result };
+  }
 }

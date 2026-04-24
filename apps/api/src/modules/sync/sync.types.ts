@@ -21,6 +21,7 @@ export interface UdescMessageRecord {
 
 // 评价详情记录
 export interface UdescVoteRecord {
+  id: string;
   sessionId: string;
   rating?: number;
   tags?: string[];
