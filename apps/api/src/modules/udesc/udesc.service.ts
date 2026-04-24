@@ -1499,5 +1499,109 @@ export class UdescService {
       resolved: days.map((d) => resolvedMap.get(d) ?? 0),
     };
   }
+
+  // ========== 时段热力图 ==========
+
+  /**
+   * 获取时段热力图数据
+   * 返回 24小时 x 7天 的矩阵，用于排班优化
+   */
+  async getHeatmap(params: {
+    startDate?: string;
+    endDate?: string;
+    agentId?: string;
+    type: 'session' | 'ticket';
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const { agentId, type } = params;
+
+    // 初始化 7天 x 24小时 矩阵
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+    // 初始化数据矩阵
+    const matrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+
+    if (type === 'session') {
+      // 查询会话数据
+      const sessions = await this.prisma.udescSession.findMany({
+        where: {
+          startedAt: { gte: start, lte: end },
+          agentId: agentId,
+        },
+        select: { startedAt: true },
+      });
+
+      // 统计每小时每天的会话数
+      for (const session of sessions) {
+        const d = new Date(session.startedAt);
+        const dayOfWeek = d.getDay(); // 0-6
+        const hour = d.getHours(); // 0-23
+        matrix[dayOfWeek][hour]++;
+      }
+    } else {
+      // 查询工单数据
+      const tickets = await this.prisma.udescTicket.findMany({
+        where: {
+          createdAt: { gte: start, lte: end },
+          assigneeId: agentId,
+        },
+        select: { createdAt: true },
+      });
+
+      // 统计每小时每天的工单数
+      for (const ticket of tickets) {
+        if (!ticket.createdAt) continue;
+        const d = new Date(ticket.createdAt);
+        const dayOfWeek = d.getDay();
+        const hour = d.getHours();
+        matrix[dayOfWeek][hour]++;
+      }
+    }
+
+    // 计算峰值和总量
+    let max = 0;
+    let total = 0;
+    for (const row of matrix) {
+      for (const val of row) {
+        total += val;
+        if (val > max) max = val;
+      }
+    }
+
+    // 找出最繁忙时段（按小时降序）
+    const peakHours: { hour: number; count: number }[] = [];
+    for (let h = 0; h < 24; h++) {
+      let count = 0;
+      for (let d = 0; d < 7; d++) {
+        count += matrix[d][h];
+      }
+      peakHours.push({ hour: h, count });
+    }
+    peakHours.sort((a, b) => b.count - a.count);
+
+    // 找出最繁忙天（按天降序）
+    const peakDays: { day: number; dayName: string; count: number }[] = [];
+    for (let d = 0; d < 7; d++) {
+      let count = 0;
+      for (let h = 0; h < 24; h++) {
+        count += matrix[d][h];
+      }
+      peakDays.push({ day: d, dayName: days[d], count });
+    }
+    peakDays.sort((a, b) => b.count - a.count);
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      type,
+      hours,
+      days,
+      matrix, // days[dayOfWeek][hour] -> count
+      max,
+      total,
+      peakHours: peakHours.slice(0, 5), // Top 5 繁忙时段
+      peakDays: peakDays.slice(0, 3), // Top 3 繁忙天
+    };
+  }
 }
 

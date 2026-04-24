@@ -7,6 +7,7 @@ import {
   UdescVoteQueryDto,
   UdescMetricsQueryDto,
   UdescTicketQueryDto,
+  UdescHeatmapQueryDto,
 } from './udesc.dto';
 import { UdescService } from './udesc.service';
 
@@ -153,6 +154,18 @@ export class UdescController {
     return this.udescService.getTicketDailyStats({
       startDate: query.startDate,
       endDate: query.endDate,
+    });
+  }
+
+  // ========== 时段热力图 ==========
+
+  @Get('heatmap')
+  getHeatmap(@Query() query: UdescHeatmapQueryDto) {
+    return this.udescService.getHeatmap({
+      startDate: query.startDate,
+      endDate: query.endDate,
+      agentId: query.agentId,
+      type: query.type || 'session',
     });
   }
 }

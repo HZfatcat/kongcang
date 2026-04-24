@@ -311,3 +311,27 @@ export async function fetchUdescTicketDailyStats(params: {
   return resp.data;
 }
 
+// ========== 时段热力图 ==========
+
+export interface UdescHeatmap {
+  dateRange: { startDate: string; endDate: string };
+  type: 'session' | 'ticket';
+  hours: number[];
+  days: string[];
+  matrix: number[][]; // days[dayOfWeek][hour] -> count
+  max: number;
+  total: number;
+  peakHours: { hour: number; count: number }[];
+  peakDays: { day: number; dayName: string; count: number }[];
+}
+
+export async function fetchUdescHeatmap(params: {
+  startDate?: string;
+  endDate?: string;
+  agentId?: string;
+  type?: 'session' | 'ticket';
+}): Promise<UdescHeatmap> {
+  const resp = await apiClient.get<UdescHeatmap>('/udesc/heatmap', { params });
+  return resp.data;
+}
+

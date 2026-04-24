@@ -180,3 +180,13 @@ export class UdescTicketQueryDto extends UdescDateRangeDto {
   pageSize?: number;
 }
 
+export class UdescHeatmapQueryDto extends UdescDateRangeDto {
+  @IsOptional()
+  @IsString()
+  agentId?: string;
+
+  @IsOptional()
+  @IsString()
+  type?: 'session' | 'ticket'; // 会话或工单
+}
+

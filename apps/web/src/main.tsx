@@ -15,6 +15,7 @@ import { UsersPage } from './pages/UsersPage';
 import { LogsPage } from './pages/LogsPage';
 import { VotesPage } from './pages/VotesPage';
 import { TicketsPage } from './pages/TicketsPage';
+import { HeatmapPage } from './pages/HeatmapPage';
 
 import { MetricsPage } from './pages/MetricsPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
@@ -70,6 +71,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         { key: '/udesc/votes', label: '评价分析' },
         { key: '/udesc/metrics', label: '会话指标' },
         { key: '/udesc/tickets', label: '工单分析' },
+        { key: '/udesc/heatmap', label: '时段热力图' },
         { key: '/udesc/sessions', label: '咨询详情' },
       ],
     },
@@ -216,6 +218,7 @@ function AppRoutes() {
       <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
       <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
       <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
+      <Route path="/udesc/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
       <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
       <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
       <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
