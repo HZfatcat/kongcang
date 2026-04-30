@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button, Row, Col, Statistic, Tag, Progress, Modal, Descriptions } from 'antd';
+import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button, Row, Col, Statistic, Tag, Progress, Modal, Descriptions, Tooltip } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
@@ -375,7 +375,7 @@ export function TicketsPage() {
           </Col>
           <Col span={6}>
             <Card size="small">
-              <Statistic title="已解决" value={(summary?.byStatus['已解决'] ?? 0) + (summary?.byStatus['已关闭'] ?? 0)} />
+              <Statistic title="已解决" value={(summary?.byStatus['已解决'] ?? 0) + (summary?.byStatus['已关闭'] ?? 0)} suffix={<Tooltip placement="bottom" title="含已解决+已关闭"><Tag color="default" style={{ marginLeft: 4, fontSize: 10, cursor: 'pointer', height: 'auto', padding: '0 4px', lineHeight: '16px' }}>?</Tag></Tooltip>} />
             </Card>
           </Col>
           <Col span={6}>
