@@ -1590,11 +1590,12 @@ export class UdescService {
       ORDER BY date
     `;
 
-    // 按天统计解决数
+    // 按天统计解决数（含已解决+已关闭）
     const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
       SELECT DATE("resolvedAt") as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+        AND "status" IN ('已解决', '已关闭')
       GROUP BY DATE("resolvedAt")
       ORDER BY date
     `;
