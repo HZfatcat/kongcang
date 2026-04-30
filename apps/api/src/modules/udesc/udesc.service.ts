@@ -57,11 +57,10 @@ export class UdescService {
           select: { agentId: true },
         })
         .then((rows) => rows.length),
-      // 从 UdescSessionVote 表统计有评价的会话数
+      // 从 UdescSessionVote 表统计有评价的会话数（包含满意度评价和解决率评价）
       this.prisma.udescSessionVote.findMany({
         where: {
           sessionId: { in: sessionIds },
-          rating: { not: null },
         },
         select: { sessionId: true },
       }).then((votes) => new Set(votes.map((v) => v.sessionId)).size),
@@ -1715,4 +1714,3 @@ export class UdescService {
     };
   }
 }
-
