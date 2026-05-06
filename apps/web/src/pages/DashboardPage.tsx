@@ -1989,7 +1989,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             },
             { title: '总数', dataIndex: 'total', key: 'total' },
             {
-              title: '排除（已采纳且长期演进）',
+              title: '长期演进',
               dataIndex: 'excludedByLongTermAccepted',
               key: 'excludedByLongTermAccepted',
             },
