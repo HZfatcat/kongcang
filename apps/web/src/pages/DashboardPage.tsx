@@ -1971,9 +1971,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           <Typography.Text type="secondary">
             统计窗口：{zouwuStats?.startCreatedTime ?? '-'} ~ {zouwuStats?.endCreatedTime ?? '-'}
           </Typography.Text>
-          <Typography.Text type="secondary">
-            标签：{zouwuStats?.longTermLabelName ?? '-'}
-          </Typography.Text>
         </Space>
       </Card>
 
