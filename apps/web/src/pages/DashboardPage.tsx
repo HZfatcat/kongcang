@@ -821,7 +821,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               size="small"
               style={{ marginTop: 8 }}
               pagination={{ pageSize: 10 }}
-              dataSource={consultationFunnel?.periods ?? []}
+              dataSource={[...(consultationFunnel?.periods ?? [])].sort(
+                (a, b) => new Date(b.periodStart).getTime() - new Date(a.periodStart).getTime()
+              )}
               columns={[
                 { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel' },
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
