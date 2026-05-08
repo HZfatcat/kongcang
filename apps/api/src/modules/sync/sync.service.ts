@@ -1504,11 +1504,13 @@ export class SyncService {
    */
   async smartFix() {
     this.logger.log('开始智能修复数据...');
-    
+
     let fixedVotes = 0;
     let fixedMessages = 0;
     let fixedSessions = 0;
     let fixedVoteTimes = 0;
+    let fixedSystemMessages = 0;
+    let fixedMetricsSessions = 0;
 
     // 1. 修复评价数据：删除 id = sessionId 的错误记录
     const wrongVotes = await this.prisma.$queryRaw<{ id: string }[]>`
@@ -1529,7 +1531,7 @@ export class SyncService {
       SET "votedAt" = m."sentAt", "syncedAt" = NOW()
       FROM "UdescSessionMessage" m
       WHERE m."sessionId" = v."sessionId"
-        AND m."rawPayload"::text LIKE '%survey%' 
+        AND m."rawPayload"::text LIKE '%survey%'
         AND m."rawPayload"::text LIKE '%客户评价%'
         AND (v."votedAt" IS NULL OR v."votedAt" != m."sentAt")
     `;
@@ -1537,14 +1539,86 @@ export class SyncService {
       this.logger.log(`已修复 ${fixedVoteTimes} 条评价时间`);
     }
 
-    // 3. 后续可扩展：检测其他类型的问题数据
-    // 例如：孤立消息、孤立评价、重复记录等
+    // 3. 修复系统消息 senderType：将系统自动发送的消息从 agent/customer 改为 system
+    // 系统消息特征：由系统自动发送的提示、超时、会话关闭、满意度调查等，不属于人工交互消息
+    this.logger.log('开始修复系统消息 senderType...');
+    const systemMsgKeywords = [
+      '%接入人工服务%',
+      '%有新的咨询进来了%',
+      '%长时间未响应%',
+      '%超时未回复%',
+      '%系统将自动结束会话%',
+      '%关闭会话%',
+      '%满意度调查%',
+      '%系统发送%',
+      '%已为您转接%',
+      '%正在为您转接%',
+      '%转接至%',
+      '%会话已结束%',
+      '%会话已关闭%',
+      '%客服已离线%',
+      '%客服已上线%',
+    ];
+    for (const keyword of systemMsgKeywords) {
+      const result = await this.prisma.$executeRaw`
+        UPDATE "UdescSessionMessage"
+        SET "senderType" = 'system', "syncedAt" = NOW()
+        WHERE "senderType" IN ('agent', 'customer')
+          AND "content" ILIKE ${keyword}
+      `;
+      fixedSystemMessages += Number(result);
+    }
+    if (fixedSystemMessages > 0) {
+      this.logger.log(`已修复 ${fixedSystemMessages} 条系统消息的 senderType`);
+    } else {
+      this.logger.log('未发现需要修复的系统消息');
+    }
+
+    // 4. 重新计算系统消息修复涉及的会话指标
+    if (fixedSystemMessages > 0) {
+      this.logger.log('开始重新计算受影响会话的消息数指标...');
+      // 找出被修复的会话去重重新计算
+      const affectedSessions = await this.prisma.$queryRaw<{ sessionId: string }[]>`
+        SELECT DISTINCT "sessionId" FROM "UdescSessionMessage"
+        WHERE "senderType" = 'system' AND "syncedAt" >= NOW() - INTERVAL '30 seconds'
+      `;
+      for (const row of affectedSessions) {
+        const actualMessages = await this.prisma.udescSessionMessage.groupBy({
+          by: ['senderType'],
+          where: { sessionId: row.sessionId },
+          _count: true,
+        });
+        const actualAgentMsgCount = actualMessages.find(m => m.senderType === 'agent')?._count ?? 0;
+        const actualCustomerMsgCount = actualMessages.find(m => m.senderType === 'customer')?._count ?? 0;
+        const messageCount = actualAgentMsgCount + actualCustomerMsgCount;
+        const agentMessageCount = actualAgentMsgCount;
+        const customerMessageCount = actualCustomerMsgCount;
+
+        await this.prisma.udescSessionMetrics.upsert({
+          where: { sessionId: row.sessionId },
+          create: { sessionId: row.sessionId, messageCount, agentMessageCount, customerMessageCount },
+          update: { messageCount, agentMessageCount, customerMessageCount },
+        });
+        fixedMetricsSessions++;
+      }
+      this.logger.log(`已重新计算 ${fixedMetricsSessions} 个会话的消息数指标`);
+    }
+
+    // 5. 如有需要修复的特定会话，可在此添加
 
     // 清除同步检查点，下次同步会重新拉取修复的数据
     await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
 
-    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}, 评价时间=${fixedVoteTimes}`);
+    this.logger.log(`智能修复完成：评价=${fixedVotes}, 系统消息=${fixedSystemMessages}, 会话指标=${fixedMetricsSessions}, 评价时间=${fixedVoteTimes}`);
 
-    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, voteTimes: fixedVoteTimes, total: fixedVotes + fixedMessages + fixedSessions + fixedVoteTimes };
+    return {
+      votes: fixedVotes,
+      messages: fixedMessages,
+      sessions: fixedSessions,
+      voteTimes: fixedVoteTimes,
+      systemMessages: fixedSystemMessages,
+      metricsSessions: fixedMetricsSessions,
+      total: fixedVotes + fixedMessages + fixedSessions + fixedVoteTimes + fixedSystemMessages + fixedMetricsSessions,
+    };
   }
 }
