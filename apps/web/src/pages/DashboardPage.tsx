@@ -910,15 +910,21 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 expandedRowRender: (record) => (
                   <div>
                     {record.messages.length === 0 && <Typography.Text type="secondary">无本地消息明细</Typography.Text>}
-                    {record.messages.map((msg) => (
+                    {record.messages.map((msg) => {
+                      const isSystem = msg.senderType === '系统';
+                      const isAgent = msg.senderType === 'AGENT' || msg.senderType === 'agent';
+                      return (
                       <div key={msg.id} style={{ marginBottom: 8 }}>
-                        <Tag color="blue">{msg.senderType ?? 'unknown'}</Tag>
+                        <Tag color={isSystem ? 'orange' : isAgent ? 'blue' : 'green'}>
+                          {isSystem ? '系统' : isAgent ? '客服' : '客户'}
+                        </Tag>
                         <Typography.Text type="secondary">
                           {dayjs(msg.sentAt).format('YYYY-MM-DD HH:mm:ss')}
                         </Typography.Text>
                         <div>{normalizeMessageContent(msg.content)}</div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ),
               }}
