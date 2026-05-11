@@ -5,6 +5,9 @@ import { useKpi } from '../api/kpi';
 import type { MonthlyCompletion } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
 import dayjs from 'dayjs';
+import { useState, useEffect } from 'react';
+import { fetchZouwuFeedbackStats } from '../api/udesc';
+import type { ZouwuFeedbackStatistics } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
 
@@ -37,8 +40,20 @@ interface RecentItem {
 
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
+  const [zouwuStats, setZouwuStats] = useState<ZouwuFeedbackStatistics | null>(null);
+  const [zouwuStatsLoading, setZouwuStatsLoading] = useState(false);
 
-  // 按月汇总数据 - 使用与需求详情页相同的结单率计算方法
+  useEffect(() => {
+    const start = dateRange[0].format('YYYY-MM-DD 00:00:00');
+    const end = dateRange[1].format('YYYY-MM-DD 23:59:59');
+    setZouwuStatsLoading(true);
+    fetchZouwuFeedbackStats({ start, end })
+      .then(setZouwuStats)
+      .catch(() => setZouwuStats(null))
+      .finally(() => setZouwuStatsLoading(false));
+  }, [dateRange[0].valueOf(), dateRange[1].valueOf()]);
+
+  // 按月汇总数据
   const monthlySummary: MonthlySummaryRow[] = React.useMemo(() => {
     const reqMonthly = demandOverview?.monthlyRequirement ?? [];
     const bugMonthly = demandOverview?.monthlyBug ?? [];
@@ -407,6 +422,22 @@ export function DemandSummaryPage() {
           </Card>
         </Col>
       </Row>
+
+      <Card title="驺吾新增统计（按创建时间）" style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }} loading={zouwuStatsLoading}>
+        <Row gutter={12}>
+          <Col span={12}>
+            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
+          </Col>
+          <Col span={12}>
+            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
+          </Col>
+        </Row>
+        <Space direction="vertical" style={{ marginTop: 12 }}>
+          <Typography.Text type="secondary">
+            统计窗口：{zouwuStats?.startCreatedTime ?? dateRange[0].format('YYYY-MM-DD')} ~ {zouwuStats?.endCreatedTime ?? dateRange[1].format('YYYY-MM-DD')}
+          </Typography.Text>
+        </Space>
+      </Card>
 
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月汇总</span>} 
