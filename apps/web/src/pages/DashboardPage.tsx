@@ -68,6 +68,8 @@ import {
   fetchWecomEmployees,
   upsertWecomEmployee,
   deleteWecomEmployee,
+  clearUdescData,
+  smartFix,
 } from '../api/udesc';
 import type {
   AgentProfile,
@@ -1743,6 +1745,32 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         >
           失败记录一键补偿重试
         </Button>
+        <Popconfirm
+          title="智能修复"
+          description="自动检测并删除错误数据，保留正确数据，同步时会自动补齐缺失数据"
+          onConfirm={async () => {
+            const resp = await smartFix();
+            message.success(`已修复 ${resp.total} 条错误数据，点击"手动同步"补齐数据`);
+            const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
+            setSyncProgress(progress);
+            setSyncSummary(summary);
+          }}
+        >
+          <Button>智能修复</Button>
+        </Popconfirm>
+        <Popconfirm
+          title="清空全部数据"
+          description="将删除所有 Udesk 数据（会话、消息、评价等），此操作不可恢复！"
+          onConfirm={async () => {
+            const resp = await clearUdescData();
+            message.success(`已清空 ${resp.sessions} 会话, ${resp.messages} 消息, ${resp.votes} 评价`);
+            const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
+            setSyncProgress(progress);
+            setSyncSummary(summary);
+          }}
+        >
+          <Button danger>清空全部数据</Button>
+        </Popconfirm>
       </Space>
 
       <Card title="同步进度实时面板">
@@ -1943,63 +1971,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             }}
             disabled={!zouwuConfig?.enabled}
           />
-        </Space>
-      </Card>
+          </Space>
+        </Card>
 
-      <Card title="驺吾新增统计（按创建时间）" loading={zouwuStatsLoading}>
-        <Row gutter={12}>
-          <Col span={8}>
-            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
-          </Col>
-          <Col span={8}>
-            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
-          </Col>
-          <Col span={8}>
-            <Statistic title="长期演进标签ID" value={zouwuStats?.longTermLabelId ?? '-'} />
-          </Col>
-        </Row>
-        <Space direction="vertical" style={{ marginTop: 12 }}>
-          <Typography.Text type="secondary">
-            统计窗口：{zouwuStats?.startCreatedTime ?? '-'} ~ {zouwuStats?.endCreatedTime ?? '-'}
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            标签：{zouwuStats?.longTermLabelName ?? '-'}
-          </Typography.Text>
-        </Space>
-      </Card>
-
-      <Card title="驺吾关单率" style={{ marginTop: 16 }} loading={zouwuStatsLoading}>
-        <Table
-          rowKey="scope"
-          pagination={false}
-          dataSource={zouwuStats?.closeRates ?? []}
-          columns={[
-            {
-              title: '口径',
-              dataIndex: 'scope',
-              key: 'scope',
-              render: (value: 'requirement' | 'bug' | 'all') =>
-                value === 'requirement' ? '功能需求' : value === 'bug' ? 'BUG反馈' : '总量',
-            },
-            { title: '总数', dataIndex: 'total', key: 'total' },
-            {
-              title: '排除（已采纳且长期演进）',
-              dataIndex: 'excludedByLongTermAccepted',
-              key: 'excludedByLongTermAccepted',
-            },
-            { title: '已拒绝+已闭环', dataIndex: 'closedOrRejected', key: 'closedOrRejected' },
-            { title: '分母', dataIndex: 'denominator', key: 'denominator' },
-            {
-              title: '关单率',
-              dataIndex: 'closeRate',
-              key: 'closeRate',
-              render: (value: number | null) => (value === null ? 'N/A' : `${(value * 100).toFixed(2)}%`),
-            },
-          ]}
-        />
-      </Card>
-
-      <Card title="驺吾历史同步记录" style={{ marginTop: 16 }}>
+        <Card title="驺吾历史同步记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
           dataSource={syncRuns.filter((item) => item.source === 'zouwu')}

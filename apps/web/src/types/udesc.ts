@@ -126,6 +126,16 @@ export interface UdescDailyAgentStats {
   }>;
 }
 
+export interface UdescDailyRatingStats {
+  dateRange: { startDate: string; endDate: string };
+  days: string[];
+  series: Array<{
+    agentId: string;
+    ratings: (number | null)[];
+  }>;
+  overall: (number | null)[];
+}
+
 export interface AgentProfile {
   agentId: string;
   displayName: string;
@@ -277,5 +287,56 @@ export interface UdescMetricsSummary {
   avgMessagesPerSession: number;
   avgAgentMessages: number;
   avgCustomerMessages: number;
+}
+
+// ========== 工单分析 ==========
+
+export interface UdescTicket {
+  id: string;
+  fieldNum?: string;
+  subject?: string;
+  source?: string;
+  status?: string;
+  statusEn?: string;
+  priority?: string;
+  satisfaction?: number | null;
+  userName?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  userGroupName?: string;
+  createdAt?: string | null;
+  firstRepliedAt?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  imSubSessionId?: string;
+}
+
+export interface UdescTicketListResp {
+  page: number;
+  pageSize: number;
+  total: number;
+  records: UdescTicket[];
+}
+
+export interface UdescTicketSummary {
+  dateRange: { startDate: string; endDate: string };
+  total: number;
+  byStatus: Record<string, number>;
+  byPriority: Record<string, number>;
+  byAssignee: Array<{
+    assigneeId?: string;
+    assigneeName?: string;
+    count: number;
+  }>;
+  avgResolutionHours: number | null;
+  avgFirstReplyHours: number | null;
+  resolvedCount: number;
+}
+
+export interface UdescTicketDailyStats {
+  dateRange: { startDate: string; endDate: string };
+  days: string[];
+  created: number[];
+  resolved: number[];
 }
 

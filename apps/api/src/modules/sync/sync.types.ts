@@ -21,6 +21,7 @@ export interface UdescMessageRecord {
 
 // 评价详情记录
 export interface UdescVoteRecord {
+  id: string;
   sessionId: string;
   rating?: number;
   tags?: string[];
@@ -55,6 +56,62 @@ export interface UdescAgentRecord {
   enabled?: boolean;
   groups?: string[];
   skills?: string[];
+  rawPayload?: Record<string, unknown>;
+}
+
+// 客户公司/组织记录
+export interface UdescOrganizationRecord {
+  id: string;
+  name?: string;
+  domains?: string;
+  level?: string;
+  description?: string;
+  token?: string;
+  customFields?: Record<string, unknown>;
+  updatedAt?: string;
+  rawPayload?: Record<string, unknown>;
+}
+
+// 工单记录
+export interface UdescTicketRecord {
+  id: string;
+  fieldNum?: string;
+  subject?: string;
+  content?: string;
+  source?: string;
+  contentType?: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userCellphone?: string;
+  organizationId?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  assigneeAvatar?: string;
+  userGroupId?: string;
+  userGroupName?: string;
+  templateId?: string;
+  priority?: string;
+  status?: string;
+  statusEn?: string;
+  platform?: string;
+  satisfaction?: string;
+  customFields?: Record<string, unknown>;
+  tags?: string;
+  creatorId?: string;
+  imSubSessionId?: string;
+  conversationId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  solvingAt?: string;
+  resolvedAt?: string;
+  closedAt?: string;
+  solvedDeadline?: string;
+  repliedAt?: string;
+  agentRepliedAt?: string;
+  customerRepliedAt?: string;
+  firstRepliedAt?: string;
+  repliedBy?: string;
   rawPayload?: Record<string, unknown>;
 }
 

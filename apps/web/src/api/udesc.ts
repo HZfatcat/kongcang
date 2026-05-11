@@ -7,6 +7,7 @@ import type {
   SyncRun,
   SyncSummary,
   UdescDailyAgentStats,
+  UdescDailyRatingStats,
   UdescOverview,
   UdescSessionListResp,
   UdescTreeNode,
@@ -31,6 +32,11 @@ export async function fetchUdescTree(params: { startDate?: string; endDate?: str
 
 export async function fetchUdescDailyAgentStats(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<UdescDailyAgentStats>('/udesc/daily-agent-stats', { params });
+  return resp.data;
+}
+
+export async function fetchUdescDailyRatingStats(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdescDailyRatingStats>('/udesc/daily-rating-stats', { params });
   return resp.data;
 }
 
@@ -81,6 +87,16 @@ export async function fetchSyncSummary() {
 
 export async function retrySyncIssues() {
   const resp = await apiClient.post<{ accepted: boolean; reason: string; issueCount: number }>('/sync/issues/retry');
+  return resp.data;
+}
+
+export async function clearUdescData() {
+  const resp = await apiClient.post<{ ok: boolean; sessions: number; messages: number; votes: number }>('/sync/udesc/clear');
+  return resp.data;
+}
+
+export async function smartFix() {
+  const resp = await apiClient.post<{ ok: boolean; votes: number; messages: number; sessions: number; total: number }>('/sync/udesc/smart-fix');
   return resp.data;
 }
 
@@ -176,6 +192,7 @@ export async function fetchUdescVotes(params: {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+  sessionId?: string;
 }) {
   const resp = await apiClient.get<UdescVoteListResp>('/udesc/votes', { params });
   return resp.data;
@@ -226,5 +243,112 @@ export interface AgentMetricsSummary {
   avgWaitTime: number | null;
   avgResolutionTime: number | null;
   avgMessagesPerSession: number;
+}
+
+// ========== 工单分析 ==========
+
+export interface UdescTicket {
+  id: string;
+  fieldNum?: string;
+  subject?: string;
+  source?: string;
+  status?: string;
+  statusEn?: string;
+  priority?: string;
+  satisfaction?: number | null;
+  userName?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  userGroupName?: string;
+  createdAt?: string | null;
+  firstRepliedAt?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  imSubSessionId?: string;
+}
+
+export interface UdescTicketListResp {
+  page: number;
+  pageSize: number;
+  total: number;
+  records: UdescTicket[];
+}
+
+export interface UdescTicketSummary {
+  dateRange: { startDate: string; endDate: string };
+  total: number;
+  byStatus: Record<string, number>;
+  byPriority: Record<string, number>;
+  byAssignee: Array<{
+    assigneeId?: string;
+    assigneeName?: string;
+    count: number;
+  }>;
+  avgResolutionHours: number | null;
+  avgFirstReplyHours: number | null;
+  resolvedCount: number;
+}
+
+export interface UdescTicketDailyStats {
+  dateRange: { startDate: string; endDate: string };
+  days: string[];
+  created: number[];
+  resolved: number[];
+}
+
+export async function fetchUdescTickets(params: {
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  assigneeId?: string;
+  priority?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}): Promise<UdescTicketListResp> {
+  const resp = await apiClient.get<UdescTicketListResp>('/udesc/tickets', { params });
+  return resp.data;
+}
+
+export async function fetchUdescTicketSummary(params: {
+  startDate?: string;
+  endDate?: string;
+  assigneeId?: string;
+}): Promise<UdescTicketSummary> {
+  const resp = await apiClient.get<UdescTicketSummary>('/udesc/tickets/summary', { params });
+  return resp.data;
+}
+
+export async function fetchUdescTicketDailyStats(params: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<UdescTicketDailyStats> {
+  const resp = await apiClient.get<UdescTicketDailyStats>('/udesc/tickets/daily-stats', { params });
+  return resp.data;
+}
+
+// ========== 时段热力图 ==========
+
+export interface UdescHeatmap {
+  dateRange: { startDate: string; endDate: string };
+  type: 'session' | 'ticket';
+  hours: number[];
+  days: string[];
+  matrix: number[][]; // days[dayOfWeek][hour] -> count
+  max: number;
+  total: number;
+  peakHours: { hour: number; count: number }[];
+  peakDays: { day: number; dayName: string; count: number }[];
+}
+
+export async function fetchUdescHeatmap(params: {
+  startDate?: string;
+  endDate?: string;
+  agentId?: string;
+  type?: 'session' | 'ticket';
+}): Promise<UdescHeatmap> {
+  const resp = await apiClient.get<UdescHeatmap>('/udesc/heatmap', { params });
+  return resp.data;
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, message, Rate, Select, Space } from 'antd';
+import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, message, Rate, Select, Space, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,7 @@ export function VotesPage() {
   const [maxRating, setMaxRating] = useState<number | undefined>();
   const [sortBy, setSortBy] = useState<string | undefined>();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | undefined>();
+  const [sessionIdSearch, setSessionIdSearch] = useState<string | undefined>();
 
   const apiRange = useMemo(
     () => ({
@@ -44,6 +45,7 @@ export function VotesPage() {
         sortOrder,
         page,
         pageSize,
+        sessionId: sessionIdSearch,
       });
       setData(resp);
     } catch {
@@ -55,7 +57,7 @@ export function VotesPage() {
 
   useEffect(() => {
     loadData();
-  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating, sortBy, sortOrder]);
+  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating, sortBy, sortOrder, sessionIdSearch]);
 
   const columns: ColumnsType<UdescSessionVote> = [
     {
@@ -161,6 +163,15 @@ export function VotesPage() {
             onChange={setMaxRating}
             style={{ width: 100 }}
             allowClear
+          />
+          <Input.Search
+            placeholder="搜索会话ID"
+            allowClear
+            style={{ width: 200 }}
+            onSearch={(value) => {
+              setSessionIdSearch(value || undefined);
+              setPage(1);
+            }}
           />
         </Space>
       </Card>

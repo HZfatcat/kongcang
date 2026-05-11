@@ -20,6 +20,8 @@ interface SyncProgressSnapshot {
   customerSynced: number;
   agentSynced: number;
   metricsSynced: number;
+  organizationSynced: number;
+  ticketSynced: number;
   issueCount: number;
   estimatedRemainingRecords: number;
   estimatedRemainingSeconds: number;
@@ -52,6 +54,8 @@ export class SyncService {
     customerSynced: 0,
     agentSynced: 0,
     metricsSynced: 0,
+    organizationSynced: 0,
+    ticketSynced: 0,
     issueCount: 0,
     estimatedRemainingRecords: 0,
     estimatedRemainingSeconds: 0,
@@ -237,6 +241,8 @@ export class SyncService {
     let customerSynced = 0;
     let agentSynced = 0;
     let metricsSynced = 0;
+    let organizationSynced = 0;
+    let ticketSynced = 0;
     let issueCount = 0;
     const syncStartedAt = new Date();
 
@@ -433,6 +439,28 @@ export class SyncService {
                       },
                     });
                     messageSynced += 1;
+
+                    // 检测评价消息，更新评价记录的真实评价时间
+                    // 评价消息特征：content 包含 "type":"survey" 且包含 "客户评价"
+                    try {
+                      const rawPayload = messageRecord.rawPayload;
+                      const content = rawPayload?.['content'];
+                      if (typeof content === 'string' && content.includes('"type":"survey"') && content.includes('客户评价')) {
+                        const surveyOptionId = rawPayload?.['survey_option_id'];
+                        if (surveyOptionId) {
+                          // 找到对应的评价记录，更新 votedAt 为真实评价时间
+                          await this.prisma.$executeRaw`
+                            UPDATE "UdescSessionVote"
+                            SET "votedAt" = ${sentAt}, "syncedAt" = NOW()
+                            WHERE "sessionId" = ${record.id}
+                              AND "rawPayload"::text LIKE ${'%"survey_option_id":' + String(surveyOptionId) + '%'}
+                              AND ("votedAt" IS NULL OR "votedAt" != ${sentAt})
+                          `;
+                        }
+                      }
+                    } catch {
+                      // 评价时间更新失败不影响主流程
+                    }
                     // 标记之前的失败记录为已解决
                     await this.markIssueResolved({
                       source: 'udesc',
@@ -552,9 +580,9 @@ export class SyncService {
               if (!vote.sessionId) continue;
               try {
                 await this.prisma.udescSessionVote.upsert({
-                  where: { id: `${vote.sessionId}` },
+                  where: { id: vote.id },
                   create: {
-                    id: `${vote.sessionId}`,
+                    id: vote.id,
                     sessionId: vote.sessionId,
                     rating: vote.rating ?? null,
                     tags: vote.tags ?? [],
@@ -595,6 +623,27 @@ export class SyncService {
         this.progress.voteSynced = voteSynced;
       } catch (e) {
         this.logger.warn('vote sync failed, continuing');
+      }
+
+      // 评价同步完成后，从消息表中更新真实评价时间
+      // 消息同步时已获取会话日志，其中包含真实评价时间
+      this.progress.note = '更新评价时间';
+      try {
+        // JSONB 转 text 后双引号会被转义，需用更宽松的匹配
+        const voteTimeUpdates = await this.prisma.$executeRaw`
+          UPDATE "UdescSessionVote" v
+          SET "votedAt" = m."sentAt", "syncedAt" = NOW()
+          FROM "UdescSessionMessage" m
+          WHERE m."sessionId" = v."sessionId"
+            AND m."rawPayload"::text LIKE '%"type":%survey%'
+            AND m."rawPayload"::text LIKE '%客户评价%'
+            AND (v."votedAt" IS NULL OR v."votedAt" != m."sentAt")
+        `;
+        if (voteTimeUpdates > 0) {
+          this.logger.log(`Updated ${voteTimeUpdates} vote timestamps from message logs`);
+        }
+      } catch (e) {
+        this.logger.warn('vote timestamp update failed, continuing');
       }
 
       // 同步客户信息
@@ -719,6 +768,170 @@ export class SyncService {
         this.logger.error(`agent sync failed: ${msg}`);
       }
 
+      // 同步客户公司/组织
+      this.progress.note = '同步客户公司';
+      try {
+        let orgCursor: string | undefined = undefined;
+        let orgHasMore = true;
+        while (orgHasMore) {
+          const orgResp = await this.withRetry('udesc.fetchOrganizations', () =>
+            this.udescClient.fetchOrganizations({
+              cursor: orgCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const org of orgResp.records) {
+            if (!org.id) continue;
+            try {
+              await this.prisma.udescOrganization.upsert({
+                where: { id: org.id },
+                create: {
+                  id: org.id,
+                  name: org.name ?? null,
+                  domains: org.domains ?? null,
+                  level: org.level ?? null,
+                  description: org.description ?? null,
+                  token: org.token ?? null,
+                  customFields: this.asJson(org.customFields),
+                  rawPayload: this.asJson(org.rawPayload),
+                },
+                update: {
+                  name: org.name ?? null,
+                  domains: org.domains ?? null,
+                  level: org.level ?? null,
+                  description: org.description ?? null,
+                  token: org.token ?? null,
+                  customFields: this.asJson(org.customFields),
+                  rawPayload: this.asJson(org.rawPayload),
+                },
+              });
+              organizationSynced += 1;
+            } catch (e) {
+              // ignore individual org errors
+            }
+          }
+          orgCursor = orgResp.nextCursor;
+          orgHasMore = orgResp.hasMore && Boolean(orgCursor);
+        }
+        this.progress.organizationSynced = organizationSynced;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`organization sync failed: ${msg}`);
+      }
+
+      // 同步工单
+      this.progress.note = '同步工单';
+      try {
+        let ticketCursor: string | undefined = undefined;
+        let ticketHasMore = true;
+        while (ticketHasMore) {
+          const ticketResp = await this.withRetry('udesc.fetchTickets', () =>
+            this.udescClient.fetchTickets({
+              cursor: ticketCursor,
+              pageSize: 100,
+            }),
+          );
+          for (const ticket of ticketResp.records) {
+            if (!ticket.id) continue;
+            try {
+              await this.prisma.udescTicket.upsert({
+                where: { id: ticket.id },
+                create: {
+                  id: ticket.id,
+                  fieldNum: ticket.fieldNum ?? null,
+                  subject: ticket.subject ?? null,
+                  content: ticket.content ?? null,
+                  source: ticket.source ?? null,
+                  contentType: ticket.contentType ?? null,
+                  userId: ticket.userId ?? null,
+                  userName: ticket.userName ?? null,
+                  userEmail: ticket.userEmail ?? null,
+                  userCellphone: ticket.userCellphone ?? null,
+                  organizationId: ticket.organizationId ?? null,
+                  assigneeId: ticket.assigneeId ?? null,
+                  assigneeName: ticket.assigneeName ?? null,
+                  assigneeAvatar: ticket.assigneeAvatar ?? null,
+                  userGroupId: ticket.userGroupId ?? null,
+                  userGroupName: ticket.userGroupName ?? null,
+                  templateId: ticket.templateId ?? null,
+                  priority: ticket.priority ?? null,
+                  status: ticket.status ?? null,
+                  statusEn: ticket.statusEn ?? null,
+                  platform: ticket.platform ?? null,
+                  satisfaction: ticket.satisfaction ?? null,
+                  customFields: this.asJson(ticket.customFields),
+                  tags: ticket.tags ?? null,
+                  creatorId: ticket.creatorId ?? null,
+                  imSubSessionId: ticket.imSubSessionId ?? null,
+                  conversationId: ticket.conversationId ?? null,
+                  createdAt: this.asDateOrNull(ticket.createdAt),
+                  updatedAt: this.asDateOrNull(ticket.updatedAt),
+                  solvingAt: this.asDateOrNull(ticket.solvingAt),
+                  resolvedAt: this.asDateOrNull(ticket.resolvedAt),
+                  closedAt: this.asDateOrNull(ticket.closedAt),
+                  solvedDeadline: this.asDateOrNull(ticket.solvedDeadline),
+                  repliedAt: this.asDateOrNull(ticket.repliedAt),
+                  agentRepliedAt: this.asDateOrNull(ticket.agentRepliedAt),
+                  customerRepliedAt: this.asDateOrNull(ticket.customerRepliedAt),
+                  firstRepliedAt: this.asDateOrNull(ticket.firstRepliedAt),
+                  repliedBy: ticket.repliedBy ?? null,
+                  rawPayload: this.asJson(ticket.rawPayload),
+                },
+                update: {
+                  fieldNum: ticket.fieldNum ?? null,
+                  subject: ticket.subject ?? null,
+                  content: ticket.content ?? null,
+                  source: ticket.source ?? null,
+                  contentType: ticket.contentType ?? null,
+                  userId: ticket.userId ?? null,
+                  userName: ticket.userName ?? null,
+                  userEmail: ticket.userEmail ?? null,
+                  userCellphone: ticket.userCellphone ?? null,
+                  organizationId: ticket.organizationId ?? null,
+                  assigneeId: ticket.assigneeId ?? null,
+                  assigneeName: ticket.assigneeName ?? null,
+                  assigneeAvatar: ticket.assigneeAvatar ?? null,
+                  userGroupId: ticket.userGroupId ?? null,
+                  userGroupName: ticket.userGroupName ?? null,
+                  templateId: ticket.templateId ?? null,
+                  priority: ticket.priority ?? null,
+                  status: ticket.status ?? null,
+                  statusEn: ticket.statusEn ?? null,
+                  platform: ticket.platform ?? null,
+                  satisfaction: ticket.satisfaction ?? null,
+                  customFields: this.asJson(ticket.customFields),
+                  tags: ticket.tags ?? null,
+                  creatorId: ticket.creatorId ?? null,
+                  imSubSessionId: ticket.imSubSessionId ?? null,
+                  conversationId: ticket.conversationId ?? null,
+                  createdAt: this.asDateOrNull(ticket.createdAt),
+                  updatedAt: this.asDateOrNull(ticket.updatedAt),
+                  solvingAt: this.asDateOrNull(ticket.solvingAt),
+                  resolvedAt: this.asDateOrNull(ticket.resolvedAt),
+                  closedAt: this.asDateOrNull(ticket.closedAt),
+                  solvedDeadline: this.asDateOrNull(ticket.solvedDeadline),
+                  repliedAt: this.asDateOrNull(ticket.repliedAt),
+                  agentRepliedAt: this.asDateOrNull(ticket.agentRepliedAt),
+                  customerRepliedAt: this.asDateOrNull(ticket.customerRepliedAt),
+                  firstRepliedAt: this.asDateOrNull(ticket.firstRepliedAt),
+                  repliedBy: ticket.repliedBy ?? null,
+                  rawPayload: this.asJson(ticket.rawPayload),
+                },
+              });
+              ticketSynced += 1;
+            } catch (e) {
+              // ignore individual ticket errors
+            }
+          }
+          ticketCursor = ticketResp.nextCursor;
+          ticketHasMore = ticketResp.hasMore && Boolean(ticketCursor);
+        }
+        this.progress.ticketSynced = ticketSynced;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`ticket sync failed: ${msg}`);
+      }
+
       // 从本地消息计算会话指标（不调用第三方接口）
       this.progress.note = '计算会话指标';
       metricsSynced = await this.calculateSessionMetricsFromLocal();
@@ -726,8 +939,8 @@ export class SyncService {
 
       await this.finishRun(run.id, {
         status: 'SUCCESS',
-        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
-        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},issues=${issueCount}`,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
+        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},organizations=${organizationSynced},tickets=${ticketSynced},issues=${issueCount}`,
       });
 
       this.progress.isRunning = false;
@@ -743,7 +956,7 @@ export class SyncService {
       this.logger.error(`sync udesc failed: ${message}`);
       await this.finishRun(run.id, {
         status: 'FAILED',
-        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
         message,
       });
 
@@ -986,7 +1199,7 @@ export class SyncService {
   }
 
   async syncAll() {
-    const enableZouwu = (process.env.SYNC_ENABLE_ZOUWU ?? 'false').toLowerCase() === 'true';
+    const enableZouwu = (process.env.SYNC_ENABLE_ZOUWU ?? 'true').toLowerCase() === 'true';
     const udesc = await this.syncUdesc();
     const zouwu = enableZouwu ? await this.syncZouwu() : null;
     return { udesc, zouwu };
@@ -1244,5 +1457,94 @@ export class SyncService {
       rewindCursor: adjustedCursor.toISOString(),
       progress: trigger.progress,
     };
+  }
+
+  /**
+   * 清空 Udesk 全部数据
+   */
+  async clearUdescData() {
+    this.logger.log('开始清空 Udesk 数据...');
+
+    // 按顺序删除，避免外键约束问题
+    const votes = await this.prisma.udescSessionVote.deleteMany({});
+    const metrics = await this.prisma.udescSessionMetrics.deleteMany({});
+    const messages = await this.prisma.udescSessionMessage.deleteMany({});
+    const opportunities = await this.prisma.businessOpportunity.deleteMany({});
+    const sessions = await this.prisma.udescSession.deleteMany({});
+    const customers = await this.prisma.udescCustomer.deleteMany({});
+    const agents = await this.prisma.udescAgent.deleteMany({});
+    const organizations = await this.prisma.udescOrganization.deleteMany({});
+    const tickets = await this.prisma.udescTicket.deleteMany({});
+    const checkpoints = await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
+
+    // 重置进度
+    this.progress.sessionSynced = 0;
+    this.progress.messageSynced = 0;
+    this.progress.voteSynced = 0;
+    this.progress.customerSynced = 0;
+    this.progress.agentSynced = 0;
+
+    this.logger.log('Udesk 数据清空完成');
+
+    return {
+      votes: votes.count,
+      messages: messages.count,
+      sessions: sessions.count,
+      customers: customers.count,
+      agents: agents.count,
+      organizations: organizations.count,
+      tickets: tickets.count,
+      checkpoints: checkpoints.count,
+    };
+  }
+
+  /**
+   * 智能修复数据 - 检测并删除各类错误数据
+   * 同步时会自动补齐缺失数据
+   */
+  async smartFix() {
+    this.logger.log('开始智能修复数据...');
+    
+    let fixedVotes = 0;
+    let fixedMessages = 0;
+    let fixedSessions = 0;
+    let fixedVoteTimes = 0;
+
+    // 1. 修复评价数据：删除 id = sessionId 的错误记录
+    const wrongVotes = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "UdescSessionVote" WHERE id = "sessionId"
+    `;
+    fixedVotes = wrongVotes.length;
+    if (fixedVotes > 0) {
+      await this.prisma.$executeRaw`
+        DELETE FROM "UdescSessionVote" WHERE id = "sessionId"
+      `;
+      this.logger.log(`已删除 ${fixedVotes} 条错误评价记录`);
+    }
+
+    // 2. 修复评价时间：从消息表中获取真实评价时间
+    // votedAt 应该等于消息表中的 sentAt（客户的评价消息）
+    fixedVoteTimes = await this.prisma.$executeRaw`
+      UPDATE "UdescSessionVote" v
+      SET "votedAt" = m."sentAt", "syncedAt" = NOW()
+      FROM "UdescSessionMessage" m
+      WHERE m."sessionId" = v."sessionId"
+        AND m."rawPayload"::text LIKE '%survey%' 
+        AND m."rawPayload"::text LIKE '%客户评价%'
+        AND (v."votedAt" IS NULL OR v."votedAt" != m."sentAt")
+    `;
+    if (fixedVoteTimes > 0) {
+      this.logger.log(`已修复 ${fixedVoteTimes} 条评价时间`);
+    }
+
+    // 3. 后续可扩展：检测其他类型的问题数据
+    // 例如：孤立消息、孤立评价、重复记录等
+
+    // 清除同步检查点，下次同步会重新拉取修复的数据
+    await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
+
+    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}, 评价时间=${fixedVoteTimes}`);
+
+    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, voteTimes: fixedVoteTimes, total: fixedVotes + fixedMessages + fixedSessions + fixedVoteTimes };
   }
 }

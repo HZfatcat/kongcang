@@ -7,6 +7,401 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model UdescSession {
+  id                String                @id
+  agentId           String?
+  startedAt         DateTime
+  endedAt           DateTime?
+  rating            Int?
+  isConsultToDemand Boolean               @default(false)
+  rawPayload        Json?
+  updatedAtSource   DateTime?
+  syncedAt          DateTime              @default(now())
+  opportunities     BusinessOpportunity[]
+  messages          UdescSessionMessage[]
+  metrics           UdescSessionMetrics?
+  votes             UdescSessionVote[]
+
+  @@index([startedAt])
+  @@index([updatedAtSource])
+  @@index([isConsultToDemand])
+}
+
+model BusinessOpportunity {
+  id              String                @id @default(cuid())
+  title           String
+  description     String?
+  sourceType      OpportunitySourceType @default(MANUAL)
+  sourceSessionId String?
+  agentId         String?
+  customerName    String?
+  contactInfo     String?
+  estimatedAmount Float?
+  status          OpportunityStatus     @default(NEW)
+  closeReason     String?
+  closedAt        DateTime?
+  nextAction      String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  username        String?
+  name            String?
+  phone           String?
+  email           String?
+  companyName     String?
+  requestType     String?
+  requestDetails  String?
+  feedbackChannel String?
+  feedbackPerson  String?
+  feedbackResult  String?
+  sourceSession   UdescSession?         @relation(fields: [sourceSessionId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([sourceType, createdAt])
+  @@index([agentId, createdAt])
+  @@index([sourceSessionId])
+}
+
+model UdescSessionMessage {
+  id         String       @id
+  sessionId  String
+  sentAt     DateTime
+  senderType String?
+  senderId   String?
+  content    String?
+  rawPayload Json?
+  syncedAt   DateTime     @default(now())
+  session    UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, sentAt])
+  @@index([senderType])
+}
+
+model ZouwuRequirement {
+  id                String            @id
+  title             String
+  sourceSessionId   String?
+  status            RequirementStatus
+  createdAtSource   DateTime
+  completedAtSource DateTime?
+  updatedAtSource   DateTime?
+  rawPayload        Json?
+  syncedAt          DateTime          @default(now())
+  issueType         Int?
+  createdById       String?
+  createdByName     String?
+  isLongTerm        Boolean           @default(false)
+
+  @@index([createdAtSource])
+  @@index([completedAtSource])
+  @@index([status])
+  @@index([sourceSessionId])
+  @@index([issueType])
+  @@index([createdById])
+  @@index([isLongTerm])
+}
+
+model SyncCheckpoint {
+  source       String    @id
+  cursor       String?
+  lastSyncedAt DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+model SyncRun {
+  id            String    @id @default(cuid())
+  source        String
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  status        String
+  message       String?
+  recordsSynced Int       @default(0)
+
+  @@index([source, startedAt])
+}
+
+model SyncIssue {
+  id           String    @id @default(cuid())
+  runId        String
+  source       String
+  category     String
+  externalId   String?
+  payload      Json?
+  errorMessage String
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  @@index([runId, source])
+  @@index([source, createdAt])
+  @@index([source, category, externalId])
+}
+
+model SyncConfig {
+  source        String   @id
+  enabled       Boolean  @default(true)
+  intervalHours Int      @default(1)
+  updatedAt     DateTime @updatedAt
+}
+
+model SysRole {
+  roleId     BigInt        @id @default(autoincrement())
+  roleName   String        @map("role_name")
+  roleDesc   String?       @map("role_desc")
+  status     Int           @default(1)
+  createTime DateTime      @default(now()) @map("create_time")
+  roleMenus  SysRoleMenu[]
+  userRoles  SysUserRole[]
+
+  @@map("sys_role")
+}
+
+model SysUserRole {
+  id     BigInt  @id @default(autoincrement())
+  userId String  @map("user_id")
+  roleId BigInt  @map("role_id")
+  role   SysRole @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("sys_user_role")
+}
+
+model SysRoleMenu {
+  id         BigInt  @id @default(autoincrement())
+  roleId     BigInt  @map("role_id")
+  menuId     BigInt  @map("menu_id")
+  buttonAuth String? @map("button_auth")
+  menu       SysMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  role       SysRole @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+
+  @@unique([roleId, menuId])
+  @@map("sys_role_menu")
+}
+
+model SysMenu {
+  id         BigInt        @id @default(autoincrement())
+  parentId   BigInt        @default(0) @map("parent_id")
+  menuName   String        @map("menu_name")
+  menuType   Int           @default(1) @map("menu_type")
+  path       String?
+  component  String?
+  icon       String?
+  sortOrder  Int           @default(0) @map("sort_order")
+  status     Int           @default(1)
+  createTime DateTime      @default(now()) @map("create_time")
+  roleMenus  SysRoleMenu[]
+
+  @@map("sys_menu")
+}
+
+model SysUserDataScope {
+  id        BigInt @id @default(autoincrement())
+  userId    String @unique @map("user_id")
+  dataScope Int    @default(1) @map("data_scope")
+
+  @@map("sys_user_data_scope")
+}
+
+model SysPermissionLog {
+  logId       BigInt   @id @default(autoincrement())
+  operator    String   @map("operator")
+  operateTime DateTime @default(now()) @map("operate_time")
+  operateIp   String?  @map("operate_ip")
+  targetUser  String?  @map("target_user")
+  beforeAuth  String?  @map("before_auth")
+  afterAuth   String?  @map("after_auth")
+  operateType String   @map("operate_type")
+
+  @@index([operateTime])
+  @@index([operator])
+  @@index([targetUser])
+  @@map("sys_permission_log")
+}
+
+model AgentProfile {
+  agentId     String   @id
+  displayName String
+  team        String?
+  role        String?
+  enabled     Boolean  @default(true)
+  remark      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WecomEmployee {
+  userId            String   @id
+  name              String?
+  department        String?
+  position          String?
+  mobile            String?
+  email             String?
+  avatar            String?
+  enabled           Boolean  @default(true)
+  isCustomerService Boolean  @default(false)
+  remark            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([isCustomerService])
+}
+
+model SystemLog {
+  id            String   @id @default(cuid())
+  timestamp     DateTime @default(now())
+  level         String
+  module        String?
+  source        String?
+  action        String?
+  message       String
+  context       Json?
+  userId        String?
+  correlationId String?
+  duration      Int?
+
+  @@index([timestamp])
+  @@index([level])
+  @@index([module])
+  @@index([source])
+  @@index([userId])
+}
+
+model UdescSessionVote {
+  id         String       @id @default(cuid())
+  sessionId  String
+  rating     Int?
+  tags       String[]
+  comment    String?
+  voterId    String?
+  voterName  String?
+  votedAt    DateTime?
+  rawPayload Json?
+  syncedAt   DateTime     @default(now())
+  session    UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([votedAt])
+}
+
+model UdescCustomer {
+  id              String    @id
+  name            String?
+  phone           String?
+  email           String?
+  wechat          String?
+  enterprise      String?
+  tags            String[]
+  customFields    Json?
+  rawPayload      Json?
+  updatedAtSource DateTime?
+  syncedAt        DateTime  @default(now())
+
+  @@index([phone])
+  @@index([email])
+  @@index([enterprise])
+}
+
+model UdescAgent {
+  id         String   @id
+  name       String?
+  email      String?
+  phone      String?
+  roleId     String?
+  roleName   String?
+  enabled    Boolean  @default(true)
+  groups     String[]
+  skills     String[]
+  rawPayload Json?
+  syncedAt   DateTime @default(now())
+
+  @@index([enabled])
+}
+
+model UdescSessionMetrics {
+  id                   String       @id @default(cuid())
+  sessionId            String       @unique
+  firstResponseTime    Int?
+  avgResponseTime      Float?
+  waitTime             Int?
+  resolutionTime       Int?
+  messageCount         Int          @default(0)
+  agentMessageCount    Int          @default(0)
+  customerMessageCount Int          @default(0)
+  syncedAt             DateTime     @default(now())
+  session              UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([firstResponseTime])
+  @@index([avgResponseTime])
+  @@index([waitTime])
+  @@index([resolutionTime])
+}
+
+model UdescOrganization {
+  id              String    @id
+  name            String?
+  domains         String?
+  level           String?
+  description     String?
+  token           String?
+  customFields    Json?
+  rawPayload      Json?
+  updatedAtSource DateTime?
+  syncedAt        DateTime  @default(now())
+
+  @@index([name])
+}
+
+model UdescTicket {
+  id                String    @id
+  fieldNum          String?
+  subject           String?
+  content           String?
+  source            String?
+  contentType       String?
+  userId            String?
+  userName          String?
+  userEmail         String?
+  userCellphone     String?
+  organizationId    String?
+  assigneeId        String?
+  assigneeName      String?
+  assigneeAvatar    String?
+  userGroupId       String?
+  userGroupName     String?
+  templateId        String?
+  priority          String?
+  status            String?
+  statusEn          String?
+  platform          String?
+  satisfaction      String?
+  customFields      Json?
+  tags              String?
+  creatorId         String?
+  imSubSessionId    String?
+  conversationId    String?
+  createdAt         DateTime?
+  updatedAt         DateTime?
+  solvingAt         DateTime?
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+  solvedDeadline    DateTime?
+  repliedAt         DateTime?
+  agentRepliedAt    DateTime?
+  customerRepliedAt DateTime?
+  firstRepliedAt    DateTime?
+  repliedBy         String?
+  rawPayload        Json?
+  syncedAt          DateTime  @default(now())
+
+  @@index([userId])
+  @@index([assigneeId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([imSubSessionId])
+}
+
 enum RequirementStatus {
   OPEN
   IN_PROGRESS
