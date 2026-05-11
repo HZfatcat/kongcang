@@ -1,9 +1,10 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
 import { Link } from 'react-router-dom';
-import { useKpi } from '../api/kpi';
-import type { MonthlyCompletion } from '../types/kpi';
+import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
+import type { MonthlyCompletion, ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
@@ -37,6 +38,19 @@ interface RecentItem {
 
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
+  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
+
+  // 加载产品模块分布数据
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then((data) => {
+      if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
 
   // 按月汇总数据 - 使用与需求详情页相同的结单率计算方法
   const monthlySummary: MonthlySummaryRow[] = React.useMemo(() => {
@@ -407,6 +421,12 @@ export function DemandSummaryPage() {
           </Card>
         </Col>
       </Row>
+
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="需求产品模块分布"
+      />
 
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月汇总</span>} 

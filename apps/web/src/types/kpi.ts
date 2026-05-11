@@ -88,3 +88,18 @@ export interface SyncRunRecord {
   message?: string;
   recordsSynced: number;
 }
+
+export interface ModuleDistributionItem {
+  module: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ProductModuleDistribution {
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  total: number;
+  distribution: ModuleDistributionItem[];
+}

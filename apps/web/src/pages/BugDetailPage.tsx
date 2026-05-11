@@ -1,7 +1,9 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
-import { useKpi } from '../api/kpi';
+import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
+import type { ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
@@ -30,7 +32,21 @@ interface MonthlyRow {
 
 export function BugDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
+  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
   const [pageSize, setPageSize] = React.useState(20);
+
+  // 加载产品模块分布数据（Bug = issueType=1）
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+      issueType: '1',
+    }).then((data) => {
+      if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
 
   const bugList: BugRow[] = React.useMemo(() => {
     return (demandOverview?.recentRequirements ?? []).filter(r => r.issueType === 1);
@@ -259,6 +275,12 @@ export function BugDetailPage() {
           </Card>
         </Col>
       </Row>
+
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="Bug 产品模块分布"
+      />
 
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月 Bug 结单率</span>}

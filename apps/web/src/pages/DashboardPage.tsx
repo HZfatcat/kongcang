@@ -34,7 +34,8 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { fetchConsultationFunnel, fetchDemandOverview } from '../api/kpi';
+import { ProductModuleChart } from '../components/ProductModuleChart';
+import { fetchConsultationFunnel, fetchDemandOverview, fetchProductModuleDistribution } from '../api/kpi';
 import {
   deleteOpportunity,
   fetchOpportunityList,
@@ -82,7 +83,7 @@ import type {
   UdescTreeNode,
   ZouwuFeedbackStatistics,
 } from '../types/udesc';
-import type { ConsultationFunnelOverview, DemandOverview } from '../types/kpi';
+import type { ConsultationFunnelOverview, DemandOverview, ProductModuleDistribution } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
 
@@ -119,6 +120,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [syncLoading, setSyncLoading] = useState(false);
   const [overview, setOverview] = useState<UdescOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
+  const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
   const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
   const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
@@ -250,6 +252,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         }),
         fetchSyncSummary().then((data) => {
           setSyncSummary(data);
+          return data;
+        }),
+        fetchProductModuleDistribution({
+          startDate: apiRange.startDateLocal,
+          endDate: apiRange.endDateLocal,
+        }).then((data) => {
+          setProductModuleData(data);
           return data;
         }),
       ]);
@@ -1127,6 +1136,11 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           </div>
         </Col>
       </Row>
+      <ProductModuleChart
+        data={productModuleData}
+        loading={loading}
+        title="需求产品模块分布"
+      />
       <Row gutter={16} style={{ marginTop: 16 }}>
         <Col span={16}>
           <Card title="需求识别与完成趋势">
@@ -1218,6 +1232,11 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           </div>
         </Col>
       </Row>
+      <ProductModuleChart
+        data={productModuleData}
+        loading={loading}
+        title="Bug 产品模块分布"
+      />
       <Card title="Bug 明细" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
