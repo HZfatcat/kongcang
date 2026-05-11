@@ -1955,8 +1955,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             }}
             disabled={!zouwuConfig?.enabled}
           />
-        </Space>
-      </Card>
+          </Space>
+        </Card>
 
         <Card title="驺吾历史同步记录" style={{ marginTop: 16 }}>
         <Table
