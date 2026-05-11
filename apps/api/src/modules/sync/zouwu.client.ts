@@ -369,7 +369,7 @@ export class ZouwuClient implements OnModuleInit {
         startCreatedTime: params.startCreatedTime,
         endCreatedTime: params.endCreatedTime,
         issueType: issueType ?? undefined,
-        status: '1,2,3',
+        status: '1',
         labels: String(labelId),
         tokenOverride: params.tokenOverride,
       });

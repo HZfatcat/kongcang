@@ -653,23 +653,20 @@ export function SessionDetailPage() {
                   const rawSender = raw?.sender as string | undefined;
                   const rawStatus = raw?.status as string | undefined;
                   const rawFrom = raw?.from as string | undefined;
-
-                  // 优先判断系统消息（senderType 为 "系统"）
-                  const isSystem = msg.senderType === '系统';
-
-                  const isAgent =
-                    msg.senderType === 'AGENT' ||
+                  
+                  const isAgent = 
+                    msg.senderType === 'AGENT' || 
                     msg.senderType === 'agent' ||
                     rawSender === 'AGENT' ||
                     rawSender === 'agent' ||
                     rawFrom === 'AGENT' ||
-                    rawStatus === 'arrive' || // 客服消息有 send_status: arrive
+                    rawStatus === 'arrive' ||  // 客服消息有 send_status: arrive
                     msg.senderId === record.agentId;
-
+                  
                   return (
                     <div key={msg.id} style={{ marginBottom: 8 }}>
-                      <Tag color={isSystem ? 'orange' : isAgent ? 'blue' : 'green'}>
-                        {isSystem ? '系统' : isAgent ? '客服' : '客户'}
+                      <Tag color={isAgent ? 'blue' : 'green'}>
+                        {isAgent ? '客服' : '客户'}
                       </Tag>
                       <Typography.Text type="secondary" style={{ marginLeft: 8 }}>
                         {dayjs(msg.sentAt).format('MM-DD HH:mm:ss')}

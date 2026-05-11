@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button, Row, Col, Statistic, Tag, Progress, Modal, Descriptions, Tooltip } from 'antd';
+import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button, Row, Col, Statistic, Tag, Progress, Modal, Descriptions } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
@@ -368,17 +368,35 @@ export function TicketsPage() {
       {/* 汇总指标 */}
       <Spin spinning={summaryLoading}>
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
               <Statistic title="总工单数" value={summary?.total ?? 0} />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
-              <Statistic title="已解决" value={(summary?.byStatus['已解决'] ?? 0) + (summary?.byStatus['已关闭'] ?? 0)} suffix={<Tooltip placement="bottom" title="含已解决+已关闭"><Tag color="default" style={{ marginLeft: 4, fontSize: 10, cursor: 'pointer', height: 'auto', padding: '0 4px', lineHeight: '16px' }}>?</Tag></Tooltip>} />
+              <Statistic
+                title="平均解决时间"
+                value={summary?.avgResolutionHours?.toFixed(1) ?? '-'}
+                suffix="小时"
+              />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
+            <Card size="small">
+              <Statistic
+                title="平均首次响应"
+                value={summary?.avgFirstReplyHours?.toFixed(1) ?? '-'}
+                suffix="小时"
+              />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small">
+              <Statistic title="已解决" value={(summary?.byStatus['已解决'] ?? 0) + (summary?.byStatus['已关闭'] ?? 0)} />
+            </Card>
+          </Col>
+          <Col span={4}>
             <Card size="small">
               <Statistic
                 title="解决率"
@@ -395,7 +413,7 @@ export function TicketsPage() {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
               <div style={{ marginBottom: 4, fontWeight: 500 }}>状态分布</div>
               <Space direction="vertical" size={2} style={{ width: '100%' }}>

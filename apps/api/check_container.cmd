@@ -1,1 +1,0 @@
-docker exec kefu-api sh -c "ls -la /app/apps/api/dist/modules/udesc/"

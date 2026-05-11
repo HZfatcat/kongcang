@@ -90,14 +90,6 @@ import { clearSession, getLoginUser } from '../auth/session';
 
 const { RangePicker } = DatePicker;
 
-const statusTextMap: Record<string, string> = {
-  'OPEN': '待评估',
-  'IN_PROGRESS': '已采纳',
-  'DONE': '已完成',
-  'CLOSED': '已闭环',
-  'REJECTED': '已拒绝',
-};
-
 function normalizeMessageContent(raw?: string) {
   if (!raw) {
     return '-';
@@ -821,9 +813,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               size="small"
               style={{ marginTop: 8 }}
               pagination={{ pageSize: 10 }}
-              dataSource={[...(consultationFunnel?.periods ?? [])].sort(
-                (a, b) => new Date(b.periodStart).getTime() - new Date(a.periodStart).getTime()
-              )}
+              dataSource={consultationFunnel?.periods ?? []}
               columns={[
                 { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel' },
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
@@ -910,21 +900,15 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 expandedRowRender: (record) => (
                   <div>
                     {record.messages.length === 0 && <Typography.Text type="secondary">无本地消息明细</Typography.Text>}
-                    {record.messages.map((msg) => {
-                      const isSystem = msg.senderType === '系统';
-                      const isAgent = msg.senderType === 'AGENT' || msg.senderType === 'agent';
-                      return (
+                    {record.messages.map((msg) => (
                       <div key={msg.id} style={{ marginBottom: 8 }}>
-                        <Tag color={isSystem ? 'orange' : isAgent ? 'blue' : 'green'}>
-                          {isSystem ? '系统' : isAgent ? '客服' : '客户'}
-                        </Tag>
+                        <Tag color="blue">{msg.senderType ?? 'unknown'}</Tag>
                         <Typography.Text type="secondary">
                           {dayjs(msg.sentAt).format('YYYY-MM-DD HH:mm:ss')}
                         </Typography.Text>
                         <div>{normalizeMessageContent(msg.content)}</div>
                       </div>
-                      );
-                    })}
+                    ))}
                   </div>
                 ),
               }}
@@ -993,24 +977,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         </a>
       ),
     },
-    {
-      title: '状态',
-      dataIndex: 'status',
+    { 
+      title: '状态', 
+      dataIndex: 'status', 
       key: 'status',
-      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({ text: statusTextMap[s] || s, value: s })),
+      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({ text: s, value: s })),
       onFilter: (value: unknown, record: { status: string }) => record.status === value,
       sorter: (a: { status: string }, b: { status: string }) => a.status.localeCompare(b.status),
-      render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          'DONE': 'green',
-          'CLOSED': 'green',
-          'IN_PROGRESS': 'blue',
-          'TODO': 'default',
-          'REJECTED': 'red',
-        };
-        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
-      },
-      width: 110,
     },
     {
       title: '来源会话',
@@ -1068,20 +1041,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       title: '状态', 
       dataIndex: 'status', 
       key: 'status',
-      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: statusTextMap[s] || s, value: s })),
+      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: s, value: s })),
       onFilter: (value: unknown, record: { status: string }) => record.status === value,
       sorter: (a: { status: string }, b: { status: string }) => a.status.localeCompare(b.status),
-      render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          'DONE': 'green',
-          'CLOSED': 'green',
-          'IN_PROGRESS': 'blue',
-          'TODO': 'default',
-          'REJECTED': 'red',
-        };
-        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
-      },
-      width: 110,
     },
     {
       title: '来源会话',
@@ -1184,7 +1146,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 })
                 .map(([status, count]) => (
                   <Row key={status} justify="space-between">
-                    <Typography.Text>{statusTextMap[status] || status}</Typography.Text>
+                    <Typography.Text>{status}</Typography.Text>
                     <Typography.Text strong>{count}</Typography.Text>
                   </Row>
                 ))}
@@ -1996,54 +1958,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         </Space>
       </Card>
 
-      <Card title="驺吾新增统计（按创建时间）" loading={zouwuStatsLoading}>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
-          </Col>
-          <Col span={12}>
-            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
-          </Col>
-        </Row>
-        <Space direction="vertical" style={{ marginTop: 12 }}>
-          <Typography.Text type="secondary">
-            统计窗口：{zouwuStats?.startCreatedTime ?? '-'} ~ {zouwuStats?.endCreatedTime ?? '-'}
-          </Typography.Text>
-        </Space>
-      </Card>
-
-      <Card title="驺吾关单率" style={{ marginTop: 16 }} loading={zouwuStatsLoading}>
-        <Table
-          rowKey="scope"
-          pagination={false}
-          dataSource={zouwuStats?.closeRates ?? []}
-          columns={[
-            {
-              title: '口径',
-              dataIndex: 'scope',
-              key: 'scope',
-              render: (value: 'requirement' | 'bug' | 'all') =>
-                value === 'requirement' ? '功能需求' : value === 'bug' ? 'BUG反馈' : '总量',
-            },
-            { title: '总数', dataIndex: 'total', key: 'total' },
-            {
-              title: '长期演进',
-              dataIndex: 'excludedByLongTermAccepted',
-              key: 'excludedByLongTermAccepted',
-            },
-            { title: '已拒绝+已闭环', dataIndex: 'closedOrRejected', key: 'closedOrRejected' },
-            { title: '分母', dataIndex: 'denominator', key: 'denominator' },
-            {
-              title: '关单率',
-              dataIndex: 'closeRate',
-              key: 'closeRate',
-              render: (value: number | null) => (value === null ? 'N/A' : `${(value * 100).toFixed(2)}%`),
-            },
-          ]}
-        />
-      </Card>
-
-      <Card title="驺吾历史同步记录" style={{ marginTop: 16 }}>
+        <Card title="驺吾历史同步记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
           dataSource={syncRuns.filter((item) => item.source === 'zouwu')}
