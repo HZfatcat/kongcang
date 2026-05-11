@@ -181,11 +181,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
-    const end = dayjs();
-    const start = end.subtract(30, 'day');
-    return [start.startOf('day'), end.endOf('day')];
-  });
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs('2026-04-11').startOf('day'),
+    dayjs('2026-05-11').endOf('day'),
+  ]);
   const quickRangePresets = useMemo(
     () => [
       { label: '今天', value: () => createPresetRange(dayjs(), dayjs()) },
