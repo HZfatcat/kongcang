@@ -6,6 +6,14 @@ import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 
+const statusTextMap: Record<string, string> = {
+  'IN_PROGRESS': '待评估',
+  'CLOSED': '已采纳',
+  'OPEN': '待评估',
+  'DONE': '已完成',
+  'REJECTED': '已拒绝',
+};
+
 interface BugRow {
   id: string;
   title: string;
@@ -58,21 +66,21 @@ export function BugDetailPage() {
       ),
     },
     { 
-      title: '状态', 
-      dataIndex: 'status', 
+      title: '状态',
+      dataIndex: 'status',
       key: 'status',
       sorter: (a: BugRow, b: BugRow) => a.status.localeCompare(b.status),
-      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: s, value: s })),
+      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: statusTextMap[s] || s, value: s })),
       onFilter: (value: unknown, record: BugRow) => record.status === value,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           'DONE': 'green',
-          'CLOSED': 'green',
-          'IN_PROGRESS': 'blue',
+          'CLOSED': 'blue',
+          'IN_PROGRESS': 'orange',
           'TODO': 'default',
           'REJECTED': 'red',
         };
-        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
       },
       width: 110,
     },
