@@ -57,11 +57,10 @@ export class UdescService {
           select: { agentId: true },
         })
         .then((rows) => rows.length),
-      // 从 UdescSessionVote 表统计有评价的会话数
+      // 从 UdescSessionVote 表统计有评价的会话数（包含满意度评价和解决率评价）
       this.prisma.udescSessionVote.findMany({
         where: {
           sessionId: { in: sessionIds },
-          rating: { not: null },
         },
         select: { sessionId: true },
       }).then((votes) => new Set(votes.map((v) => v.sessionId)).size),
@@ -1591,11 +1590,12 @@ export class UdescService {
       ORDER BY date
     `;
 
-    // 按天统计解决数
+    // 按天统计解决数（含已解决+已关闭）
     const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
       SELECT DATE("resolvedAt") as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+        AND "status" IN ('已解决', '已关闭')
       GROUP BY DATE("resolvedAt")
       ORDER BY date
     `;
@@ -1715,4 +1715,3 @@ export class UdescService {
     };
   }
 }
-
