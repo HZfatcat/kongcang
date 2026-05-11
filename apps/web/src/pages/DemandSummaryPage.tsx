@@ -1,9 +1,10 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
 import { Link } from 'react-router-dom';
-import { useKpi } from '../api/kpi';
-import type { MonthlyCompletion } from '../types/kpi';
+import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
+import type { MonthlyCompletion, ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
 import { fetchZouwuFeedbackStats } from '../api/udesc';
@@ -40,8 +41,19 @@ interface RecentItem {
 
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
-  const [zouwuStats, setZouwuStats] = useState<ZouwuFeedbackStatistics | null>(null);
-  const [zouwuStatsLoading, setZouwuStatsLoading] = useState(false);
+  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
+
+  // 加载产品模块分布数据
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then((data) => {
+      if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
 
   useEffect(() => {
     const start = dateRange[0].format('YYYY-MM-DD 00:00:00');
@@ -483,6 +495,12 @@ export function DemandSummaryPage() {
           loading={demandLoading}
         />
       </Card>
+
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

@@ -684,4 +684,49 @@ export class KpiService {
       periods,
     };
   }
+
+  async getProductModuleDistribution(
+    startDate?: string,
+    endDate?: string,
+    issueType?: '0' | '1',
+  ) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    // 从 rawPayload JSONB 中提取模块信息，尝试多个常见字段名
+    const rows = await this.prisma.$queryRaw<
+      Array<{ module: string; count: bigint }>
+    >`
+      SELECT
+        COALESCE(
+          NULLIF(r."rawPayload"->>'moduleName', ''),
+          NULLIF(r."rawPayload"->>'module', ''),
+          NULLIF(r."rawPayload"->>'productModule', ''),
+          NULLIF(r."rawPayload"->>'categoryName', ''),
+          NULLIF(r."rawPayload"->>'category', ''),
+          NULLIF(r."rawPayload"->>'productLine', ''),
+          NULLIF(r."rawPayload"->>'belongModule', ''),
+          NULLIF(r."rawPayload"->>'businessLine', ''),
+          '未分类'
+        ) AS module,
+        COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start}
+        AND r."createdAtSource" <= ${end}
+        ${issueType ? (issueType === '1' ? Prisma.sql`AND r."issueType" = 1` : Prisma.sql`AND (r."issueType" IS NULL OR r."issueType" != 1)`) : Prisma.sql``}
+      GROUP BY module
+      ORDER BY count DESC
+    `;
+
+    const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      total,
+      distribution: rows.map((row) => ({
+        module: row.module,
+        count: Number(row.count),
+        percentage: total > 0 ? Number(row.count) / total : 0,
+      })),
+    };
+  }
 }

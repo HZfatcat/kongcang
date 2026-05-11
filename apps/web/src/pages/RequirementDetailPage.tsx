@@ -1,7 +1,9 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
-import { useKpi } from '../api/kpi';
+import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
+import type { ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
@@ -39,6 +41,20 @@ const statusTextMap: Record<string, string> = {
 export function RequirementDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
   const [pageSize, setPageSize] = React.useState(20);
+  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
+
+  // 加载产品模块分布数据
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+      issueType: '0',
+    }).then((data) => {
+      if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
 
   const requirementList: RequirementRow[] = React.useMemo(() => {
     return (demandOverview?.recentRequirements ?? []).filter(r => r.issueType !== 1);
@@ -315,6 +331,11 @@ export function RequirementDetailPage() {
           loading={demandLoading}
         />
       </Card>
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

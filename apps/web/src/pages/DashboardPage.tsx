@@ -34,7 +34,8 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { fetchConsultationFunnel, fetchDemandOverview } from '../api/kpi';
+import { ProductModuleChart } from '../components/ProductModuleChart';
+import { fetchConsultationFunnel, fetchDemandOverview, fetchProductModuleDistribution } from '../api/kpi';
 import {
   deleteOpportunity,
   fetchOpportunityList,
@@ -84,7 +85,7 @@ import type {
   UdescTreeNode,
   ZouwuFeedbackStatistics,
 } from '../types/udesc';
-import type { ConsultationFunnelOverview, DemandOverview } from '../types/kpi';
+import type { ConsultationFunnelOverview, DemandOverview, ProductModuleDistribution } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
 
@@ -121,6 +122,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [syncLoading, setSyncLoading] = useState(false);
   const [overview, setOverview] = useState<UdescOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
+  const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
   const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
   const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
@@ -252,6 +254,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         }),
         fetchSyncSummary().then((data) => {
           setSyncSummary(data);
+          return data;
+        }),
+        fetchProductModuleDistribution({
+          startDate: apiRange.startDateLocal,
+          endDate: apiRange.endDateLocal,
+        }).then((data) => {
+          setProductModuleData(data);
           return data;
         }),
       ]);
@@ -1336,6 +1345,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
   // 需求主Tab（包含需求和Bug两个子Tab）
   const demandTab = (
+    <>
     <Tabs defaultActiveKey="requirement" items={[
       { key: 'requirement', label: '需求', children: requirementTabContent },
       { key: 'bug', label: 'Bug', children: bugTabContent },
@@ -1355,6 +1365,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         )
       },
     ]} />
+      <ProductModuleChart
+        data={productModuleData}
+        loading={loading}
+        title="产品模块分布"
+      />
+    </>
   );
 
   const opportunityTab = (
