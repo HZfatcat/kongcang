@@ -34,32 +34,57 @@ export class KpiService {
       },
       select: {
         rating: true,
-        isConsultToDemand: true,
       },
     });
 
     const rated = sessions.filter((session) => session.rating !== null);
     const positive = rated.filter((session) => (session.rating ?? 0) >= 4).length;
-    const consultToDemandCount = sessions.filter((session) => session.isConsultToDemand).length;
 
-    const completedDemandCount = await this.prisma.zouwuRequirement.count({
-      where: {
-        sourceSessionId: {
-          not: null,
+    // 使用与 getDemandOverview 相同的逻辑查询需求数据
+    const baseWhere = {
+      createdAtSource: { gte: start, lte: end },
+    };
+
+    const [consultToDemandCount, completedDemandCount, rejectedDemandCount] = await Promise.all([
+      // 转需求会话数（所有非 bug 需求总数）
+      this.prisma.zouwuRequirement.count({
+        where: {
+          ...baseWhere,
+          OR: [
+            { issueType: { not: 1 } },
+            { issueType: null },
+          ],
         },
-        status: {
-          in: [RequirementStatus.DONE, RequirementStatus.CLOSED, RequirementStatus.REJECTED],
+      }),
+      // 已完成需求数（CLOSED，排除 bug 和长期演进）
+      this.prisma.zouwuRequirement.count({
+        where: {
+          ...baseWhere,
+          isLongTerm: false,
+          OR: [
+            { issueType: { not: 1 } },
+            { issueType: null },
+          ],
+          status: RequirementStatus.CLOSED,
         },
-        completedAtSource: {
-          gte: start,
-          lte: end,
+      }),
+      // 已驳回需求数（REJECTED，排除 bug 和长期演进）
+      this.prisma.zouwuRequirement.count({
+        where: {
+          ...baseWhere,
+          isLongTerm: false,
+          OR: [
+            { issueType: { not: 1 } },
+            { issueType: null },
+          ],
+          status: RequirementStatus.REJECTED,
         },
-      },
-    });
+      }),
+    ]);
 
     const satisfactionRate = rated.length > 0 ? positive / rated.length : 0;
     const demandCompletionRate =
-      consultToDemandCount > 0 ? completedDemandCount / consultToDemandCount : 0;
+      consultToDemandCount > 0 ? (completedDemandCount + rejectedDemandCount) / consultToDemandCount : 0;
 
     return {
       dateRange: {

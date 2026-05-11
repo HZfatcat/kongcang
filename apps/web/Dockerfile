@@ -20,7 +20,7 @@ COPY apps/web/package.json ./apps/web/package.json
 RUN npm install
 
 COPY . .
-RUN npm run build --workspace apps/web
+RUN cd apps/web && /app/node_modules/.bin/vite build
 
 FROM nginx:1.27-alpine
 ENV TZ=Asia/Shanghai

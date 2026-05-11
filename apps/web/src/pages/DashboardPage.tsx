@@ -90,6 +90,14 @@ import { clearSession, getLoginUser } from '../auth/session';
 
 const { RangePicker } = DatePicker;
 
+const statusTextMap: Record<string, string> = {
+  'OPEN': '待评估',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已完成',
+  'CLOSED': '已闭环',
+  'REJECTED': '已拒绝',
+};
+
 function normalizeMessageContent(raw?: string) {
   if (!raw) {
     return '-';
@@ -813,7 +821,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               size="small"
               style={{ marginTop: 8 }}
               pagination={{ pageSize: 10 }}
-              dataSource={consultationFunnel?.periods ?? []}
+              dataSource={[...(consultationFunnel?.periods ?? [])].sort(
+                (a, b) => new Date(b.periodStart).getTime() - new Date(a.periodStart).getTime()
+              )}
               columns={[
                 { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel' },
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
@@ -977,13 +987,24 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         </a>
       ),
     },
-    { 
-      title: '状态', 
-      dataIndex: 'status', 
+    {
+      title: '状态',
+      dataIndex: 'status',
       key: 'status',
-      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({ text: s, value: s })),
+      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({ text: statusTextMap[s] || s, value: s })),
       onFilter: (value: unknown, record: { status: string }) => record.status === value,
       sorter: (a: { status: string }, b: { status: string }) => a.status.localeCompare(b.status),
+      render: (status: string) => {
+        const colorMap: Record<string, string> = {
+          'DONE': 'green',
+          'CLOSED': 'green',
+          'IN_PROGRESS': 'blue',
+          'TODO': 'default',
+          'REJECTED': 'red',
+        };
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
+      },
+      width: 110,
     },
     {
       title: '来源会话',
@@ -1041,9 +1062,20 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       title: '状态', 
       dataIndex: 'status', 
       key: 'status',
-      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: s, value: s })),
+      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: statusTextMap[s] || s, value: s })),
       onFilter: (value: unknown, record: { status: string }) => record.status === value,
       sorter: (a: { status: string }, b: { status: string }) => a.status.localeCompare(b.status),
+      render: (status: string) => {
+        const colorMap: Record<string, string> = {
+          'DONE': 'green',
+          'CLOSED': 'green',
+          'IN_PROGRESS': 'blue',
+          'TODO': 'default',
+          'REJECTED': 'red',
+        };
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
+      },
+      width: 110,
     },
     {
       title: '来源会话',
@@ -1146,7 +1178,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 })
                 .map(([status, count]) => (
                   <Row key={status} justify="space-between">
-                    <Typography.Text>{status}</Typography.Text>
+                    <Typography.Text>{statusTextMap[status] || status}</Typography.Text>
                     <Typography.Text strong>{count}</Typography.Text>
                   </Row>
                 ))}
@@ -1971,9 +2003,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           <Typography.Text type="secondary">
             统计窗口：{zouwuStats?.startCreatedTime ?? '-'} ~ {zouwuStats?.endCreatedTime ?? '-'}
           </Typography.Text>
-          <Typography.Text type="secondary">
-            标签：{zouwuStats?.longTermLabelName ?? '-'}
-          </Typography.Text>
         </Space>
       </Card>
 
@@ -1992,7 +2021,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             },
             { title: '总数', dataIndex: 'total', key: 'total' },
             {
-              title: '排除（已采纳且长期演进）',
+              title: '长期演进',
               dataIndex: 'excludedByLongTermAccepted',
               key: 'excludedByLongTermAccepted',
             },
