@@ -1199,7 +1199,7 @@ export class SyncService {
   }
 
   async syncAll() {
-    const enableZouwu = (process.env.SYNC_ENABLE_ZOUWU ?? 'false').toLowerCase() === 'true';
+    const enableZouwu = (process.env.SYNC_ENABLE_ZOUWU ?? 'true').toLowerCase() === 'true';
     const udesc = await this.syncUdesc();
     const zouwu = enableZouwu ? await this.syncZouwu() : null;
     return { udesc, zouwu };

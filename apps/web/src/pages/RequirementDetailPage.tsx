@@ -28,6 +28,14 @@ interface MonthlyRow {
   completionRate: number;
 }
 
+const statusTextMap: Record<string, string> = {
+  'OPEN': '待评估',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已完成',
+  'CLOSED': '已闭环',
+  'REJECTED': '已拒绝',
+};
+
 export function RequirementDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
   const [pageSize, setPageSize] = React.useState(20);
@@ -57,12 +65,15 @@ export function RequirementDetailPage() {
         </a>
       ),
     },
-    { 
-      title: '状态', 
-      dataIndex: 'status', 
+    {
+      title: '状态',
+      dataIndex: 'status',
       key: 'status',
       sorter: (a: RequirementRow, b: RequirementRow) => a.status.localeCompare(b.status),
-      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({ text: s, value: s })),
+      filters: [...new Set(requirementList.map(r => r.status))].map(s => ({
+        text: statusTextMap[s] || s,
+        value: s
+      })),
       onFilter: (value: unknown, record: RequirementRow) => record.status === value,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
@@ -72,7 +83,7 @@ export function RequirementDetailPage() {
           'TODO': 'default',
           'REJECTED': 'red',
         };
-        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
       },
       width: 110,
     },

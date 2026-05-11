@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.2.2",
     "@tanstack/react-query": "^5.99.0",
     "@types/react-resizable": "^3.0.8",
     "antd": "^5.24.0",
