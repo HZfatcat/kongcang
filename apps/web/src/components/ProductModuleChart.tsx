@@ -1,3 +1,4 @@
+import { Card } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { useMemo } from 'react';
 import type { ProductModuleDistribution } from '../types/kpi';
@@ -12,17 +13,8 @@ interface Props {
 export function ProductModuleChart({ data, loading, title = '产品模块分布', onModuleClick }: Props) {
   const topModules = useMemo(() => {
     if (!data) return [];
-    // 取前 10 个模块，其余归为「其他」
-    const items = data.distribution.slice(0, 10);
-    const other = data.distribution.slice(10);
-    if (other.length > 0) {
-      items.push({
-        module: '其他',
-        count: other.reduce((s, d) => s + d.count, 0),
-        percentage: other.reduce((s, d) => s + d.percentage, 0),
-      });
-    }
-    return items;
+    // 只展示有明确产品模块名称的数据，不归总「其他」
+    return data.distribution.slice(0, 15);
   }, [data]);
 
   const barOption = useMemo(
@@ -30,9 +22,11 @@ export function ProductModuleChart({ data, loading, title = '产品模块分布'
       tooltip: {
         trigger: 'axis' as const,
         axisPointer: { type: 'shadow' as const },
-        formatter: (params: Array<{ name: string; value: number; percent: number }>) => {
+        formatter: (params: Array<{ name: string; value: number }>) => {
           const p = params[0];
-          return `${p.name}<br/>数量: ${p.value}<br/>占比: ${p.percent}%`;
+          const total = topModules.reduce((sum, m) => sum + m.count, 0);
+          const percent = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+          return `${p.name}<br/>数量: ${p.value}<br/>占比: ${percent}%`;
         },
       },
       grid: { left: 120, right: 20, top: 40, bottom: 40 },
@@ -107,7 +101,7 @@ export function ProductModuleChart({ data, loading, title = '产品模块分布'
   const onEvents = useMemo(
     () => ({
       click: (params: { name: string }) => {
-        if (onModuleClick && params.name !== '其他') {
+        if (onModuleClick) {
           onModuleClick(params.name);
         }
       },
@@ -115,38 +109,43 @@ export function ProductModuleChart({ data, loading, title = '产品模块分布'
     [onModuleClick],
   );
 
+  const cardTitle = (
+    <span style={{ fontWeight: 600 }}>{title}</span>
+  );
+
   if (loading) {
     return (
-      <div className="rounded-lg bg-white p-4 shadow">
-        <h3 className="mb-3 text-base font-semibold">{title}</h3>
+      <Card
+        title={cardTitle}
+        style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+      >
         <div className="flex h-80 items-center justify-center text-gray-400">加载中...</div>
-      </div>
+      </Card>
     );
   }
 
   if (!data || data.distribution.length === 0) {
     return (
-      <div className="rounded-lg bg-white p-4 shadow">
-        <h3 className="mb-3 text-base font-semibold">{title}</h3>
+      <Card
+        title={cardTitle}
+        style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+      >
         <div className="flex h-80 items-center justify-center text-gray-400">
           所选时间范围内暂无数据
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-lg bg-white p-4 shadow">
-      <h3 className="mb-3 text-base font-semibold">
-        {title}
-        <span className="ml-2 text-sm font-normal text-gray-400">
-          共 {data.total} 条 | 模块 {data.distribution.length} 个
-        </span>
-      </h3>
+    <Card
+      title={cardTitle}
+      style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+    >
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ReactECharts option={barOption} style={{ height: Math.max(240, topModules.length * 36) }} onEvents={onEvents} />
         <ReactECharts option={pieOption} style={{ height: 320 }} onEvents={onEvents} />
       </div>
-    </div>
+    </Card>
   );
 }

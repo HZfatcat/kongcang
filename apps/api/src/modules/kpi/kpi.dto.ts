@@ -15,3 +15,9 @@ export class FunnelQueryDto extends DateRangeQueryDto {
   @IsIn(['day', 'week', 'month'])
   granularity?: 'day' | 'week' | 'month';
 }
+
+export class ProductModuleQueryDto extends DateRangeQueryDto {
+  @IsOptional()
+  @IsIn(['0', '1'])
+  issueType?: string; // 0=需求, 1=Bug
+}

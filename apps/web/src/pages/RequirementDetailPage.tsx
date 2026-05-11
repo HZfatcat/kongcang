@@ -41,6 +41,7 @@ export function RequirementDetailPage() {
     fetchProductModuleDistribution({
       startDate: dateRange[0].format('YYYY-MM-DD'),
       endDate: dateRange[1].format('YYYY-MM-DD'),
+      issueType: '0',
     }).then((data) => {
       if (!cancelled) setProductModuleData(data);
     });
@@ -285,12 +286,6 @@ export function RequirementDetailPage() {
         </Col>
       </Row>
 
-      <ProductModuleChart
-        data={productModuleData}
-        loading={demandLoading}
-        title="需求产品模块分布"
-      />
-
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月需求结单率</span>} 
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
@@ -325,6 +320,11 @@ export function RequirementDetailPage() {
           loading={demandLoading}
         />
       </Card>
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

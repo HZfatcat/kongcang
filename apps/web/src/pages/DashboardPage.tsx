@@ -1136,11 +1136,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           </div>
         </Col>
       </Row>
-      <ProductModuleChart
-        data={productModuleData}
-        loading={loading}
-        title="需求产品模块分布"
-      />
       <Row gutter={16} style={{ marginTop: 16 }}>
         <Col span={16}>
           <Card title="需求识别与完成趋势">
@@ -1232,11 +1227,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           </div>
         </Col>
       </Row>
-      <ProductModuleChart
-        data={productModuleData}
-        loading={loading}
-        title="Bug 产品模块分布"
-      />
       <Card title="Bug 明细" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
@@ -1353,6 +1343,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
   // 需求主Tab（包含需求和Bug两个子Tab）
   const demandTab = (
+    <>
     <Tabs defaultActiveKey="requirement" items={[
       { key: 'requirement', label: '需求', children: requirementTabContent },
       { key: 'bug', label: 'Bug', children: bugTabContent },
@@ -1372,6 +1363,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         )
       },
     ]} />
+      <ProductModuleChart
+        data={productModuleData}
+        loading={loading}
+        title="产品模块分布"
+      />
+    </>
   );
 
   const opportunityTab = (

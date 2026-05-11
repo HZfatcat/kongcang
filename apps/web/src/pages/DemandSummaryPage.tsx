@@ -422,12 +422,6 @@ export function DemandSummaryPage() {
         </Col>
       </Row>
 
-      <ProductModuleChart
-        data={productModuleData}
-        loading={demandLoading}
-        title="需求产品模块分布"
-      />
-
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月汇总</span>} 
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
@@ -472,6 +466,12 @@ export function DemandSummaryPage() {
           loading={demandLoading}
         />
       </Card>
+
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

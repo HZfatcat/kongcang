@@ -199,6 +199,7 @@ model SysRoleMenu {
   buttonAuth  String? @map("button_auth")  // 按钮权限标识，多个用逗号分隔
 
   role        SysRole @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+  menu        SysMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
   @@map("sys_role_menu")
   @@unique([roleId, menuId])
