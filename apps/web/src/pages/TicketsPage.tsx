@@ -368,35 +368,17 @@ export function TicketsPage() {
       {/* 汇总指标 */}
       <Spin spinning={summaryLoading}>
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={4}>
+          <Col span={6}>
             <Card size="small">
               <Statistic title="总工单数" value={summary?.total ?? 0} />
             </Card>
           </Col>
-          <Col span={4}>
-            <Card size="small">
-              <Statistic
-                title="平均解决时间"
-                value={summary?.avgResolutionHours?.toFixed(1) ?? '-'}
-                suffix="小时"
-              />
-            </Card>
-          </Col>
-          <Col span={4}>
-            <Card size="small">
-              <Statistic
-                title="平均首次响应"
-                value={summary?.avgFirstReplyHours?.toFixed(1) ?? '-'}
-                suffix="小时"
-              />
-            </Card>
-          </Col>
-          <Col span={4}>
+          <Col span={6}>
             <Card size="small">
               <Statistic title="已解决" value={(summary?.byStatus['已解决'] ?? 0) + (summary?.byStatus['已关闭'] ?? 0)} />
             </Card>
           </Col>
-          <Col span={4}>
+          <Col span={6}>
             <Card size="small">
               <Statistic
                 title="解决率"
@@ -413,7 +395,7 @@ export function TicketsPage() {
               />
             </Card>
           </Col>
-          <Col span={4}>
+          <Col span={6}>
             <Card size="small">
               <div style={{ marginBottom: 4, fontWeight: 500 }}>状态分布</div>
               <Space direction="vertical" size={2} style={{ width: '100%' }}>
