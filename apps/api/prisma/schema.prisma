@@ -618,6 +618,19 @@ model SysMenu {
   @@map("sys_menu")
 }
 
+// 角色页面权限表（查看/操作）
+model SysRolePagePerm {
+  id        BigInt  @id @default(autoincrement())
+  roleId    BigInt  @map("role_id")
+  pagePath  String  @map("page_path")
+  canView   Boolean @default(false) @map("can_view")
+  canOp     Boolean @default(false) @map("can_op")
+
+  @@map("sys_role_page_perm")
+  @@unique([roleId, pagePath])
+  @@index([roleId])
+}
+
 // 用户数据权限表
 model SysUserDataScope {
   id        BigInt  @id @default(autoincrement())

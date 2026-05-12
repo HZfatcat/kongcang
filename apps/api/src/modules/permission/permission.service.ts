@@ -10,6 +10,7 @@ import {
   ClearRoleDto,
   SaveRoleMenuDto,
   SaveDataScopeDto,
+  SaveRolePagePermDto,
   PermissionLogQueryDto,
 } from './permission.dto';
 
@@ -326,6 +327,41 @@ export class PermissionService {
     }
 
     await this.logPermission('system', 'menu', null, `配置角色菜单权限: ${dto.roleId}`, '菜单权限配置');
+    return { success: true };
+  }
+
+  // ========== 页面权限 ==========
+  async getRolePagePerms(roleId: number) {
+    const perms = await this.prisma.sysRolePagePerm.findMany({
+      where: { roleId: BigInt(roleId) },
+    });
+
+    return perms.map((p) => ({
+      pagePath: p.pagePath,
+      canView: p.canView,
+      canOp: p.canOp,
+    }));
+  }
+
+  async saveRolePagePerms(dto: SaveRolePagePermDto) {
+    // 先删除现有页面权限
+    await this.prisma.sysRolePagePerm.deleteMany({
+      where: { roleId: BigInt(dto.roleId) },
+    });
+
+    // 创建新权限
+    if (dto.perms.length > 0) {
+      await this.prisma.sysRolePagePerm.createMany({
+        data: dto.perms.map((p) => ({
+          roleId: BigInt(dto.roleId),
+          pagePath: p.pagePath,
+          canView: p.canView,
+          canOp: p.canOp,
+        })),
+      });
+    }
+
+    await this.logPermission('system', 'page-perm', null, `配置角色页面权限: ${dto.roleId}`, '页面权限配置');
     return { success: true };
   }
 

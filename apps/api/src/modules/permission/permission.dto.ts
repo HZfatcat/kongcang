@@ -106,6 +106,15 @@ export class SaveDataScopeDto {
   dataScope!: number;
 }
 
+// ========== 角色页面权限 DTO ==========
+export class SaveRolePagePermDto {
+  @IsInt()
+  roleId!: number;
+
+  @IsArray()
+  perms!: { pagePath: string; canView: boolean; canOp: boolean }[];
+}
+
 // ========== 权限日志 DTO ==========
 export class PermissionLogQueryDto {
   @IsOptional()
