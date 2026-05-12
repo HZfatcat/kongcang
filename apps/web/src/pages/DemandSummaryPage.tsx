@@ -42,6 +42,8 @@ interface RecentItem {
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
   const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
+  const [zouwuStats, setZouwuStats] = useState<ZouwuFeedbackStatistics | null>(null);
+  const [zouwuStatsLoading, setZouwuStatsLoading] = useState(false);
 
   // 加载产品模块分布数据
   React.useEffect(() => {
