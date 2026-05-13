@@ -57,14 +57,12 @@ export class UdescService {
           select: { agentId: true },
         })
         .then((rows) => rows.length),
-      // 从 UdescSessionVote 表统计有评价的会话数
-      this.prisma.udescSessionVote.findMany({
+      // 从 UdescSessionVote 表统计总评价数（与评价分析页 getVotes 的 total 逻辑一致）
+      this.prisma.udescSessionVote.count({
         where: {
           sessionId: { in: sessionIds },
-          rating: { not: null },
         },
-        select: { sessionId: true },
-      }).then((votes) => new Set(votes.map((v) => v.sessionId)).size),
+      }),
       // 从 UdescSessionVote 表计算平均评分
       this.prisma.udescSessionVote.aggregate({
         where: {
@@ -1715,4 +1713,3 @@ export class UdescService {
     };
   }
 }
-
