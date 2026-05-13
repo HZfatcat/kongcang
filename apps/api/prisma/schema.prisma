@@ -437,17 +437,3 @@ model UdescTicket {
   @@index([updatedAt])
   @@index([imSubSessionId])
 }
-
-
-enum OpportunitySourceType {
-  CONSULTATION
-  MANUAL
-}
-
-enum OpportunityStatus {
-  NEW
-  QUALIFIED
-  FOLLOWING
-  WON
-  LOST
-}
