@@ -7,6 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum RequirementStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CLOSED
+  REJECTED
+}
+
+enum OpportunitySourceType {
+  CONSULTATION
+  MANUAL
+}
+
+enum OpportunityStatus {
+  NEW
+  QUALIFIED
+  FOLLOWING
+  WON
+  LOST
+}
+
 model UdescSession {
   id                String                @id
   agentId           String?
@@ -417,13 +438,6 @@ model UdescTicket {
   @@index([imSubSessionId])
 }
 
-enum RequirementStatus {
-  OPEN
-  IN_PROGRESS
-  DONE
-  CLOSED
-  REJECTED
-}
 
 enum OpportunitySourceType {
   CONSULTATION
