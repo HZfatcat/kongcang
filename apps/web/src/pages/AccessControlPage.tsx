@@ -31,6 +31,8 @@ const PAGE_LABELS: Record<string, string> = {
   '/sync-zouwu': 'Zouwu同步',
   '/users': '人员管理',
   '/logs': '操作日志',
+  '/access-control': '权限总览',
+  '/role-manage': '角色管理',
 };
 
 // 所有页面路径（固定顺序，用于列头）
@@ -40,6 +42,7 @@ const ALL_PAGES = [
   '/demand', '/demand/requirements', '/demand/bugs',
   '/opportunity', '/sync-udesk', '/sync-zouwu',
   '/users', '/logs',
+  '/access-control', '/role-manage',
 ];
 
 export function AccessControlPage() {
