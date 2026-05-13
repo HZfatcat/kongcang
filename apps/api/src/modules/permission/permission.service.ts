@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import {
   RoleListQueryDto,
@@ -15,8 +15,12 @@ import {
 } from './permission.dto';
 
 @Injectable()
-export class PermissionService {
+export class PermissionService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.initDefaultData();
+  }
 
   // ========== 角色管理 ==========
   async getRoleList(query: RoleListQueryDto) {
@@ -487,11 +491,8 @@ export class PermissionService {
       { menuName: '数据同步（驺吾）', path: '/sync-zouwu', component: 'SyncPage', icon: 'SyncOutlined', sortOrder: 7 },
       { menuName: '人员管理', path: '/users', component: 'UsersPage', icon: 'TeamOutlined', sortOrder: 8 },
       { menuName: '系统日志', path: '/logs', component: 'LogsPage', icon: 'FileTextOutlined', sortOrder: 9 },
-      { menuName: '权限管理', path: '/permission', component: 'permission', icon: 'SafetyOutlined', sortOrder: 10, isParent: true },
-      { menuName: '角色管理', path: '/permission/roles', component: 'RoleManagePage', parentPath: '/permission', sortOrder: 101 },
-      { menuName: '用户权限分配', path: '/permission/user-roles', component: 'UserPermissionPage', parentPath: '/permission', sortOrder: 102 },
-      { menuName: '菜单权限配置', path: '/permission/menu-config', component: 'MenuConfigPage', parentPath: '/permission', sortOrder: 103 },
-      { menuName: '权限操作日志', path: '/permission/logs', component: 'PermissionLogsPage', parentPath: '/permission', sortOrder: 104 },
+      { menuName: '权限管理', path: '/access-control', component: 'AccessControlPage', icon: 'SafetyOutlined', sortOrder: 10 },
+      { menuName: '角色管理', path: '/role-manage', component: 'RoleManagePage', icon: 'SafetyOutlined', sortOrder: 11 },
     ];
 
     for (const m of menuData) {
