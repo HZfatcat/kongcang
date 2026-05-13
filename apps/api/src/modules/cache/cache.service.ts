@@ -55,7 +55,7 @@ export class CacheService {
       const client = this.ensureClient();
       const value = await client.get(key);
       if (!value) return null;
-      return JSON.parse(value) as T;
+      return JSON.parse(value as string) as T;
     } catch (error) {
       this.logger.warn(`Cache get failed for key ${key}: ${error}`);
       return null;
