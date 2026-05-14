@@ -129,7 +129,7 @@ export function BugDetailPage() {
       width: 170,
     },
     {
-      title: '完成时间',
+      title: '闭环时间',
       dataIndex: 'completedAtSource',
       key: 'completedAtSource',
       sorter: (a: BugRow, b: BugRow) => {
