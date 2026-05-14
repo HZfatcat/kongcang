@@ -23,7 +23,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/udesc/votes': '评价分析',
   '/udesc/metrics': '会话指标',
   '/udesc/sessions': '咨询详情',
-  '/demand': '需求结单率',
+  '/demand': '需求闭环率',
   '/demand/requirements': '需求详情',
   '/demand/bugs': 'Bug详情',
   '/opportunity': '机会分析',

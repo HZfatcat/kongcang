@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DemandSummaryPage } from './pages/DemandSummaryPage';
 import { RequirementDetailPage } from './pages/RequirementDetailPage';
 import { BugDetailPage } from './pages/BugDetailPage';
+import { WeeklyReportPage } from './pages/WeeklyReportPage';
 import { LoginPage } from './pages/LoginPage';
 import { LoginVerifyPage } from './pages/LoginVerifyPage';
 import { UsersPage } from './pages/UsersPage';
@@ -34,6 +35,7 @@ import {
   UserOutlined,
   DashboardOutlined,
   SafetyOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 
 const { Content, Sider, Header } = Layout;
@@ -93,6 +95,14 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       key: '/opportunity',
       icon: <DollarOutlined />,
       label: '商机管理',
+    },
+    {
+      key: 'weekly',
+      icon: <CalendarOutlined />,
+      label: '周报中心',
+      children: [
+        { key: '/weekly-report', label: '周报预览' },
+      ],
     },
     {
       key: '/sync-udesk',
@@ -237,6 +247,7 @@ function AppRoutes() {
       <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
       <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
       <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
+      <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
       <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
       <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
       <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
