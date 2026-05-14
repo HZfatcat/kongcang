@@ -103,7 +103,7 @@ export function RequirementDetailPage() {
       render: (isLongTerm: boolean) => (
         <Tag color={isLongTerm ? 'orange' : 'default'}>{isLongTerm ? '是' : '否'}</Tag>
       ),
-      width: 100,
+      width: 120,
     },
     {
       title: '来源会话',

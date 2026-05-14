@@ -101,7 +101,7 @@ export function BugDetailPage() {
         return record.isLongTerm !== true;
       },
       render: (value?: boolean) => value ? <Tag color="purple">是</Tag> : <Tag>否</Tag>,
-      width: 100,
+      width: 120,
     },
     {
       title: '来源会话',
