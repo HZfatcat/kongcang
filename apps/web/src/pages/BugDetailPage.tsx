@@ -203,7 +203,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>识别 Bug 总数</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 总数</span>} 
               value={demandOverview?.bugCount ?? 0}
               valueStyle={{ color: '#faad14' }}
             />

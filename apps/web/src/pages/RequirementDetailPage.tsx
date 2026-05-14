@@ -213,7 +213,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>识别需求总数</span>} 
+              title={<span style={{ color: '#666' }}>需求总数</span>} 
               value={demandOverview?.totalWithLongTerm ?? 0}
               valueStyle={{ color: '#1890ff' }}
             />
