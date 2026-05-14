@@ -21,6 +21,7 @@ import { HeatmapPage } from './pages/HeatmapPage';
 import { MetricsPage } from './pages/MetricsPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
 import { AccessControlPage } from './pages/AccessControlPage';
+import { RoleManagePage } from './pages/RoleManagePage';
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,
@@ -51,6 +52,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const getDefaultOpenKeys = (pathname: string): string[] => {
     if (pathname.startsWith('/udesc')) return ['udesc'];
     if (pathname.startsWith('/demand')) return ['demand'];
+    if (pathname.startsWith('/access-control') || pathname.startsWith('/role-manage')) return ['access-control'];
     return [];
   };
   
@@ -123,9 +125,13 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       label: '系统日志',
     },
     {
-      key: '/access-control',
+      key: 'access-control',
       icon: <SafetyOutlined />,
       label: '权限管理',
+      children: [
+        { key: '/access-control', label: '权限总览' },
+        { key: '/role-manage', label: '角色管理' },
+      ],
     },
   ];
 
@@ -247,6 +253,7 @@ function AppRoutes() {
       <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
       <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
       <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
+      <Route path="/role-manage" element={<AppLayout><RoleManagePage /></AppLayout>} />
     </Routes>
   );
 }

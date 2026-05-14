@@ -1,9 +1,10 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
 import { Link } from 'react-router-dom';
-import { useKpi } from '../api/kpi';
-import type { MonthlyCompletion } from '../types/kpi';
+import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
+import type { MonthlyCompletion, ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
 
@@ -464,6 +465,12 @@ export function DemandSummaryPage() {
           loading={demandLoading}
         />
       </Card>
+
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

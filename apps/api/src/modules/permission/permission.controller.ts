@@ -10,6 +10,7 @@ import {
   ClearRoleDto,
   SaveRoleMenuDto,
   SaveDataScopeDto,
+  SaveRolePagePermDto,
   PermissionLogQueryDto,
 } from './permission.dto';
 
@@ -78,6 +79,17 @@ export class PermissionController {
   @Get('role/menu/get')
   async getRoleMenus(@Query('roleId') roleId: string) {
     return this.permissionService.getRoleMenus(parseInt(roleId, 10));
+  }
+
+  // ========== 页面权限接口 ==========
+  @Get('role/page-perms/get')
+  async getRolePagePerms(@Query('roleId') roleId: string) {
+    return this.permissionService.getRolePagePerms(parseInt(roleId, 10));
+  }
+
+  @Post('role/page-perms/save')
+  async saveRolePagePerms(@Body() dto: SaveRolePagePermDto) {
+    return this.permissionService.saveRolePagePerms(dto);
   }
 
   // ========== 数据权限接口 ==========

@@ -10,6 +10,12 @@ import { AppModule } from './app.module';
 import { LoggerService } from './common/logger/logger.service';
 import { HttpLoggingInterceptor } from './common/interceptors';
 
+// BigInt 不能直接被 JSON.stringify 序列化，添加 toJSON 方法全局修复
+// 参考：https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json
+(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
+  return Number(this);
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,

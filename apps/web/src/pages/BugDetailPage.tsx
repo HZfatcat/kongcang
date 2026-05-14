@@ -1,10 +1,20 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
-import { useKpi } from '../api/kpi';
+import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
+import type { ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
+
+const statusTextMap: Record<string, string> = {
+  'IN_PROGRESS': '待评估',
+  'CLOSED': '已采纳',
+  'OPEN': '待评估',
+  'DONE': '已完成',
+  'REJECTED': '已拒绝',
+};
 
 interface BugRow {
   id: string;
@@ -38,7 +48,21 @@ const statusTextMap: Record<string, string> = {
 
 export function BugDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
+  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
   const [pageSize, setPageSize] = React.useState(20);
+
+  // 加载产品模块分布数据（Bug = issueType=1）
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+      issueType: '1',
+    }).then((data) => {
+      if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
 
   const bugList: BugRow[] = React.useMemo(() => {
     return (demandOverview?.recentRequirements ?? []).filter(r => r.issueType === 1);
@@ -66,8 +90,8 @@ export function BugDetailPage() {
       ),
     },
     { 
-      title: '状态', 
-      dataIndex: 'status', 
+      title: '状态',
+      dataIndex: 'status',
       key: 'status',
       sorter: (a: BugRow, b: BugRow) => a.status.localeCompare(b.status),
       filters: [...new Set(bugList.map(r => r.status))].map(s => ({
@@ -78,8 +102,8 @@ export function BugDetailPage() {
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           'DONE': 'green',
-          'CLOSED': 'green',
-          'IN_PROGRESS': 'blue',
+          'CLOSED': 'blue',
+          'IN_PROGRESS': 'orange',
           'TODO': 'default',
           'REJECTED': 'red',
         };
@@ -298,6 +322,11 @@ export function BugDetailPage() {
           loading={demandLoading}
         />
       </Card>
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

@@ -121,6 +121,23 @@ export async function fetchUserDataScope(userId: string) {
   return res.data;
 }
 
+// ========== 角色页面权限 ==========
+export interface PagePerm {
+  pagePath: string;
+  canView: boolean;
+  canOp: boolean;
+}
+
+export async function fetchRolePagePerms(roleId: number) {
+  const res = await apiClient.get<PagePerm[]>('/role/page-perms/get', { params: { roleId } });
+  return res.data;
+}
+
+export async function saveRolePagePerms(roleId: number, perms: PagePerm[]) {
+  const res = await apiClient.post('/role/page-perms/save', { roleId, perms });
+  return res.data;
+}
+
 // ========== 权限日志 ==========
 export interface PermissionLogItem {
   logId: number;
