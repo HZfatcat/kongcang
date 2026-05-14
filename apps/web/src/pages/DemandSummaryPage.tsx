@@ -9,6 +9,13 @@ import { useState, useEffect } from 'react';
 
 const { RangePicker } = DatePicker;
 
+const statusTextMap: Record<string, string> = {
+  'OPEN': '待评估',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已完成',
+  'CLOSED': '已闭环',
+  'REJECTED': '已拒绝',
+};
 
 
 interface MonthlySummaryRow {
@@ -235,7 +242,7 @@ export function DemandSummaryPage() {
           'TODO': 'default',
           'REJECTED': 'red',
         };
-        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
       },
     },
     { 
