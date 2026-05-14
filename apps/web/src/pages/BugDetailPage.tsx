@@ -223,7 +223,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>已结单 Bug 数</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>已闭环 Bug 数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
