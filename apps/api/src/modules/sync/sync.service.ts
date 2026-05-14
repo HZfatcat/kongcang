@@ -229,7 +229,7 @@ export class SyncService {
     });
   }
 
-  async syncUdesc() {
+  async syncUdesc(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {
     if (this.progress.isRunning) {
       throw new Error('udesc sync is already running');
     }
@@ -247,17 +247,18 @@ export class SyncService {
     const syncStartedAt = new Date();
 
     try {
-      const checkpoint = await this.prisma.syncCheckpoint.findUnique({
+      const { startDate: manualStartDate, endDate: manualEndDate, resetCursor } = options ?? {};
+      const checkpoint = resetCursor ? null : await this.prisma.syncCheckpoint.findUnique({
         where: { source: 'udesc' },
       });
-      const finalEnd = new Date();
-      const startDate = this.resolveUdescStartDate();
+      const finalEnd = manualEndDate ?? new Date();
+      const startDate = manualStartDate ?? this.resolveUdescStartDate();
       const providerEarliest = this.resolveProviderEarliestDate(finalEnd);
       let windowStart = checkpoint?.cursor ? new Date(checkpoint.cursor) : startDate;
       if (Number.isNaN(windowStart.getTime()) || windowStart < startDate) {
         windowStart = startDate;
       }
-      if (windowStart < providerEarliest) {
+      if (!manualStartDate && windowStart < providerEarliest) {
         issueCount += 1;
         await this.recordIssue({
           runId: run.id,
@@ -266,6 +267,8 @@ export class SyncService {
           errorMessage: `udesc 当前仅支持最近时间窗口，已自动从 ${providerEarliest.toISOString()} 开始同步`,
         });
         windowStart = providerEarliest;
+      } else if (manualStartDate && windowStart < providerEarliest) {
+        this.logger.log(`手动指定了 startDate，跳过 providerEarliest 限制（${providerEarliest.toISOString()}），使用 ${windowStart.toISOString()}`);
       }
 
       const windowDays = Math.max(1, Number(process.env.UDESC_SYNC_WINDOW_DAYS ?? 1));
@@ -1369,7 +1372,7 @@ export class SyncService {
     return { ...this.progress };
   }
 
-  triggerUdescSync() {
+  triggerUdescSync(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {
     if (this.progress.isRunning) {
       return {
         accepted: false,
@@ -1378,7 +1381,7 @@ export class SyncService {
       };
     }
 
-    void this.syncUdesc().catch((error) => {
+    void this.syncUdesc(options).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`triggered udesc sync failed: ${message}`);
     });
