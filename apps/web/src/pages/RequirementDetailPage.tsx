@@ -275,7 +275,7 @@ export function RequirementDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月需求闭环率</span>} 
+        title={<span style={{ fontWeight: 600 }}>月度数据详情</span>} 
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
         <ResizableTable<MonthlyRow>
