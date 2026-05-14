@@ -160,7 +160,7 @@ export function RequirementDetailPage() {
       width: 100,
     },
     { 
-      title: '已完成', 
+      title: '闭环数', 
       dataIndex: 'completed', 
       key: 'completed', 
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
@@ -181,7 +181,7 @@ export function RequirementDetailPage() {
       width: 90,
     },
     {
-      title: '结单率',
+      title: '闭环率',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => {
         const aRate = a.created - a.longTermCount > 0 ? (a.completed + a.rejectedCount) / (a.created - a.longTermCount) : 0;
@@ -272,7 +272,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666' }}>需求闭环率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -282,7 +282,7 @@ export function RequirementDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月需求结单率</span>} 
+        title={<span style={{ fontWeight: 600 }}>按月需求闭环率</span>} 
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
         <ResizableTable<MonthlyRow>

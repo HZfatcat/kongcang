@@ -147,7 +147,7 @@ export function BugDetailPage() {
       width: 100,
     },
     { 
-      title: '已完成', 
+      title: '闭环数', 
       dataIndex: 'completed', 
       key: 'completed',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
@@ -168,7 +168,7 @@ export function BugDetailPage() {
       width: 100,
     },
     {
-      title: '结单率',
+      title: '闭环率',
       dataIndex: 'completionRate',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completionRate - b.completionRate,
@@ -251,7 +251,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
+              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -261,7 +261,7 @@ export function BugDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月 Bug 结单率</span>}
+        title={<span style={{ fontWeight: 600 }}>按月 Bug闭环率</span>}
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
         <ResizableTable<MonthlyRow>
