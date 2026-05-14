@@ -55,8 +55,8 @@ export async function fetchUdescSessions(params: {
   return resp.data;
 }
 
-export async function runSync() {
-  const resp = await apiClient.post<{ accepted: boolean }>('/sync/run');
+export async function runSync(options?: { startDate?: string; endDate?: string; resetCursor?: boolean }) {
+  const resp = await apiClient.post<{ accepted: boolean }>('/sync/run', options);
   return resp.data;
 }
 
@@ -351,4 +351,3 @@ export async function fetchUdescHeatmap(params: {
   const resp = await apiClient.get<UdescHeatmap>('/udesc/heatmap', { params });
   return resp.data;
 }
-

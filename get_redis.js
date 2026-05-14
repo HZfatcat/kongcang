@@ -1,0 +1,1 @@
+const {createClient} = require(\"redis\"); async function main() { const c = createClient({url:\"redis://redis:6379\"}); await c.connect(); console.log(\"checkpoint:\", await c.get(\"udesc:checkpoint\")); console.log(\"sync:startTime:\", await c.get(\"udesc:sync:startTime\")); await c.quit(); } main();  

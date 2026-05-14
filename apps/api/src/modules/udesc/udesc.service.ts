@@ -11,6 +11,47 @@ function toLocalISOString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
+/**
+ * 判断消息是否为系统自动消息（不包含在消息数统计中）
+ * 匹配内容包含系统提示、超时、会话关闭、满意度调查等
+ */
+function isSystemMessage(content: string | object | null | undefined): boolean {
+  if (!content) return false;
+  const text = typeof content === 'string' ? content : JSON.stringify(content);
+  const patterns = [
+    /"push_type":"sys_welcome_msg"/,
+    /"auto":true/,
+    /"is_welcome":true/,
+    /"type":"survey"/,
+    /满意度调查/,
+    /系统将暂时关闭/,
+    /接入人工服务/,
+    /有新的咨询进来了/,
+    /长时间未响应/,
+    /超时未回复/,
+    /系统将自动结束会话/,
+    /已为您转接/,
+    /正在为您转接/,
+    /转接至/,
+    /会话已结束/,
+    /会话已关闭/,
+    /客服已离线/,
+    /客服已上线/,
+  ];
+  return patterns.some(p => p.test(text));
+}
+
+function countNonSystemMessages(messages: any[]): number {
+  return messages.filter(m => !isSystemMessage(m.content)).length;
+}
+
+/**
+ * 规范化消息 senderType：系统消息统一显示为 "系统"
+ */
+function normalizeSenderType(msg: any): string {
+  return isSystemMessage(msg.content) ? '系统' : msg.senderType;
+}
+
 @Injectable()
 export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
@@ -263,11 +304,11 @@ export class UdescService {
         endedAt: item.endedAt ? toLocalISOString(item.endedAt) : null,
         rating: item.rating,
         isConsultToDemand: item.isConsultToDemand,
-        messageCount: item.messages.length,
+        messageCount: countNonSystemMessages(item.messages),
         messages: item.messages.map((msg) => ({
           id: msg.id,
           sentAt: toLocalISOString(msg.sentAt),
-          senderType: msg.senderType,
+          senderType: normalizeSenderType(msg),
           senderId: msg.senderId,
           content: msg.content,
         })),
@@ -852,12 +893,16 @@ export class UdescService {
       const records = sessions.map((s) => {
         const messages = s.messages;
         const agentMsgs = messages.filter((m) =>
-          m.senderType === 'agent' ||
-          (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
+          !isSystemMessage(m.content) && (
+            m.senderType === 'agent' ||
+            (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
+          )
         );
         const customerMsgs = messages.filter((m) =>
-          m.senderType === 'customer' ||
-          (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
+          !isSystemMessage(m.content) && (
+            m.senderType === 'customer' ||
+            (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
+          )
         );
 
         // 计算首次响应时间（无法计算时返回 null）
@@ -919,7 +964,7 @@ export class UdescService {
           avgResponseTime,
           waitTime: 0,
           resolutionTime,
-          messageCount: messages.length,
+          messageCount: countNonSystemMessages(messages),
           agentMessageCount: agentMsgs.length,
           customerMessageCount: customerMsgs.length,
         };
@@ -1110,7 +1155,6 @@ export class UdescService {
           firstResponseTimes.push(HUNDRED_HOURS);
         }
       }
-      totalMessages += Number(row.total_msgs);
       sessionsWithMessages++;
     }
 
@@ -1128,7 +1172,7 @@ export class UdescService {
     // 批量获取消息，按 sessionId 和 sentAt 排序
     const allMessages = await this.prisma.udescSessionMessage.findMany({
       where: { sessionId: { in: sessionIds } },
-      select: { sessionId: true, sentAt: true, senderType: true },
+      select: { sessionId: true, sentAt: true, senderType: true, content: true },
       orderBy: [{ sessionId: 'asc' }, { sentAt: 'asc' }],
     });
 
@@ -1153,18 +1197,22 @@ export class UdescService {
       const session = sessionEndMap.get(sessionId);
       if (!session) continue;
 
-      // 计算解决时间（会话结束 - 第一条消息）
-      if (session.endedAt && messages.length > 0) {
-        const firstMsgTime = new Date(messages[0].sentAt).getTime();
+      // 跳过系统消息
+      const nonSystemMsgs = messages.filter(m => !isSystemMessage(m.content));
+      totalMessages += nonSystemMsgs.length;
+
+      // 计算解决时间（会话结束 - 第一条非系统消息）
+      if (session.endedAt && nonSystemMsgs.length > 0) {
+        const firstMsgTime = new Date(nonSystemMsgs[0].sentAt).getTime();
         const endedTime = new Date(session.endedAt).getTime();
         if (endedTime >= firstMsgTime) {
           resolutionTimes.push(Math.round((endedTime - firstMsgTime) / 1000));
         }
       }
 
-      // 分离客户和客服消息
-      const customerMsgs = messages.filter(m => m.senderType === 'customer');
-      const agentMsgs = messages.filter(m => m.senderType === 'agent');
+      // 分离客户和客服消息（排除系统消息）
+      const customerMsgs = messages.filter(m => m.senderType === 'customer' && !isSystemMessage(m.content));
+      const agentMsgs = messages.filter(m => m.senderType === 'agent' && !isSystemMessage(m.content));
 
       // 计算响应时间：每条客户消息后的第一条客服回复
       for (const customerMsg of customerMsgs) {
@@ -1269,7 +1317,7 @@ export class UdescService {
     const allSessionIds = sessions.map(s => s.id);
     const allMessages = await this.prisma.udescSessionMessage.findMany({
       where: { sessionId: { in: allSessionIds } },
-      select: { sessionId: true, sentAt: true, senderType: true },
+      select: { sessionId: true, sentAt: true, senderType: true, content: true },
       orderBy: { sentAt: 'asc' },
     });
 
@@ -1302,10 +1350,12 @@ export class UdescService {
         const messages = messagesBySession.get(sessionId) || [];
         const session = sessionEndMap.get(sessionId);
 
-        totalMessages += messages.length;
+        // 排除系统消息
+        const nonSystemMsgs = messages.filter(m => !isSystemMessage(m.content));
+        totalMessages += nonSystemMsgs.length;
 
-        const customerMsgs = messages.filter(m => m.senderType === 'customer');
-        const agentMsgs = messages.filter(m => m.senderType === 'agent');
+        const customerMsgs = nonSystemMsgs.filter(m => m.senderType === 'customer');
+        const agentMsgs = nonSystemMsgs.filter(m => m.senderType === 'agent');
 
         const HUNDRED_HOURS = 100 * 60 * 60; // 360000 秒
 
@@ -1357,9 +1407,9 @@ export class UdescService {
         }
 
         // 解决时间
-        if (session?.endedAt && messages.length > 0) {
+        if (session?.endedAt && nonSystemMsgs.length > 0) {
           const diff = Math.round(
-            (new Date(session.endedAt).getTime() - new Date(messages[0].sentAt).getTime()) / 1000
+            (new Date(session.endedAt).getTime() - new Date(nonSystemMsgs[0].sentAt).getTime()) / 1000
           );
           if (diff >= 0) {
             totalResolutionTime += diff;

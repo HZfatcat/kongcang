@@ -911,7 +911,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                     {record.messages.length === 0 && <Typography.Text type="secondary">无本地消息明细</Typography.Text>}
                     {record.messages.map((msg) => (
                       <div key={msg.id} style={{ marginBottom: 8 }}>
-                        <Tag color="blue">{msg.senderType ?? 'unknown'}</Tag>
+                        <Tag color={msg.senderType === '系统' ? 'orange' : 'blue'}>{msg.senderType ?? 'unknown'}</Tag>
                         <Typography.Text type="secondary">
                           {dayjs(msg.sentAt).format('YYYY-MM-DD HH:mm:ss')}
                         </Typography.Text>
