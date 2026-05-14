@@ -12,7 +12,7 @@ const { RangePicker } = DatePicker;
 const statusTextMap: Record<string, string> = {
   'OPEN': '待评估',
   'IN_PROGRESS': '已采纳',
-  'DONE': '已完成',
+  'DONE': '已闭环',
   'CLOSED': '已闭环',
   'REJECTED': '已拒绝',
 };
