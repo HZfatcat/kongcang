@@ -36,6 +36,8 @@ export interface DemandOverview {
   bugCompletedCount: number;
   bugRejectedCount: number;
   bugCompletionRate: number;
+  followUpCount: number;
+  bugFollowUpCount: number;
   statusBreakdown: Record<string, number>;
   daily: {
     days: string[];

@@ -7,6 +7,7 @@ export interface UdescOverview {
   ratedCount: number;
   avgRating: number;
   topAgents: Array<{ agentId: string; sessions: number }>;
+  returnVisitCount: number;
 }
 
 export interface UdescTreeNode {
@@ -339,4 +340,3 @@ export interface UdescTicketDailyStats {
   created: number[];
   resolved: number[];
 }
-

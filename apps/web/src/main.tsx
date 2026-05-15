@@ -1,27 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import 'antd/dist/reset.css';
 import './styles/global.css';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Typography } from 'antd';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DashboardPage } from './pages/DashboardPage';
-import { DemandSummaryPage } from './pages/DemandSummaryPage';
-import { RequirementDetailPage } from './pages/RequirementDetailPage';
-import { BugDetailPage } from './pages/BugDetailPage';
-import { WeeklyReportPage } from './pages/WeeklyReportPage';
-import { LoginPage } from './pages/LoginPage';
-import { LoginVerifyPage } from './pages/LoginVerifyPage';
-import { UsersPage } from './pages/UsersPage';
-import { LogsPage } from './pages/LogsPage';
-import { VotesPage } from './pages/VotesPage';
-import { TicketsPage } from './pages/TicketsPage';
-import { HeatmapPage } from './pages/HeatmapPage';
 
-import { MetricsPage } from './pages/MetricsPage';
-import { SessionDetailPage } from './pages/SessionDetailPage';
-import { AccessControlPage } from './pages/AccessControlPage';
-import { RoleManagePage } from './pages/RoleManagePage';
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const DemandSummaryPage = React.lazy(() => import('./pages/DemandSummaryPage').then(m => ({ default: m.DemandSummaryPage })));
+const RequirementDetailPage = React.lazy(() => import('./pages/RequirementDetailPage').then(m => ({ default: m.RequirementDetailPage })));
+const BugDetailPage = React.lazy(() => import('./pages/BugDetailPage').then(m => ({ default: m.BugDetailPage })));
+const WeeklyReportPage = React.lazy(() => import('./pages/WeeklyReportPage').then(m => ({ default: m.WeeklyReportPage })));
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const LoginVerifyPage = React.lazy(() => import('./pages/LoginVerifyPage').then(m => ({ default: m.LoginVerifyPage })));
+const UsersPage = React.lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
+const LogsPage = React.lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })));
+const VotesPage = React.lazy(() => import('./pages/VotesPage').then(m => ({ default: m.VotesPage })));
+const TicketsPage = React.lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
+const HeatmapPage = React.lazy(() => import('./pages/HeatmapPage').then(m => ({ default: m.HeatmapPage })));
+const MetricsPage = React.lazy(() => import('./pages/MetricsPage').then(m => ({ default: m.MetricsPage })));
+const SessionDetailPage = React.lazy(() => import('./pages/SessionDetailPage').then(m => ({ default: m.SessionDetailPage })));
+const AccessControlPage = React.lazy(() => import('./pages/AccessControlPage').then(m => ({ default: m.AccessControlPage })));
+const RoleManagePage = React.lazy(() => import('./pages/RoleManagePage').then(m => ({ default: m.RoleManagePage })));
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,
@@ -46,6 +46,7 @@ const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const loginUser = getLoginUser();
   
   // 根据当前路径计算默认展开的菜单
@@ -175,7 +176,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           items={menuItems}
           onClick={({ key }) => {
             if (key.startsWith('/')) {
-              window.location.href = key;
+              navigate(key);
             }
           }}
         />
@@ -235,6 +236,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
+<<<<<<< HEAD
     <Routes>
       <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
       <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
@@ -255,6 +257,33 @@ function AppRoutes() {
       <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
       <Route path="/role-manage" element={<AppLayout><RoleManagePage /></AppLayout>} />
     </Routes>
+=======
+    <Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <Spin size="large" tip="加载中..." />
+      </div>
+    }>
+      <Routes>
+        <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
+        <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
+        <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
+        <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
+        <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
+        <Route path="/udesc/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
+        <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
+        <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
+        <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
+        <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
+        <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
+        <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
+        <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
+        <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
+        <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
+        <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
+        <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
+      </Routes>
+    </Suspense>
+>>>>>>> 8c412a1 (fix: 重命名卡片标题、统一字段命名、补全 tooltip 公式说明)
   );
 }
 
