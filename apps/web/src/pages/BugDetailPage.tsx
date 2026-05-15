@@ -188,7 +188,7 @@ export function BugDetailPage() {
       width: 100,
     },
     {
-      title: '闭环率',
+      title: '关单率',
       dataIndex: 'completionRate',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completionRate - b.completionRate,
@@ -279,7 +279,7 @@ export function BugDetailPage() {
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}

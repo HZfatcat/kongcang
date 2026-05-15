@@ -87,7 +87,7 @@ export function DemandSummaryPage() {
     });
     
     bugMonthly.forEach((m: MonthlyCompletion) => {
-      // Bug闭环率使用 completionRate 字段 - 与 BugDetailPage 一致
+      // Bug关单率使用 completionRate 字段 - 与 BugDetailPage 一致
       const existing = monthMap.get(m.month);
       if (existing) {
         existing.bugCreated = m.created;
@@ -165,7 +165,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqLongTerm - b.reqLongTerm,
     },
     {
-      title: '需求闭环率',
+      title: '需求关单率',
       dataIndex: 'reqRate',
       key: 'reqRate',
       width: 140,
@@ -205,7 +205,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugLongTerm - b.bugLongTerm,
     },
     {
-      title: 'Bug闭环率',
+      title: 'Bug关单率',
       dataIndex: 'bugRate',
       key: 'bugRate',
       width: 140,
@@ -381,7 +381,7 @@ export function DemandSummaryPage() {
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求闭环率</span>}
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -480,7 +480,7 @@ export function DemandSummaryPage() {
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}

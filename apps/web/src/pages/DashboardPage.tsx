@@ -1155,7 +1155,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求闭环率</span>}
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1271,7 +1271,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1374,7 +1374,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
     { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
     {
-      title: '需求闭环率',
+      title: '需求关单率',
       key: 'reqCompletionRate',
       width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
@@ -1385,7 +1385,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
     { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
     {
-      title: 'Bug闭环率',
+      title: 'Bug关单率',
       key: 'bugCompletionRate',
       width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
