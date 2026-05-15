@@ -3,7 +3,8 @@ import ReactDOM from 'react-dom/client';
 import 'antd/dist/reset.css';
 import './styles/global.css';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin, ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -236,28 +237,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-<<<<<<< HEAD
-    <Routes>
-      <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
-      <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
-      <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
-      <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
-      <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
-      <Route path="/udesc/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
-      <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
-      <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
-      <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
-      <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
-      <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
-      <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
-      <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
-      <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
-      <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
-      <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
-      <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
-      <Route path="/role-manage" element={<AppLayout><RoleManagePage /></AppLayout>} />
-    </Routes>
-=======
     <Suspense fallback={
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
         <Spin size="large" tip="加载中..." />
@@ -281,9 +260,9 @@ function AppRoutes() {
         <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
         <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
         <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
+        <Route path="/role-manage" element={<AppLayout><RoleManagePage /></AppLayout>} />
       </Routes>
     </Suspense>
->>>>>>> 8c412a1 (fix: 重命名卡片标题、统一字段命名、补全 tooltip 公式说明)
   );
 }
 
@@ -310,7 +289,9 @@ function App() {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ConfigProvider locale={zhCN}>
+        <App />
+      </ConfigProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );

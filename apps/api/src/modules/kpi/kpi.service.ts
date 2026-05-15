@@ -121,11 +121,10 @@ export class KpiService {
 
     const [completedCount, rejectedCount, linkedSessionCount, bugCount, bugCompletedCount, bugRejectedCount, bugLongTermCount, statusGroups, longTermCount, followUpCount, bugFollowUpCount] =
       await Promise.all([
-        // 需求结单数（CLOSED + DONE，排除长期演进）
+        // 需求结单数（CLOSED + DONE，含长期演进中已闭环的）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
-            isLongTerm: false,
             OR: [
               { issueType: { not: 1 } },
               { issueType: null },
@@ -257,7 +256,7 @@ export class KpiService {
       ORDER BY month ASC
     `;
 
-    // 月度需求完成统计：按创建时间月份分组，统计已闭环状态（CLOSED + DONE）
+    // 月度需求完成统计：按创建时间月份分组，统计已闭环状态（CLOSED + DONE，含长期演进中已闭环的）
     const monthlyRequirementCompletedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
@@ -265,7 +264,6 @@ export class KpiService {
       FROM "ZouwuRequirement" r
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
-        AND r."isLongTerm" = false
         AND r.status IN ('CLOSED', 'DONE')
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
