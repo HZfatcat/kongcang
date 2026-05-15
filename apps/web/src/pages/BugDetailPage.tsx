@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
+import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip } from 'antd';
 import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
 import type { ProductModuleDistribution } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
