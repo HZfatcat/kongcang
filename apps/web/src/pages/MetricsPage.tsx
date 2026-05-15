@@ -16,11 +16,10 @@ export function MetricsPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<{ records: UdescSessionMetrics[]; total: number } | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
-  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
-    const end = dayjs();
-    const start = end.subtract(30, 'day');
-    return [start.startOf('day'), end.endOf('day')];
-  });
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs('2026-04-11').startOf('day'),
+    dayjs('2026-05-11').endOf('day'),
+  ]);
   const [agentId, setAgentId] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState<string>('sessionId');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
