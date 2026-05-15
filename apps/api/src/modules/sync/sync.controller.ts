@@ -11,8 +11,13 @@ export class SyncController {
   ) {}
 
   @Post('run')
-  run() {
-    return this.syncService.triggerUdescSync();
+  run(@Body() body?: { startDate?: string; endDate?: string; resetCursor?: boolean }) {
+    const options = body?.startDate || body?.endDate || body?.resetCursor ? {
+      startDate: body.startDate ? new Date(body.startDate) : undefined,
+      endDate: body.endDate ? new Date(body.endDate) : undefined,
+      resetCursor: body.resetCursor,
+    } : undefined;
+    return this.syncService.triggerUdescSync(options);
   }
 
   @Post('zouwu/run')
@@ -105,5 +110,12 @@ export class SyncController {
   async smartFix() {
     const result = await this.syncService.smartFix();
     return { ok: true, ...result };
+  }
+
+  @Post('udesc/resync')
+  async resyncUdesc(@Body() body?: { startDate?: string; endDate?: string }) {
+    const startDate = body?.startDate ? new Date(body.startDate) : undefined;
+    const endDate = body?.endDate ? new Date(body.endDate) : undefined;
+    return this.syncService.triggerUdescSync({ startDate, endDate, resetCursor: true });
   }
 }

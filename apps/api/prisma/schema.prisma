@@ -436,4 +436,5 @@ model UdescTicket {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([imSubSessionId])
+
 }

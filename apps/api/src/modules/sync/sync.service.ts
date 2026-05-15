@@ -229,7 +229,7 @@ export class SyncService {
     });
   }
 
-  async syncUdesc() {
+  async syncUdesc(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {
     if (this.progress.isRunning) {
       throw new Error('udesc sync is already running');
     }
@@ -247,17 +247,18 @@ export class SyncService {
     const syncStartedAt = new Date();
 
     try {
-      const checkpoint = await this.prisma.syncCheckpoint.findUnique({
+      const { startDate: manualStartDate, endDate: manualEndDate, resetCursor } = options ?? {};
+      const checkpoint = resetCursor ? null : await this.prisma.syncCheckpoint.findUnique({
         where: { source: 'udesc' },
       });
-      const finalEnd = new Date();
-      const startDate = this.resolveUdescStartDate();
+      const finalEnd = manualEndDate ?? new Date();
+      const startDate = manualStartDate ?? this.resolveUdescStartDate();
       const providerEarliest = this.resolveProviderEarliestDate(finalEnd);
       let windowStart = checkpoint?.cursor ? new Date(checkpoint.cursor) : startDate;
       if (Number.isNaN(windowStart.getTime()) || windowStart < startDate) {
         windowStart = startDate;
       }
-      if (windowStart < providerEarliest) {
+      if (!manualStartDate && windowStart < providerEarliest) {
         issueCount += 1;
         await this.recordIssue({
           runId: run.id,
@@ -266,6 +267,8 @@ export class SyncService {
           errorMessage: `udesc 当前仅支持最近时间窗口，已自动从 ${providerEarliest.toISOString()} 开始同步`,
         });
         windowStart = providerEarliest;
+      } else if (manualStartDate && windowStart < providerEarliest) {
+        this.logger.log(`手动指定了 startDate，跳过 providerEarliest 限制（${providerEarliest.toISOString()}），使用 ${windowStart.toISOString()}`);
       }
 
       const windowDays = Math.max(1, Number(process.env.UDESC_SYNC_WINDOW_DAYS ?? 1));
@@ -1369,7 +1372,7 @@ export class SyncService {
     return { ...this.progress };
   }
 
-  triggerUdescSync() {
+  triggerUdescSync(options?: { startDate?: Date; endDate?: Date; resetCursor?: boolean }) {
     if (this.progress.isRunning) {
       return {
         accepted: false,
@@ -1378,7 +1381,7 @@ export class SyncService {
       };
     }
 
-    void this.syncUdesc().catch((error) => {
+    void this.syncUdesc(options).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`triggered udesc sync failed: ${message}`);
     });
@@ -1509,6 +1512,7 @@ export class SyncService {
     let fixedMessages = 0;
     let fixedSessions = 0;
     let fixedVoteTimes = 0;
+    let fixedSystemSenderTypes = 0;
 
     // 1. 修复评价数据：删除 id = sessionId 的错误记录
     const wrongVotes = await this.prisma.$queryRaw<{ id: string }[]>`
@@ -1537,14 +1541,49 @@ export class SyncService {
       this.logger.log(`已修复 ${fixedVoteTimes} 条评价时间`);
     }
 
+    // 3. 修复系统消息的 senderType 字段
+    // 根据消息内容检测系统消息，将 senderType 修正为 'system'
+    fixedSystemSenderTypes = await this.prisma.$executeRaw`
+      UPDATE "UdescSessionMessage" m
+      SET "senderType" = 'system', "syncedAt" = NOW()
+      WHERE "senderType" IN ('agent', 'customer')
+        AND (
+          m."content"::text LIKE '%"push_type":"sys_welcome_msg"%'
+          OR m."content"::text LIKE '%"auto":true%'
+          OR m."content"::text LIKE '%"type":"survey"%'
+          OR m."content"::text LIKE '%满意度调查%'
+          OR m."content"::text LIKE '%接入人工服务%'
+          OR m."content"::text LIKE '%长时间未响应%'
+          OR m."content"::text LIKE '%超时未回复%'
+          OR m."content"::text LIKE '%系统将自动结束会话%'
+          OR m."content"::text LIKE '%已为您转接%'
+          OR m."content"::text LIKE '%正在为您转接%'
+          OR m."content"::text LIKE '%会话已结束%'
+          OR m."content"::text LIKE '%会话已关闭%'
+          OR m."content"::text LIKE '%客服已离线%'
+          OR m."content"::text LIKE '%客服已上线%'
+          OR m."content"::text LIKE '%有新的咨询进来了%'
+          OR m."content"::text LIKE '%系统将暂时关闭%'
+        )
+    `;
+    if (fixedSystemSenderTypes > 0) {
+      this.logger.log(`已修复 ${fixedSystemSenderTypes} 条系统消息的 senderType`);
+    }
+
+    // 4. 重新计算会话指标
+    if (fixedSystemSenderTypes > 0 || fixedVoteTimes > 0 || fixedVotes > 0) {
+      const recalcCount = await this.calculateSessionMetricsFromLocal();
+      this.logger.log(`已重新计算 ${recalcCount} 个会话的指标`);
+    }
+
     // 3. 后续可扩展：检测其他类型的问题数据
     // 例如：孤立消息、孤立评价、重复记录等
 
     // 清除同步检查点，下次同步会重新拉取修复的数据
     await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
 
-    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}, 评价时间=${fixedVoteTimes}`);
+    this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}, 评价时间=${fixedVoteTimes}, 系统消息senderType=${fixedSystemSenderTypes}`);
 
-    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, voteTimes: fixedVoteTimes, total: fixedVotes + fixedMessages + fixedSessions + fixedVoteTimes };
+    return { votes: fixedVotes, messages: fixedMessages, sessions: fixedSessions, voteTimes: fixedVoteTimes, systemSenderTypes: fixedSystemSenderTypes, total: fixedVotes + fixedMessages + fixedSessions + fixedVoteTimes + fixedSystemSenderTypes };
   }
 }
