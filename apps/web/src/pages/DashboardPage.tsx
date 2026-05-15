@@ -716,9 +716,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             { name: '咨询量', value: latestFunnelPeriod.consultationCount },
             { name: '问题咨询', value: latestFunnelPeriod.issueConsultCount },
             { name: '问题反馈', value: latestFunnelPeriod.feedbackCount },
-            { name: '识别需求/Bug', value: latestFunnelPeriod.requirementIdentifiedCount },
-            { name: '已完成需求/Bug', value: latestFunnelPeriod.requirementCompletedCount },
-            { name: '需求/Bug上线量', value: latestFunnelPeriod.releaseCount },
+            { name: '需求/Bug识别', value: latestFunnelPeriod.requirementIdentifiedCount },
+            { name: '需求/Bug闭环量', value: latestFunnelPeriod.requirementCompletedCount },
+            { name: '需求/Bug上线闭环量', value: latestFunnelPeriod.releaseCount },
           ],
         },
       ],
@@ -824,21 +824,21 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               pagination={{ pageSize: 10 }}
               dataSource={consultationFunnel?.periods ?? []}
               columns={[
-                { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel' },
+                { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel', sorter: (a: any, b: any) => a.periodStart.localeCompare(b.periodStart), defaultSortOrder: 'descend' as const },
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
                 { title: '问题咨询', dataIndex: 'issueConsultCount', key: 'issueConsultCount' },
                 { title: '问题反馈', dataIndex: 'feedbackCount', key: 'feedbackCount' },
                 {
-                  title: '识别需求/Bug',
+                  title: '需求/Bug识别',
                   dataIndex: 'requirementIdentifiedCount',
                   key: 'requirementIdentifiedCount',
                 },
                 {
-                  title: '已完成需求/Bug',
+                  title: '需求/Bug闭环量',
                   dataIndex: 'requirementCompletedCount',
                   key: 'requirementCompletedCount',
                 },
-                { title: '需求/Bug上线量', dataIndex: 'releaseCount', key: 'releaseCount' },
+                { title: '需求/Bug上线闭环量', dataIndex: 'releaseCount', key: 'releaseCount' },
               ]}
             />
           </Card>
@@ -1103,7 +1103,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={4}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>需求已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>需求闭环数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -1130,7 +1130,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={8}>
           <div style={{ padding: '20px 24px' }}>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666' }}>需求闭环率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1194,7 +1194,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={4}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug闭环数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -1221,7 +1221,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={8}>
           <div style={{ padding: '20px 24px' }}>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
+              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1261,7 +1261,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       bugCompletionRate: number;
     }> = [];
     
-    const sortedMonths = Array.from(months).sort();
+    const sortedMonths = Array.from(months).sort().reverse();
     
     sortedMonths.forEach(month => {
       const reqData = demandMonthlyRows.find(r => r.month === month);
@@ -1318,24 +1318,24 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
   // 按月汇总表格的列定义
   const mergedMonthlyColumns = [
-    { title: '月份', dataIndex: 'month', key: 'month', width: 80, fixed: 'left' as const },
+    { title: '月份', dataIndex: 'month', key: 'month', width: 80, fixed: 'left' as const, defaultSortOrder: 'descend' as const },
     { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 90 },
-    { title: '需求已完成', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 100 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 100 },
     { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 100 },
     { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 110 },
     {
-      title: '需求结单率',
+      title: '需求闭环率',
       key: 'reqCompletionRate',
       width: 100,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.reqCompletionRate * 100).toFixed(2)}%`,
     },
     { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 90 },
-    { title: 'Bug已完成', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 100 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 100 },
     { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 100 },
     { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 110 },
     {
-      title: 'Bug结单率',
+      title: 'Bug闭环率',
       key: 'bugCompletionRate',
       width: 100,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 

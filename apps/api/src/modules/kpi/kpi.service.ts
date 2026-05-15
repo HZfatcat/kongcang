@@ -121,7 +121,7 @@ export class KpiService {
 
     const [completedCount, rejectedCount, linkedSessionCount, bugCount, bugCompletedCount, bugRejectedCount, bugLongTermCount, statusGroups, longTermCount] =
       await Promise.all([
-        // 需求结单数（CLOSED，排除长期演进）
+        // 需求结单数（CLOSED + DONE，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
@@ -130,7 +130,7 @@ export class KpiService {
               { issueType: { not: 1 } },
               { issueType: null },
             ],
-            status: RequirementStatus.CLOSED,
+            status: { in: [RequirementStatus.CLOSED, RequirementStatus.DONE] },
           },
         }),
         // 需求拒绝数（REJECTED，排除长期演进）
@@ -158,13 +158,13 @@ export class KpiService {
             issueType: 1,
           },
         }),
-        // Bug 结单数（CLOSED，排除长期演进）
+        // Bug 结单数（CLOSED + DONE，排除长期演进）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
             isLongTerm: false,
             issueType: 1,
-            status: RequirementStatus.CLOSED,
+            status: { in: [RequirementStatus.CLOSED, RequirementStatus.DONE] },
           },
         }),
         // Bug 拒绝数（REJECTED，排除长期演进）
@@ -236,7 +236,7 @@ export class KpiService {
       ORDER BY month ASC
     `;
 
-    // 月度需求完成统计：按创建时间月份分组，统计已完成状态
+    // 月度需求完成统计：按创建时间月份分组，统计已闭环状态（CLOSED + DONE）
     const monthlyRequirementCompletedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
@@ -245,7 +245,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r."isLongTerm" = false
-        AND r.status = 'CLOSED'
+        AND r.status IN ('CLOSED', 'DONE')
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -302,7 +302,7 @@ export class KpiService {
       ORDER BY month ASC
     `;
 
-    // 月度Bug完成统计：按创建时间月份分组，统计已完成状态（排除长期演进）
+    // 月度Bug完成统计：按创建时间月份分组，统计已闭环状态（CLOSED + DONE，排除长期演进）
     const monthlyBugCompletedRows = await this.prisma.$queryRaw<
       Array<{ month: Date; count: bigint }>
     >`
@@ -311,7 +311,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND r."issueType" = 1
         AND r."isLongTerm" = false
-        AND r.status = 'CLOSED'
+        AND r.status IN ('CLOSED', 'DONE')
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;

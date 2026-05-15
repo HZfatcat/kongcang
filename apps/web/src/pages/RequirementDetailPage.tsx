@@ -33,7 +33,7 @@ interface MonthlyRow {
 const statusTextMap: Record<string, string> = {
   'OPEN': '待评估',
   'IN_PROGRESS': '已采纳',
-  'DONE': '已完成',
+  'DONE': '已闭环',
   'CLOSED': '已闭环',
   'REJECTED': '已拒绝',
 };
@@ -119,7 +119,7 @@ export function RequirementDetailPage() {
       render: (isLongTerm: boolean) => (
         <Tag color={isLongTerm ? 'orange' : 'default'}>{isLongTerm ? '是' : '否'}</Tag>
       ),
-      width: 100,
+      width: 120,
     },
     {
       title: '创建人',
@@ -140,7 +140,7 @@ export function RequirementDetailPage() {
       width: 170,
     },
     {
-      title: '完成时间',
+      title: '闭环时间',
       dataIndex: 'completedAtSource',
       key: 'completedAtSource',
       sorter: (a: RequirementRow, b: RequirementRow) => {
@@ -169,7 +169,7 @@ export function RequirementDetailPage() {
       width: 100,
     },
     { 
-      title: '已完成', 
+      title: '闭环数', 
       dataIndex: 'completed', 
       key: 'completed', 
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
@@ -190,7 +190,7 @@ export function RequirementDetailPage() {
       width: 90,
     },
     {
-      title: '结单率',
+      title: '闭环率',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => {
         const aRate = a.created - a.longTermCount > 0 ? (a.completed + a.rejectedCount) / (a.created - a.longTermCount) : 0;
@@ -229,7 +229,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>识别需求总数</span>} 
+              title={<span style={{ color: '#666' }}>需求总数</span>} 
               value={demandOverview?.totalWithLongTerm ?? 0}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -242,7 +242,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>已结单需求数</span>} 
+              title={<span style={{ color: '#666' }}>已闭环需求数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -281,7 +281,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666' }}>需求闭环率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -291,7 +291,7 @@ export function RequirementDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月需求结单率</span>} 
+        title={<span style={{ fontWeight: 600 }}>月度数据详情</span>} 
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
         <ResizableTable<MonthlyRow>

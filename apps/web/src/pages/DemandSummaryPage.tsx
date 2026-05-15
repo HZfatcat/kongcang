@@ -7,10 +7,17 @@ import { ResizableTable } from '../components/ResizableTable';
 import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
-import { fetchZouwuFeedbackStats } from '../api/udesc';
-import type { ZouwuFeedbackStatistics } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
+
+const statusTextMap: Record<string, string> = {
+  'OPEN': '待评估',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已闭环',
+  'CLOSED': '已闭环',
+  'REJECTED': '已拒绝',
+};
+
 
 interface MonthlySummaryRow {
   month: string;
@@ -41,31 +48,7 @@ interface RecentItem {
 
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
-  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
-  const [zouwuStats, setZouwuStats] = useState<ZouwuFeedbackStatistics | null>(null);
-  const [zouwuStatsLoading, setZouwuStatsLoading] = useState(false);
 
-  // 加载产品模块分布数据
-  React.useEffect(() => {
-    let cancelled = false;
-    fetchProductModuleDistribution({
-      startDate: dateRange[0].format('YYYY-MM-DD'),
-      endDate: dateRange[1].format('YYYY-MM-DD'),
-    }).then((data) => {
-      if (!cancelled) setProductModuleData(data);
-    });
-    return () => { cancelled = true; };
-  }, [dateRange]);
-
-  useEffect(() => {
-    const start = dateRange[0].format('YYYY-MM-DD 00:00:00');
-    const end = dateRange[1].format('YYYY-MM-DD 23:59:59');
-    setZouwuStatsLoading(true);
-    fetchZouwuFeedbackStats({ start, end })
-      .then(setZouwuStats)
-      .catch(() => setZouwuStats(null))
-      .finally(() => setZouwuStatsLoading(false));
-  }, [dateRange[0].valueOf(), dateRange[1].valueOf()]);
 
   // 按月汇总数据
   const monthlySummary: MonthlySummaryRow[] = React.useMemo(() => {
@@ -94,7 +77,7 @@ export function DemandSummaryPage() {
     });
     
     bugMonthly.forEach((m: MonthlyCompletion) => {
-      // Bug 结单率使用 completionRate 字段 - 与 BugDetailPage 一致
+      // Bug闭环率使用 completionRate 字段 - 与 BugDetailPage 一致
       const existing = monthMap.get(m.month);
       if (existing) {
         existing.bugCreated = m.created;
@@ -141,6 +124,7 @@ export function DemandSummaryPage() {
       key: 'month',
       width: 100,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.month.localeCompare(b.month),
+      defaultSortOrder: 'descend' as const,
     },
     { 
       title: '需求总数', 
@@ -150,7 +134,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqCreated - b.reqCreated,
     },
     { 
-      title: '需求完成', 
+      title: '需求闭环数', 
       dataIndex: 'reqCompleted', 
       key: 'reqCompleted',
       width: 90,
@@ -171,7 +155,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqLongTerm - b.reqLongTerm,
     },
     {
-      title: '需求结单率',
+      title: '需求闭环率',
       dataIndex: 'reqRate',
       key: 'reqRate',
       width: 110,
@@ -190,7 +174,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugCreated - b.bugCreated,
     },
     { 
-      title: 'Bug完成', 
+      title: 'Bug闭环数', 
       dataIndex: 'bugCompleted', 
       key: 'bugCompleted',
       width: 80,
@@ -211,7 +195,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugLongTerm - b.bugLongTerm,
     },
     {
-      title: 'Bug结单率',
+      title: 'Bug闭环率',
       dataIndex: 'bugRate',
       key: 'bugRate',
       width: 100,
@@ -259,7 +243,7 @@ export function DemandSummaryPage() {
           'TODO': 'default',
           'REJECTED': 'red',
         };
-        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
       },
     },
     { 
@@ -319,7 +303,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>需求已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>需求闭环数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -358,7 +342,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666' }}>需求闭环率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -389,7 +373,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug闭环数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -428,7 +412,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
+              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -436,22 +420,6 @@ export function DemandSummaryPage() {
           </Card>
         </Col>
       </Row>
-
-      <Card title="驺吾新增统计（按创建时间）" style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }} loading={zouwuStatsLoading}>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
-          </Col>
-          <Col span={12}>
-            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
-          </Col>
-        </Row>
-        <Space direction="vertical" style={{ marginTop: 12 }}>
-          <Typography.Text type="secondary">
-            统计窗口：{zouwuStats?.startCreatedTime ?? dateRange[0].format('YYYY-MM-DD')} ~ {zouwuStats?.endCreatedTime ?? dateRange[1].format('YYYY-MM-DD')}
-          </Typography.Text>
-        </Space>
-      </Card>
 
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月汇总</span>} 

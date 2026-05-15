@@ -38,6 +38,14 @@ interface MonthlyRow {
   completionRate: number;
 }
 
+const statusTextMap: Record<string, string> = {
+  'OPEN': '待评估',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已闭环',
+  'CLOSED': '已闭环',
+  'REJECTED': '已拒绝',
+};
+
 export function BugDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
   const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
@@ -86,7 +94,10 @@ export function BugDetailPage() {
       dataIndex: 'status',
       key: 'status',
       sorter: (a: BugRow, b: BugRow) => a.status.localeCompare(b.status),
-      filters: [...new Set(bugList.map(r => r.status))].map(s => ({ text: statusTextMap[s] || s, value: s })),
+      filters: [...new Set(bugList.map(r => r.status))].map(s => ({
+        text: statusTextMap[s] || s,
+        value: s
+      })),
       onFilter: (value: unknown, record: BugRow) => record.status === value,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
@@ -114,7 +125,7 @@ export function BugDetailPage() {
         return record.isLongTerm !== true;
       },
       render: (value?: boolean) => value ? <Tag color="purple">是</Tag> : <Tag>否</Tag>,
-      width: 100,
+      width: 120,
     },
     {
       title: '创建人',
@@ -135,7 +146,7 @@ export function BugDetailPage() {
       width: 170,
     },
     {
-      title: '完成时间',
+      title: '闭环时间',
       dataIndex: 'completedAtSource',
       key: 'completedAtSource',
       sorter: (a: BugRow, b: BugRow) => {
@@ -164,7 +175,7 @@ export function BugDetailPage() {
       width: 100,
     },
     { 
-      title: '已完成', 
+      title: '闭环数', 
       dataIndex: 'completed', 
       key: 'completed',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
@@ -185,7 +196,7 @@ export function BugDetailPage() {
       width: 100,
     },
     {
-      title: '结单率',
+      title: '闭环率',
       dataIndex: 'completionRate',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completionRate - b.completionRate,
@@ -216,7 +227,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>识别 Bug 总数</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 总数</span>} 
               value={demandOverview?.bugCount ?? 0}
               valueStyle={{ color: '#faad14' }}
             />
@@ -229,7 +240,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>已结单 Bug 数</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>已闭环 Bug 数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -268,7 +279,7 @@ export function BugDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
+              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -278,7 +289,7 @@ export function BugDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月 Bug 结单率</span>}
+        title={<span style={{ fontWeight: 600 }}>月度数据详情</span>}
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
         <ResizableTable<MonthlyRow>
