@@ -16,7 +16,14 @@ export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
 
   private resolveRange(startDate?: string, endDate?: string) {
-    const end = endDate ? new Date(endDate) : new Date();
+    let end: Date;
+    if (endDate) {
+      // 将 endDate 设置为当天的 23:59:59.999，确保包含当天所有数据
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end = new Date();
+    }
     const start = startDate
       ? new Date(startDate)
       : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
@@ -1632,12 +1639,15 @@ export class UdescService {
     const matrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
 
     if (type === 'session') {
-      // 查询会话数据
+      // 查询会话数据（全量统计，不额外过滤会话状态，与 Udesk 对话报表口径一致）
+      const where: any = {
+        startedAt: { gte: start, lte: end },
+      };
+      if (agentId) {
+        where.agentId = agentId;
+      }
       const sessions = await this.prisma.udescSession.findMany({
-        where: {
-          startedAt: { gte: start, lte: end },
-          agentId: agentId,
-        },
+        where,
         select: { startedAt: true },
       });
 
