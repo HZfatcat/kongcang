@@ -9,10 +9,10 @@ import dayjs from 'dayjs';
 const { RangePicker } = DatePicker;
 
 const statusTextMap: Record<string, string> = {
-  'IN_PROGRESS': '待评估',
-  'CLOSED': '已采纳',
   'OPEN': '待评估',
-  'DONE': '已完成',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已闭环',
+  'CLOSED': '已闭环',
   'REJECTED': '已拒绝',
 };
 
@@ -37,14 +37,6 @@ interface MonthlyRow {
   longTermCount: number;
   completionRate: number;
 }
-
-const statusTextMap: Record<string, string> = {
-  'OPEN': '待评估',
-  'IN_PROGRESS': '已采纳',
-  'DONE': '已闭环',
-  'CLOSED': '已闭环',
-  'REJECTED': '已拒绝',
-};
 
 export function BugDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();

@@ -48,7 +48,17 @@ interface RecentItem {
 
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
+  const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
 
+  useEffect(() => {
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then(setProductModuleData).catch(err => {
+      console.error('Failed to load product module distribution:', err);
+      setProductModuleData(null);
+    });
+  }, [dateRange]);
 
   // 按月汇总数据
   const monthlySummary: MonthlySummaryRow[] = React.useMemo(() => {
