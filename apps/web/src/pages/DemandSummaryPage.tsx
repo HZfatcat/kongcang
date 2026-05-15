@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
+import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip } from 'antd';
 import { Link } from 'react-router-dom';
 import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
 import type { MonthlyCompletion, ProductModuleDistribution } from '../types/kpi';
@@ -122,7 +122,7 @@ export function DemandSummaryPage() {
       title: '月份', 
       dataIndex: 'month', 
       key: 'month',
-      width: 100,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.month.localeCompare(b.month),
       defaultSortOrder: 'descend' as const,
     },
@@ -130,35 +130,35 @@ export function DemandSummaryPage() {
       title: '需求总数', 
       dataIndex: 'reqCreated', 
       key: 'reqCreated',
-      width: 90,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqCreated - b.reqCreated,
     },
     { 
       title: '需求闭环数', 
       dataIndex: 'reqCompleted', 
       key: 'reqCompleted',
-      width: 90,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqCompleted - b.reqCompleted,
     },
     { 
       title: '需求拒绝', 
       dataIndex: 'reqRejected', 
       key: 'reqRejected',
-      width: 90,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqRejected - b.reqRejected,
     },
     { 
       title: '需求长期', 
       dataIndex: 'reqLongTerm', 
       key: 'reqLongTerm',
-      width: 90,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqLongTerm - b.reqLongTerm,
     },
     {
       title: '需求闭环率',
       dataIndex: 'reqRate',
       key: 'reqRate',
-      width: 110,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqRate - b.reqRate,
       render: (rate: number) => (
         <span style={{ color: rate >= 0.8 ? '#52c41a' : rate >= 0.5 ? '#faad14' : '#ff4d4f' }}>
@@ -170,35 +170,35 @@ export function DemandSummaryPage() {
       title: 'Bug总数', 
       dataIndex: 'bugCreated', 
       key: 'bugCreated',
-      width: 80,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugCreated - b.bugCreated,
     },
     { 
       title: 'Bug闭环数', 
       dataIndex: 'bugCompleted', 
       key: 'bugCompleted',
-      width: 80,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugCompleted - b.bugCompleted,
     },
     { 
       title: 'Bug拒绝', 
       dataIndex: 'bugRejected', 
       key: 'bugRejected',
-      width: 80,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugRejected - b.bugRejected,
     },
     { 
       title: 'Bug长期', 
       dataIndex: 'bugLongTerm', 
       key: 'bugLongTerm',
-      width: 80,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugLongTerm - b.bugLongTerm,
     },
     {
       title: 'Bug闭环率',
       dataIndex: 'bugRate',
       key: 'bugRate',
-      width: 100,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugRate - b.bugRate,
       render: (rate: number) => (
         <span style={{ color: rate >= 0.8 ? '#52c41a' : rate >= 0.5 ? '#faad14' : '#ff4d4f' }}>
@@ -335,12 +335,41 @@ export function DemandSummaryPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={4} style={{ position: 'relative' }}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            bodyStyle={{ padding: '20px 16px' }}
           >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的需求（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中需求</span>}
+              value={demandOverview?.followUpCount ?? 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4} style={{ position: 'relative' }}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 16px' }}
+          >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
               title={<span style={{ color: '#666' }}>需求闭环率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
@@ -405,12 +434,41 @@ export function DemandSummaryPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={4} style={{ position: 'relative' }}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            bodyStyle={{ padding: '20px 16px' }}
           >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的 Bug（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中 Bug</span>}
+              value={demandOverview?.bugFollowUpCount ?? 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 16px' }}
+          >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
               title={<span style={{ color: '#666' }}>Bug闭环率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}

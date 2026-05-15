@@ -1127,8 +1127,33 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={8}>
-          <div style={{ padding: '20px 24px' }}>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的需求（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中需求</span>}
+              value={demandOverview?.followUpCount ?? 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </div>
+        </Col>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
               title={<span style={{ color: '#666' }}>需求闭环率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
@@ -1218,8 +1243,33 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={8}>
-          <div style={{ padding: '20px 24px' }}>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的 Bug（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中 Bug</span>}
+              value={demandOverview?.bugFollowUpCount ?? 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </div>
+        </Col>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
               title={<span style={{ color: '#666' }}>Bug闭环率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
@@ -1318,26 +1368,26 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
   // 按月汇总表格的列定义
   const mergedMonthlyColumns = [
-    { title: '月份', dataIndex: 'month', key: 'month', width: 80, fixed: 'left' as const, defaultSortOrder: 'descend' as const },
-    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 90 },
-    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 100 },
-    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 100 },
-    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 110 },
+    { title: '月份', dataIndex: 'month', key: 'month', width: 110, fixed: 'left' as const, defaultSortOrder: 'descend' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 120 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 140 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
     {
       title: '需求闭环率',
       key: 'reqCompletionRate',
-      width: 100,
+      width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.reqCompletionRate * 100).toFixed(2)}%`,
     },
-    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 90 },
-    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 100 },
-    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 100 },
-    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 110 },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 120 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 140 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
     {
       title: 'Bug闭环率',
       key: 'bugCompletionRate',
-      width: 100,
+      width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.bugCompletionRate * 100).toFixed(2)}%`,
     },
@@ -1359,6 +1409,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               dataSource={mergedMonthlyRows}
               pagination={false}
               size="small"
+              bordered
+              scroll={{ x: 'max-content' }}
               columns={mergedMonthlyColumns}
             />
           </Card>

@@ -39,7 +39,10 @@ export class UdescService {
     });
     const sessionIds = sessionsInRange.map((s) => s.id);
 
-    const [totalSessions, totalMessages, agentCount, ratedCount, avgRating, topAgents, voteStats, customerCount] =
+    // 获取评价标签统计（包含"回访"标签计数）
+    const voteTagStatsPromise = this.getVoteTagStats(start, end);
+
+    const [totalSessions, totalMessages, agentCount, ratedCount, avgRating, topAgents, voteTagStats, customerCount, returnVisitCount] =
       await Promise.all([
       this.prisma.udescSession.count({ where }),
       this.prisma.udescSessionMessage.count({
@@ -83,8 +86,18 @@ export class UdescService {
         },
         take: 10,
       }),
-      this.getVoteTagStats(start, end),
+      voteTagStatsPromise,
       this.prisma.udescCustomer.count(),
+      // 统计回访会话数：查找 UdescSessionVote 中 tags 包含"回访"的会话
+      this.prisma.udescSessionVote
+        .findMany({
+          where: {
+            sessionId: { in: sessionIds },
+            tags: { has: '回访' },
+          },
+          select: { sessionId: true },
+        })
+        .then((votes) => new Set(votes.map((v) => v.sessionId)).size),
       ]);
 
     return {
@@ -99,8 +112,9 @@ export class UdescService {
         agentId: item.agentId ?? 'unknown',
         sessions: item._count.id,
       })),
-      voteTagStats: voteStats,
+      voteTagStats: voteTagStats,
       customerCount,
+      returnVisitCount,
     };
   }
 

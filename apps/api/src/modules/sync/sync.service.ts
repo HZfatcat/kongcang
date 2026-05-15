@@ -1110,7 +1110,10 @@ export class SyncService {
       });
       const pageSize = Number(process.env.ZOUWU_SYNC_PAGE_SIZE ?? 100);
       
-      const start = options?.startDate ?? (checkpoint?.lastSyncedAt ? new Date(checkpoint.lastSyncedAt) : this.buildDateRange().start);
+      // 由于 Zouwu API 仅支持按创建时间查询(listFeedback 的 startCreatedTime/endCreatedTime),
+      // 但增量同步会漏掉"之前创建、最近状态变更"的项(如:3月创建的项在5月被关闭)。
+      // 因此始终从项目初始日期开始全量同步，确保所有项的最新状态都被拉取。
+      const start = options?.startDate ?? (process.env.SYNC_START_DATE ? new Date(process.env.SYNC_START_DATE) : new Date('2026-01-01T00:00:00.000Z'));
       const end = options?.endDate ?? new Date();
       
       let cursor = options?.resetCursor ? undefined : (checkpoint?.cursor ?? undefined);

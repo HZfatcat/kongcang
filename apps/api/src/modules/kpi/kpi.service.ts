@@ -119,7 +119,7 @@ export class KpiService {
       },
     });
 
-    const [completedCount, rejectedCount, linkedSessionCount, bugCount, bugCompletedCount, bugRejectedCount, bugLongTermCount, statusGroups, longTermCount] =
+    const [completedCount, rejectedCount, linkedSessionCount, bugCount, bugCompletedCount, bugRejectedCount, bugLongTermCount, statusGroups, longTermCount, followUpCount, bugFollowUpCount] =
       await Promise.all([
         // 需求结单数（CLOSED + DONE，排除长期演进）
         this.prisma.zouwuRequirement.count({
@@ -198,6 +198,27 @@ export class KpiService {
               { issueType: { not: 1 } },
               { issueType: null },
             ],
+          },
+        }),
+        // 跟进中需求数（非 Bug、非长期演进、状态为 OPEN / IN_PROGRESS / DONE）
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            isLongTerm: false,
+            OR: [
+              { issueType: { not: 1 } },
+              { issueType: null },
+            ],
+            status: { in: [RequirementStatus.OPEN, RequirementStatus.IN_PROGRESS, RequirementStatus.DONE] },
+          },
+        }),
+        // 跟进中 Bug 数（Bug、非长期演进、状态为 OPEN / IN_PROGRESS / DONE）
+        this.prisma.zouwuRequirement.count({
+          where: {
+            ...baseWhere,
+            isLongTerm: false,
+            issueType: 1,
+            status: { in: [RequirementStatus.OPEN, RequirementStatus.IN_PROGRESS, RequirementStatus.DONE] },
           },
         }),
       ]);
@@ -469,6 +490,8 @@ export class KpiService {
       bugCompletedCount,
       bugRejectedCount,
       bugCompletionRate: (bugCount - bugLongTermCount) > 0 ? (bugCompletedCount + bugRejectedCount) / (bugCount - bugLongTermCount) : 0,
+      followUpCount,
+      bugFollowUpCount,
       statusBreakdown,
       daily: {
         days,
