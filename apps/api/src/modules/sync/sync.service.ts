@@ -1032,33 +1032,56 @@ export class SyncService {
             firstResponseTime = respSeconds;
           } else {
             // UDesk 数据为 0 或无效，从本地消息记录计算
-            const firstCustomerMsg = await this.prisma.udescSessionMessage.findFirst({
-              where: { sessionId: session.id, senderType: 'customer' },
-              orderBy: { sentAt: 'asc' },
-              select: { sentAt: true },
-            });
             const firstAgentMsg = await this.prisma.udescSessionMessage.findFirst({
               where: { sessionId: session.id, senderType: 'agent' },
               orderBy: { sentAt: 'asc' },
               select: { sentAt: true },
             });
-            if (firstCustomerMsg && firstAgentMsg) {
-              const diffMs = firstAgentMsg.sentAt.getTime() - firstCustomerMsg.sentAt.getTime();
+            if (firstAgentMsg) {
+              const diffMs = firstAgentMsg.sentAt.getTime() - session.startedAt.getTime();
               if (diffMs > 0) {
                 firstResponseTime = Math.floor(diffMs / 1000);
               }
             }
             // 客户有消息但客服未回复，首次响应时间设为 100 小时
-            if (firstCustomerMsg && !firstAgentMsg) {
+            if (!firstAgentMsg) {
               firstResponseTime = 100 * 60 * 60; // 360000 秒 = 100 小时
             }
           }
         }
         if (avgRespSeconds !== null && avgRespSeconds > 0) {
           avgResponseTime = avgRespSeconds;
+        } else if (actualAgentMsgCount > 0 && actualCustomerMsgCount > 0) {
+          // UDesk 数据无效，从本地消息记录计算平均响应时间
+          const allMsgs = await this.prisma.udescSessionMessage.findMany({
+            where: { sessionId: session.id },
+            orderBy: { sentAt: 'asc' },
+            select: { sentAt: true, senderType: true, content: true },
+          });
+          const customerMsgs = allMsgs.filter(m => m.senderType === 'customer');
+          const agentMsgs = allMsgs.filter(m => m.senderType === 'agent');
+          const responseTimes: number[] = [];
+          for (const cm of customerMsgs) {
+            const nextAgent = agentMsgs.find(a => a.sentAt.getTime() > cm.sentAt.getTime());
+            if (nextAgent) {
+              const diff = nextAgent.sentAt.getTime() - cm.sentAt.getTime();
+              if (diff > 0) {
+                responseTimes.push(Math.floor(diff / 1000));
+              }
+            }
+          }
+          if (responseTimes.length > 0) {
+            avgResponseTime = Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length);
+          }
         }
         if (sustainSeconds !== null && sustainSeconds > 0) {
           resolutionTime = sustainSeconds;
+        } else if (session.endedAt) {
+          // UDesk 数据无效，从本地会话时间计算解决时间
+          const diffMs = session.endedAt.getTime() - session.startedAt.getTime();
+          if (diffMs > 0) {
+            resolutionTime = Math.floor(diffMs / 1000);
+          }
         }
         // queue_seconds 可能是 "未排队" 字符串，此时 extractNumber 返回 null
         if (queueSeconds !== null && queueSeconds >= 0) {

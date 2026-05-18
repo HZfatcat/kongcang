@@ -926,15 +926,14 @@ export class UdescService {
           )
         );
 
-        // 计算首次响应时间（无法计算时返回 null）
+        // 计算首次响应时间：客服首次回复时间 - 会话开始时间（不包含留言等待时间）
         let firstResponseTime: number | null = null;
         if (customerMsgs.length > 0) {
           if (agentMsgs.length > 0) {
-            const firstCustomerMsg = customerMsgs[0];
-            const firstAgentMsg = agentMsgs.find((a) => new Date(a.sentAt) > new Date(firstCustomerMsg.sentAt));
+            const firstAgentMsg = agentMsgs.find((a) => new Date(a.sentAt) > new Date(s.startedAt));
             if (firstAgentMsg) {
               const diff = Math.round(
-                (new Date(firstAgentMsg.sentAt).getTime() - new Date(firstCustomerMsg.sentAt).getTime()) / 1000
+                (new Date(firstAgentMsg.sentAt).getTime() - new Date(s.startedAt).getTime()) / 1000
               );
               if (diff >= 0) {
                 firstResponseTime = diff;
@@ -950,7 +949,7 @@ export class UdescService {
         // 计算平均响应时间
         let avgResponseTime = 0;
         const responseTimes: number[] = [];
-        for (let i = 0; i < customerMsgs.length - 1; i++) {
+        for (let i = 0; i < customerMsgs.length; i++) {
           const agentReply = agentMsgs.find(
             (a) => new Date(a.sentAt) > new Date(customerMsgs[i].sentAt)
           );
@@ -964,12 +963,11 @@ export class UdescService {
           avgResponseTime = Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length);
         }
 
-        // 计算解决时间
+        // 计算解决时间：会话结束 - 会话开始
         let resolutionTime = 0;
-        if (s.endedAt && messages.length > 0) {
-          const firstMsg = messages[0];
+        if (s.endedAt) {
           resolutionTime = Math.round(
-            (new Date(s.endedAt).getTime() - new Date(firstMsg.sentAt).getTime()) / 1000
+            (new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000
           );
         }
 
@@ -1129,6 +1127,8 @@ export class UdescService {
       sessionId: string;
       first_customer_msg: Date | null;
       first_agent_msg: Date | null;
+      started_at: Date | null;
+      ended_at: Date | null;
       last_msg: Date | null;
       total_msgs: bigint;
       agent_msgs: bigint;
@@ -1143,21 +1143,24 @@ export class UdescService {
       ),
       aggregated AS (
         SELECT 
-          "sessionId",
-          MIN(CASE WHEN "senderType" = 'customer' THEN "sentAt" END) as first_customer_msg,
-          MIN(CASE WHEN "senderType" = 'agent' THEN "sentAt" END) as first_agent_msg,
-          MAX("sentAt") as last_msg,
+          sm."sessionId",
+          MIN(CASE WHEN sm."senderType" = 'customer' THEN sm."sentAt" END) as first_customer_msg,
+          MIN(CASE WHEN sm."senderType" = 'agent' THEN sm."sentAt" END) as first_agent_msg,
+          s."startedAt" as started_at,
+          s."endedAt" as ended_at,
+          MAX(sm."sentAt") as last_msg,
           COUNT(*) as total_msgs,
-          COUNT(*) FILTER (WHERE "senderType" = 'agent') as agent_msgs
-        FROM session_msgs
-        GROUP BY "sessionId"
+          COUNT(*) FILTER (WHERE sm."senderType" = 'agent') as agent_msgs
+        FROM session_msgs sm
+        LEFT JOIN "UdescSession" s ON s."id" = sm."sessionId"
+        GROUP BY sm."sessionId", s."startedAt", s."endedAt"
       )
       SELECT * FROM aggregated
     `;
 
     console.log('[getMetricsSummary] metricsData rows:', metricsData.length);
 
-    // 计算首次响应时间（第一个客服消息 - 第一个客户消息）
+    // 计算首次响应时间（第一个客服消息 - 会话开始时间，不包含留言等待时间）
     const firstResponseTimes: number[] = [];
     let totalMessages = 0;
     let sessionsWithMessages = 0;
@@ -1166,10 +1169,16 @@ export class UdescService {
 
     for (const row of metricsData) {
       if (row.first_customer_msg) {
-        if (row.first_agent_msg) {
-          const diffMs = new Date(row.first_agent_msg).getTime() - new Date(row.first_customer_msg).getTime();
+        if (row.first_agent_msg && row.started_at) {
+          const diffMs = new Date(row.first_agent_msg).getTime() - new Date(row.started_at).getTime();
           if (diffMs >= 0) {
             firstResponseTimes.push(Math.round(diffMs / 1000)); // 转为秒
+          }
+        } else if (row.first_agent_msg && !row.started_at) {
+          // 降级：用第一个客户消息时间
+          const diffMs = new Date(row.first_agent_msg).getTime() - new Date(row.first_customer_msg).getTime();
+          if (diffMs >= 0) {
+            firstResponseTimes.push(Math.round(diffMs / 1000));
           }
         } else {
           // 客户有消息但客服未回复，首次响应时间设为 100 小时
@@ -1206,7 +1215,7 @@ export class UdescService {
       messagesBySession.get(msg.sessionId)!.push(msg);
     }
 
-    // 获取会话的 endedAt
+    // 获取会话的 startedAt 和 endedAt
     const sessionEndTimes = await this.prisma.udescSession.findMany({
       where: { id: { in: sessionIds } },
       select: { id: true, startedAt: true, endedAt: true },
@@ -1222,12 +1231,12 @@ export class UdescService {
       const nonSystemMsgs = messages.filter(m => !isSystemMessage(m.content));
       totalMessages += nonSystemMsgs.length;
 
-      // 计算解决时间（会话结束 - 第一条非系统消息）
-      if (session.endedAt && nonSystemMsgs.length > 0) {
-        const firstMsgTime = new Date(nonSystemMsgs[0].sentAt).getTime();
+      // 计算解决时间（会话结束 - 会话开始，即平均对话时长）
+      if (session.endedAt) {
+        const startedTime = new Date(session.startedAt).getTime();
         const endedTime = new Date(session.endedAt).getTime();
-        if (endedTime >= firstMsgTime) {
-          resolutionTimes.push(Math.round((endedTime - firstMsgTime) / 1000));
+        if (endedTime >= startedTime) {
+          resolutionTimes.push(Math.round((endedTime - startedTime) / 1000));
         }
       }
 
@@ -1380,9 +1389,23 @@ export class UdescService {
 
         const HUNDRED_HOURS = 100 * 60 * 60; // 360000 秒
 
-        // 首次响应时间
+        // 首次响应时间：客服首次回复 - 会话开始时间（不包含留言等待时间）
         if (customerMsgs.length > 0) {
-          if (agentMsgs.length > 0) {
+          if (agentMsgs.length > 0 && session?.startedAt) {
+            const firstAgentMsgAfter = agentMsgs.find(a => 
+              new Date(a.sentAt).getTime() > new Date(session.startedAt).getTime()
+            );
+            if (firstAgentMsgAfter) {
+              const diff = Math.round(
+                (new Date(firstAgentMsgAfter.sentAt).getTime() - new Date(session.startedAt).getTime()) / 1000
+              );
+              if (diff >= 0) {
+                totalFirstResponseTime += diff;
+                firstResponseCount++;
+              }
+            }
+          } else if (agentMsgs.length > 0) {
+            // 降级：没有 startedAt，用第一个客户消息
             const firstCustomerMsg = customerMsgs[0];
             const firstAgentMsgAfter = agentMsgs.find(a => 
               new Date(a.sentAt).getTime() > new Date(firstCustomerMsg.sentAt).getTime()
@@ -1427,10 +1450,10 @@ export class UdescService {
           waitCount++;
         }
 
-        // 解决时间
-        if (session?.endedAt && nonSystemMsgs.length > 0) {
+        // 解决时间：会话结束 - 会话开始
+        if (session?.endedAt && session?.startedAt) {
           const diff = Math.round(
-            (new Date(session.endedAt).getTime() - new Date(nonSystemMsgs[0].sentAt).getTime()) / 1000
+            (new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 1000
           );
           if (diff >= 0) {
             totalResolutionTime += diff;
