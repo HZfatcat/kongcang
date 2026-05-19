@@ -1,15 +1,23 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
+import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip, Table } from 'antd';
 import { Link } from 'react-router-dom';
-import { useKpi } from '../api/kpi';
-import type { MonthlyCompletion } from '../types/kpi';
+import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../api/kpi';
+import type { MonthlyCompletion, ProductModuleDistribution, AgentOverview } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
-import { fetchZouwuFeedbackStats } from '../api/udesc';
-import type { ZouwuFeedbackStatistics } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
+
+const statusTextMap: Record<string, string> = {
+  'OPEN': '待评估',
+  'IN_PROGRESS': '已采纳',
+  'DONE': '已闭环',
+  'CLOSED': '已闭环',
+  'REJECTED': '已拒绝',
+};
+
 
 interface MonthlySummaryRow {
   month: string;
@@ -40,18 +48,96 @@ interface RecentItem {
 
 export function DemandSummaryPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
-  const [zouwuStats, setZouwuStats] = useState<ZouwuFeedbackStatistics | null>(null);
-  const [zouwuStatsLoading, setZouwuStatsLoading] = useState(false);
+  const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
 
   useEffect(() => {
-    const start = dateRange[0].format('YYYY-MM-DD 00:00:00');
-    const end = dateRange[1].format('YYYY-MM-DD 23:59:59');
-    setZouwuStatsLoading(true);
-    fetchZouwuFeedbackStats({ start, end })
-      .then(setZouwuStats)
-      .catch(() => setZouwuStats(null))
-      .finally(() => setZouwuStatsLoading(false));
-  }, [dateRange[0].valueOf(), dateRange[1].valueOf()]);
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then(setProductModuleData).catch(err => {
+      console.error('Failed to load product module distribution:', err);
+      setProductModuleData(null);
+    });
+  }, [dateRange]);
+
+  // ===== 按客服汇总 =====
+  const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+
+  useEffect(() => {
+    setAgentLoading(true);
+    fetchAgentOverview({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then(setAgentOverview).catch(err => {
+      console.error('Failed to load agent overview:', err);
+      setAgentOverview(null);
+    }).finally(() => setAgentLoading(false));
+  }, [dateRange]);
+
+  const mergedAgentRows = React.useMemo(() => {
+    return (agentOverview?.rows ?? []).map(r => ({
+      agentName: r.agentName,
+      reqCreated: r.reqCreated,
+      reqCompleted: r.reqCompleted,
+      reqRejected: r.reqRejected,
+      reqLongTerm: r.reqLongTerm,
+      reqCompletionRate: r.reqCompletionRate,
+      bugCreated: r.bugCreated,
+      bugCompleted: r.bugCompleted,
+      bugRejected: r.bugRejected,
+      bugLongTerm: r.bugLongTerm,
+      bugCompletionRate: r.bugCompletionRate,
+      over7NotAdopted: r.over7NotAdopted,
+      over30NotClosedReq: r.over30NotClosedReq,
+      over30NotClosedBug: r.over30NotClosedBug,
+    }));
+  }, [agentOverview]);
+
+  const mergedAgentColumns = [
+    { title: '客服名称', dataIndex: 'agentName', key: 'agentName', width: 120, fixed: 'left' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 120 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 140 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
+    {
+      title: '需求关单率',
+      key: 'reqCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.reqCompletionRate * 100).toFixed(2)}%`,
+    },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 120 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 140 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
+    {
+      title: 'Bug关单率',
+      key: 'bugCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+    {
+      title: '总关单率',
+      key: 'overallCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) => {
+        const totalClosed = record.reqCompleted + record.reqRejected + record.bugCompleted + record.bugRejected;
+        const totalEffective = record.reqCreated + record.bugCreated - record.reqLongTerm - record.bugLongTerm;
+        const rate = totalEffective > 0 ? totalClosed / totalEffective : 0;
+        return `${(rate * 100).toFixed(2)}%`;
+      },
+    },
+    { title: '超7天未采纳', dataIndex: 'over7NotAdopted', key: 'over7NotAdopted', width: 120 },
+    {
+      title: '超30天未闭环',
+      key: 'over30NotClosed',
+      width: 150,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        (record.over30NotClosedReq ?? 0) + (record.over30NotClosedBug ?? 0),
+    },
+  ];
 
   // 按月汇总数据
   const monthlySummary: MonthlySummaryRow[] = React.useMemo(() => {
@@ -80,7 +166,7 @@ export function DemandSummaryPage() {
     });
     
     bugMonthly.forEach((m: MonthlyCompletion) => {
-      // Bug 结单率使用 completionRate 字段 - 与 BugDetailPage 一致
+      // Bug关单率使用 completionRate 字段 - 与 BugDetailPage 一致
       const existing = monthMap.get(m.month);
       if (existing) {
         existing.bugCreated = m.created;
@@ -125,42 +211,43 @@ export function DemandSummaryPage() {
       title: '月份', 
       dataIndex: 'month', 
       key: 'month',
-      width: 100,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.month.localeCompare(b.month),
+      defaultSortOrder: 'descend' as const,
     },
     { 
       title: '需求总数', 
       dataIndex: 'reqCreated', 
       key: 'reqCreated',
-      width: 90,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqCreated - b.reqCreated,
     },
     { 
-      title: '需求完成', 
+      title: '需求闭环数', 
       dataIndex: 'reqCompleted', 
       key: 'reqCompleted',
-      width: 90,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqCompleted - b.reqCompleted,
     },
     { 
       title: '需求拒绝', 
       dataIndex: 'reqRejected', 
       key: 'reqRejected',
-      width: 90,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqRejected - b.reqRejected,
     },
     { 
       title: '需求长期', 
       dataIndex: 'reqLongTerm', 
       key: 'reqLongTerm',
-      width: 90,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqLongTerm - b.reqLongTerm,
     },
     {
-      title: '需求结单率',
+      title: '需求关单率',
       dataIndex: 'reqRate',
       key: 'reqRate',
-      width: 110,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqRate - b.reqRate,
       render: (rate: number) => (
         <span style={{ color: rate >= 0.8 ? '#52c41a' : rate >= 0.5 ? '#faad14' : '#ff4d4f' }}>
@@ -172,35 +259,35 @@ export function DemandSummaryPage() {
       title: 'Bug总数', 
       dataIndex: 'bugCreated', 
       key: 'bugCreated',
-      width: 80,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugCreated - b.bugCreated,
     },
     { 
-      title: 'Bug完成', 
+      title: 'Bug闭环数', 
       dataIndex: 'bugCompleted', 
       key: 'bugCompleted',
-      width: 80,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugCompleted - b.bugCompleted,
     },
     { 
       title: 'Bug拒绝', 
       dataIndex: 'bugRejected', 
       key: 'bugRejected',
-      width: 80,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugRejected - b.bugRejected,
     },
     { 
       title: 'Bug长期', 
       dataIndex: 'bugLongTerm', 
       key: 'bugLongTerm',
-      width: 80,
+      width: 120,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugLongTerm - b.bugLongTerm,
     },
     {
-      title: 'Bug结单率',
+      title: 'Bug关单率',
       dataIndex: 'bugRate',
       key: 'bugRate',
-      width: 100,
+      width: 140,
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugRate - b.bugRate,
       render: (rate: number) => (
         <span style={{ color: rate >= 0.8 ? '#52c41a' : rate >= 0.5 ? '#faad14' : '#ff4d4f' }}>
@@ -245,7 +332,7 @@ export function DemandSummaryPage() {
           'TODO': 'default',
           'REJECTED': 'red',
         };
-        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+        return <Tag color={colorMap[status] || 'default'}>{statusTextMap[status] || status}</Tag>;
       },
     },
     { 
@@ -305,7 +392,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>需求已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>需求闭环数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -337,14 +424,43 @@ export function DemandSummaryPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={4} style={{ position: 'relative' }}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            bodyStyle={{ padding: '20px 16px' }}
           >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的需求（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中需求</span>}
+              value={demandOverview?.followUpCount ?? 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4} style={{ position: 'relative' }}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 16px' }}
+          >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -375,7 +491,7 @@ export function DemandSummaryPage() {
             bodyStyle={{ padding: '20px 16px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug闭环数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -407,14 +523,43 @@ export function DemandSummaryPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={4} style={{ position: 'relative' }}>
           <Card 
             loading={demandLoading} 
             style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            bodyStyle={{ padding: '20px 16px' }}
           >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的 Bug（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中 Bug</span>}
+              value={demandOverview?.bugFollowUpCount ?? 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card 
+            loading={demandLoading} 
+            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+            bodyStyle={{ padding: '20px 16px' }}
+          >
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -422,22 +567,6 @@ export function DemandSummaryPage() {
           </Card>
         </Col>
       </Row>
-
-      <Card title="驺吾新增统计（按创建时间）" style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }} loading={zouwuStatsLoading}>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Statistic title="功能需求新增" value={zouwuStats?.newRequirements ?? 0} />
-          </Col>
-          <Col span={12}>
-            <Statistic title="BUG反馈新增" value={zouwuStats?.newBugs ?? 0} />
-          </Col>
-        </Row>
-        <Space direction="vertical" style={{ marginTop: 12 }}>
-          <Typography.Text type="secondary">
-            统计窗口：{zouwuStats?.startCreatedTime ?? dateRange[0].format('YYYY-MM-DD')} ~ {zouwuStats?.endCreatedTime ?? dateRange[1].format('YYYY-MM-DD')}
-          </Typography.Text>
-        </Space>
-      </Card>
 
       <Card 
         title={<span style={{ fontWeight: 600 }}>按月汇总</span>} 
@@ -451,6 +580,24 @@ export function DemandSummaryPage() {
           size="middle"
           loading={demandLoading}
           scroll={{ x: 1100 }}
+        />
+      </Card>
+
+      {/* 按客服汇总 */}
+      <Card
+        title={<span style={{ fontWeight: 600 }}>按客服汇总</span>}
+        extra={<Tag color="blue">已剔除长期演进</Tag>}
+        style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+      >
+        <Table
+          rowKey="agentName"
+          dataSource={mergedAgentRows}
+          pagination={false}
+          size="small"
+          bordered
+          scroll={{ x: 'max-content' }}
+          columns={mergedAgentColumns}
+          loading={agentLoading}
         />
       </Card>
 
@@ -483,6 +630,12 @@ export function DemandSummaryPage() {
           loading={demandLoading}
         />
       </Card>
+
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

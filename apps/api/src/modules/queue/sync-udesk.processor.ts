@@ -4,14 +4,14 @@ import { Job } from 'bull';
 import { SyncService } from '../sync/sync.service';
 import { WebSocketGateway } from '../websocket/websocket.gateway';
 
-export interface SyncUdescJobData {
+export interface SyncUdeskJobData {
   runId: string;
   triggeredBy: 'schedule' | 'manual';
 }
 
-@Processor('sync-udesc')
-export class SyncUdescProcessor {
-  private readonly logger = new Logger(SyncUdescProcessor.name);
+@Processor('sync-udesk')
+export class SyncUdeskProcessor {
+  private readonly logger = new Logger(SyncUdeskProcessor.name);
 
   constructor(
     private readonly syncService: SyncService,
@@ -19,10 +19,10 @@ export class SyncUdescProcessor {
   ) {}
 
   @OnQueueActive()
-  onActive(job: Job<SyncUdescJobData>) {
-    this.logger.log(`Processing sync-udesc job ${job.id}, runId: ${job.data.runId}`);
+  onActive(job: Job<SyncUdeskJobData>) {
+    this.logger.log(`Processing sync-udesk job ${job.id}, runId: ${job.data.runId}`);
     this.wsGateway.broadcastSyncStatus({
-      source: 'udesc',
+      source: 'udesk',
       status: 'running',
       runId: job.data.runId,
       timestamp: new Date().toISOString(),
@@ -30,21 +30,21 @@ export class SyncUdescProcessor {
   }
 
   @Process({ concurrency: 1 })
-  async handleSync(job: Job<SyncUdescJobData>) {
-    this.logger.log(`Starting Udesc sync, job ${job.id}`);
+  async handleSync(job: Job<SyncUdeskJobData>) {
+    this.logger.log(`Starting Udesk sync, job ${job.id}`);
     
     // 定期报告进度
     const progressInterval = setInterval(() => {
-      const progress = this.syncService.getUdescProgress();
+      const progress = this.syncService.getUdeskProgress();
       job.progress(progress);
       this.wsGateway.broadcastSyncProgress({
         ...progress,
-        source: 'udesc' as const,
+        source: 'udesk' as const,
       });
     }, 2000);
 
     try {
-      await this.syncService.syncUdesc();
+      await this.syncService.syncUdesk();
       clearInterval(progressInterval);
       return { success: true, runId: job.data.runId };
     } catch (error) {
@@ -54,10 +54,10 @@ export class SyncUdescProcessor {
   }
 
   @OnQueueCompleted()
-  onCompleted(job: Job<SyncUdescJobData>, result: { success: boolean; runId: string }) {
-    this.logger.log(`Completed sync-udesc job ${job.id}, runId: ${result.runId}`);
+  onCompleted(job: Job<SyncUdeskJobData>, result: { success: boolean; runId: string }) {
+    this.logger.log(`Completed sync-udesk job ${job.id}, runId: ${result.runId}`);
     this.wsGateway.broadcastSyncStatus({
-      source: 'udesc',
+      source: 'udesk',
       status: 'completed',
       runId: result.runId,
       timestamp: new Date().toISOString(),
@@ -65,10 +65,10 @@ export class SyncUdescProcessor {
   }
 
   @OnQueueFailed()
-  onFailed(job: Job<SyncUdescJobData>, err: Error) {
-    this.logger.error(`Failed sync-udesc job ${job.id}: ${err.message}`);
+  onFailed(job: Job<SyncUdeskJobData>, err: Error) {
+    this.logger.error(`Failed sync-udesk job ${job.id}: ${err.message}`);
     this.wsGateway.broadcastSyncStatus({
-      source: 'udesc',
+      source: 'udesk',
       status: 'failed',
       runId: job.data.runId,
       error: err.message,

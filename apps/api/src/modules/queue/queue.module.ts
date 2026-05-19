@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
-import { SyncUdescProcessor } from './sync-udesc.processor';
+import { SyncUdeskProcessor } from './sync-udesk.processor';
 import { SyncZouwuProcessor } from './sync-zouwu.processor';
 import { WebSocketModule } from '../websocket/websocket.module';
 import { SyncModule } from '../sync/sync.module';
@@ -25,14 +25,14 @@ import { SyncModule } from '../sync/sync.module';
       },
     }),
     BullModule.registerQueue(
-      { name: 'sync-udesc' },
+      { name: 'sync-udesk' },
       { name: 'sync-zouwu' },
       { name: 'sync-all' },
     ),
     forwardRef(() => WebSocketModule),
     forwardRef(() => SyncModule),
   ],
-  providers: [SyncUdescProcessor, SyncZouwuProcessor],
+  providers: [SyncUdeskProcessor, SyncZouwuProcessor],
   exports: [BullModule],
 })
 export class QueueModule {}

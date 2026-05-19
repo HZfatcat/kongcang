@@ -4,7 +4,9 @@ import type {
   ConsultationFunnelOverview,
   DemandOverview,
   KpiOverview,
+  ProductModuleDistribution,
   SyncRunRecord,
+  AgentOverview,
 } from '../types/kpi';
 import dayjs from 'dayjs';
 
@@ -18,6 +20,11 @@ export async function fetchDemandOverview(params: { startDate?: string; endDate?
   return resp.data;
 }
 
+export async function fetchAgentOverview(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<AgentOverview>('/kpi/demand/agent', { params });
+  return resp.data;
+}
+
 export async function fetchConsultationFunnel(params: {
   startDate?: string;
   endDate?: string;
@@ -26,6 +33,15 @@ export async function fetchConsultationFunnel(params: {
   const resp = await apiClient.get<ConsultationFunnelOverview>('/kpi/consultation-funnel', {
     params,
   });
+  return resp.data;
+}
+
+export async function fetchProductModuleDistribution(params: {
+  startDate?: string;
+  endDate?: string;
+  issueType?: '0' | '1';
+}) {
+  const resp = await apiClient.get<ProductModuleDistribution>('/kpi/product-module', { params });
   return resp.data;
 }
 

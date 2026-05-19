@@ -3,15 +3,15 @@ import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, me
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
-import { fetchUdescVotes } from '../api/udesc';
-import type { UdescSessionVote, UdescVoteListResp } from '../types/udesc';
+import { fetchUdeskVotes } from '../api/udesk';
+import type { UdeskSessionVote, UdeskVoteListResp } from '../types/udesk';
 
 const { RangePicker } = DatePicker;
 
 export function VotesPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<UdescVoteListResp | null>(null);
+  const [data, setData] = useState<UdeskVoteListResp | null>(null);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
     const end = dayjs();
     const start = end.subtract(30, 'day');
@@ -36,7 +36,7 @@ export function VotesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const resp = await fetchUdescVotes({
+      const resp = await fetchUdeskVotes({
         startDate: apiRange.startDateIso,
         endDate: apiRange.endDateIso,
         minRating,
@@ -59,14 +59,14 @@ export function VotesPage() {
     loadData();
   }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating, sortBy, sortOrder, sessionIdSearch]);
 
-  const columns: ColumnsType<UdescSessionVote> = [
+  const columns: ColumnsType<UdeskSessionVote> = [
     {
       title: '会话ID',
       dataIndex: 'sessionId',
       width: 120,
       ellipsis: true,
       render: (id: string) => (
-        <Typography.Link onClick={() => navigate(`/udesc/sessions?highlightSessionId=${id}`)}>
+        <Typography.Link onClick={() => navigate(`/udesk/sessions?highlightSessionId=${id}`)}>
           {id}
         </Typography.Link>
       ),
@@ -230,6 +230,18 @@ export function VotesPage() {
               },
             }}
             onChange={(pagination, filters, sorter) => {
+              // 处理评分筛选（表头列筛选）
+              const ratingFilter = filters.rating as number[] | null | undefined;
+              if (ratingFilter && ratingFilter.length > 0) {
+                setMinRating(ratingFilter[0]);
+                setMaxRating(ratingFilter[0]);
+              } else {
+                setMinRating(undefined);
+                setMaxRating(undefined);
+              }
+              // 筛选变化时回到第一页
+              setPage(1);
+              // 处理排序
               if (sorter && !Array.isArray(sorter)) {
                 setSortBy(sorter.field as string);
                 setSortOrder(sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : undefined);

@@ -2,7 +2,7 @@
 CREATE TYPE "RequirementStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'DONE', 'CLOSED', 'REJECTED');
 
 -- CreateTable
-CREATE TABLE "UdescSession" (
+CREATE TABLE "UdeskSession" (
     "id" TEXT NOT NULL,
     "agentId" TEXT,
     "startedAt" TIMESTAMP(3) NOT NULL,
@@ -13,11 +13,11 @@ CREATE TABLE "UdescSession" (
     "updatedAtSource" TIMESTAMP(3),
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescSession_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskSession_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "UdescSessionMessage" (
+CREATE TABLE "UdeskSessionMessage" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "sentAt" TIMESTAMP(3) NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE "UdescSessionMessage" (
     "rawPayload" JSONB,
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescSessionMessage_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskSessionMessage_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -83,19 +83,19 @@ CREATE TABLE "SyncIssue" (
 );
 
 -- CreateIndex
-CREATE INDEX "UdescSession_startedAt_idx" ON "UdescSession"("startedAt");
+CREATE INDEX "UdeskSession_startedAt_idx" ON "UdeskSession"("startedAt");
 
 -- CreateIndex
-CREATE INDEX "UdescSession_updatedAtSource_idx" ON "UdescSession"("updatedAtSource");
+CREATE INDEX "UdeskSession_updatedAtSource_idx" ON "UdeskSession"("updatedAtSource");
 
 -- CreateIndex
-CREATE INDEX "UdescSession_isConsultToDemand_idx" ON "UdescSession"("isConsultToDemand");
+CREATE INDEX "UdeskSession_isConsultToDemand_idx" ON "UdeskSession"("isConsultToDemand");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMessage_sessionId_sentAt_idx" ON "UdescSessionMessage"("sessionId", "sentAt");
+CREATE INDEX "UdeskSessionMessage_sessionId_sentAt_idx" ON "UdeskSessionMessage"("sessionId", "sentAt");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMessage_senderType_idx" ON "UdescSessionMessage"("senderType");
+CREATE INDEX "UdeskSessionMessage_senderType_idx" ON "UdeskSessionMessage"("senderType");
 
 -- CreateIndex
 CREATE INDEX "ZouwuRequirement_createdAtSource_idx" ON "ZouwuRequirement"("createdAtSource");
@@ -119,4 +119,4 @@ CREATE INDEX "SyncIssue_runId_source_idx" ON "SyncIssue"("runId", "source");
 CREATE INDEX "SyncIssue_source_createdAt_idx" ON "SyncIssue"("source", "createdAt");
 
 -- AddForeignKey
-ALTER TABLE "UdescSessionMessage" ADD CONSTRAINT "UdescSessionMessage_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "UdescSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UdeskSessionMessage" ADD CONSTRAINT "UdeskSessionMessage_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "UdeskSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;

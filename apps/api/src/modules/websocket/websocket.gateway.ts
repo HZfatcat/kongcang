@@ -11,7 +11,7 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 
 export interface SyncStatusMessage {
-  source: 'udesc' | 'zouwu';
+  source: 'udesk' | 'zouwu';
   status: 'running' | 'completed' | 'failed';
   runId: string;
   timestamp: string;
@@ -19,7 +19,7 @@ export interface SyncStatusMessage {
 }
 
 export interface SyncProgressMessage {
-  source: 'udesc' | 'zouwu';
+  source: 'udesk' | 'zouwu';
   isRunning: boolean;
   runId?: string;
   startedAt?: string;

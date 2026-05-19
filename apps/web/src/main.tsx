@@ -1,25 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import 'antd/dist/reset.css';
 import './styles/global.css';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Typography } from 'antd';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin, ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DashboardPage } from './pages/DashboardPage';
-import { DemandSummaryPage } from './pages/DemandSummaryPage';
-import { RequirementDetailPage } from './pages/RequirementDetailPage';
-import { BugDetailPage } from './pages/BugDetailPage';
-import { LoginPage } from './pages/LoginPage';
-import { LoginVerifyPage } from './pages/LoginVerifyPage';
-import { UsersPage } from './pages/UsersPage';
-import { LogsPage } from './pages/LogsPage';
-import { VotesPage } from './pages/VotesPage';
-import { TicketsPage } from './pages/TicketsPage';
-import { HeatmapPage } from './pages/HeatmapPage';
 
-import { MetricsPage } from './pages/MetricsPage';
-import { SessionDetailPage } from './pages/SessionDetailPage';
-import { AccessControlPage } from './pages/AccessControlPage';
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const DemandSummaryPage = React.lazy(() => import('./pages/DemandSummaryPage').then(m => ({ default: m.DemandSummaryPage })));
+const RequirementDetailPage = React.lazy(() => import('./pages/RequirementDetailPage').then(m => ({ default: m.RequirementDetailPage })));
+const BugDetailPage = React.lazy(() => import('./pages/BugDetailPage').then(m => ({ default: m.BugDetailPage })));
+const WeeklyReportPage = React.lazy(() => import('./pages/WeeklyReportPage').then(m => ({ default: m.WeeklyReportPage })));
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const LoginVerifyPage = React.lazy(() => import('./pages/LoginVerifyPage').then(m => ({ default: m.LoginVerifyPage })));
+const UsersPage = React.lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
+const LogsPage = React.lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })));
+const VotesPage = React.lazy(() => import('./pages/VotesPage').then(m => ({ default: m.VotesPage })));
+const TicketsPage = React.lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
+const HeatmapPage = React.lazy(() => import('./pages/HeatmapPage').then(m => ({ default: m.HeatmapPage })));
+const MetricsPage = React.lazy(() => import('./pages/MetricsPage').then(m => ({ default: m.MetricsPage })));
+const SessionDetailPage = React.lazy(() => import('./pages/SessionDetailPage').then(m => ({ default: m.SessionDetailPage })));
+const AccessControlPage = React.lazy(() => import('./pages/AccessControlPage').then(m => ({ default: m.AccessControlPage })));
+const RoleManagePage = React.lazy(() => import('./pages/RoleManagePage').then(m => ({ default: m.RoleManagePage })));
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,
@@ -33,6 +36,7 @@ import {
   UserOutlined,
   DashboardOutlined,
   SafetyOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 
 const { Content, Sider, Header } = Layout;
@@ -43,12 +47,14 @@ const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const loginUser = getLoginUser();
   
   // 根据当前路径计算默认展开的菜单
   const getDefaultOpenKeys = (pathname: string): string[] => {
-    if (pathname.startsWith('/udesc')) return ['udesc'];
+    if (pathname.startsWith('/udesk')) return ['udesk'];
     if (pathname.startsWith('/demand')) return ['demand'];
+    if (pathname.startsWith('/access-control') || pathname.startsWith('/role-manage')) return ['access-control'];
     return [];
   };
   
@@ -66,21 +72,21 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       label: '用户满意度',
     },
     {
-      key: 'udesc',
+      key: 'udesk',
       icon: <DashboardOutlined />,
       label: 'Udesk 数据分析',
       children: [
-        { key: '/udesc/votes', label: '评价分析' },
-        { key: '/udesc/metrics', label: '会话指标' },
-        { key: '/udesc/tickets', label: '工单分析' },
-        { key: '/udesc/heatmap', label: '时段热力图' },
-        { key: '/udesc/sessions', label: '咨询详情' },
+        { key: '/udesk/votes', label: '评价分析' },
+        { key: '/udesk/metrics', label: '会话指标' },
+        { key: '/udesk/tickets', label: '工单分析' },
+        { key: '/udesk/heatmap', label: '时段热力图' },
+        { key: '/udesk/sessions', label: '咨询详情' },
       ],
     },
     {
       key: 'demand',
       icon: <CheckCircleOutlined />,
-      label: '需求结单率',
+      label: '需求关单率',
       children: [
         { key: '/demand', label: '汇总 Dashboard' },
         { key: '/demand/requirements', label: '需求详情' },
@@ -91,6 +97,14 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       key: '/opportunity',
       icon: <DollarOutlined />,
       label: '商机管理',
+    },
+    {
+      key: 'weekly',
+      icon: <CalendarOutlined />,
+      label: '周报中心',
+      children: [
+        { key: '/weekly-report', label: '周报预览' },
+      ],
     },
     {
       key: '/sync-udesk',
@@ -113,9 +127,13 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       label: '系统日志',
     },
     {
-      key: '/access-control',
+      key: 'access-control',
       icon: <SafetyOutlined />,
       label: '权限管理',
+      children: [
+        { key: '/access-control', label: '权限总览' },
+        { key: '/role-manage', label: '角色管理' },
+      ],
     },
   ];
 
@@ -159,7 +177,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           items={menuItems}
           onClick={({ key }) => {
             if (key.startsWith('/')) {
-              window.location.href = key;
+              navigate(key);
             }
           }}
         />
@@ -219,24 +237,32 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
-      <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
-      <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
-      <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
-      <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
-      <Route path="/udesc/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
-      <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
-      <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
-      <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
-      <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
-      <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
-      <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
-      <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
-      <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
-      <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
-      <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
-    </Routes>
+    <Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <Spin size="large" tip="加载中..." />
+      </div>
+    }>
+      <Routes>
+        <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
+        <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
+        <Route path="/udesk/votes" element={<AppLayout><VotesPage /></AppLayout>} />
+        <Route path="/udesk/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
+        <Route path="/udesk/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
+        <Route path="/udesk/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
+        <Route path="/udesk/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
+        <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
+        <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
+        <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
+        <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
+        <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
+        <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesk" /></AppLayout>} />
+        <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
+        <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
+        <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />
+        <Route path="/access-control" element={<AppLayout><AccessControlPage /></AppLayout>} />
+        <Route path="/role-manage" element={<AppLayout><RoleManagePage /></AppLayout>} />
+      </Routes>
+    </Suspense>
   );
 }
 
@@ -263,7 +289,9 @@ function App() {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ConfigProvider locale={zhCN}>
+        <App />
+      </ConfigProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );

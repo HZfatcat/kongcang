@@ -36,6 +36,8 @@ export interface DemandOverview {
   bugCompletedCount: number;
   bugRejectedCount: number;
   bugCompletionRate: number;
+  followUpCount: number;
+  bugFollowUpCount: number;
   statusBreakdown: Record<string, number>;
   daily: {
     days: string[];
@@ -79,6 +81,30 @@ export interface ConsultationFunnelOverview {
   periods: ConsultationFunnelPoint[];
 }
 
+/** 按客服汇总单行数据 */
+export interface AgentCompletionRow {
+  agentName: string;
+  reqCreated: number;
+  reqCompleted: number;
+  reqRejected: number;
+  reqLongTerm: number;
+  reqCompletionRate: number;
+  bugCreated: number;
+  bugCompleted: number;
+  bugRejected: number;
+  bugLongTerm: number;
+  bugCompletionRate: number;
+  over7NotAdopted: number;
+  over30NotClosedReq: number;
+  over30NotClosedBug: number;
+}
+
+/** 按客服汇总返回 */
+export interface AgentOverview {
+  dateRange: { startDate: string; endDate: string };
+  rows: AgentCompletionRow[];
+}
+
 export interface SyncRunRecord {
   id: string;
   source: string;
@@ -87,4 +113,19 @@ export interface SyncRunRecord {
   status: string;
   message?: string;
   recordsSynced: number;
+}
+
+export interface ModuleDistributionItem {
+  module: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ProductModuleDistribution {
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  total: number;
+  distribution: ModuleDistributionItem[];
 }

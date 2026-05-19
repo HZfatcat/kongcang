@@ -9,7 +9,7 @@ import { KpiModule } from './modules/kpi/kpi.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { OpportunityModule } from './modules/opportunity/opportunity.module';
 import { SyncModule } from './modules/sync/sync.module';
-import { UdescModule } from './modules/udesc/udesc.module';
+import { UdeskModule } from './modules/udesk/udesk.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { WecomEmployeeModule } from './modules/wecom-employee/wecom-employee.module';
 import { LoggerModule } from './common/logger/logger.module';
@@ -46,7 +46,7 @@ console.log('[AppModule] envFilePath:', envPath, 'exists:', existsSync(envPath))
     AgentsModule,
     OpportunityModule,
     SyncModule,
-    UdescModule,
+    UdeskModule,
     AuthModule,
     WecomEmployeeModule,
     LogsModule,

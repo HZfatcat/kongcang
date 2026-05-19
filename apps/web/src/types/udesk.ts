@@ -1,4 +1,4 @@
-export interface UdescOverview {
+export interface UdeskOverview {
   dateRange: { startDate: string; endDate: string };
   totalSessions: number;
   totalMessages: number;
@@ -7,9 +7,10 @@ export interface UdescOverview {
   ratedCount: number;
   avgRating: number;
   topAgents: Array<{ agentId: string; sessions: number }>;
+  returnVisitCount: number;
 }
 
-export interface UdescTreeNode {
+export interface UdeskTreeNode {
   agentId: string;
   sessionCount: number;
   avgRating: number | null;
@@ -22,7 +23,7 @@ export interface UdescTreeNode {
   }>;
 }
 
-export interface UdescSessionMessage {
+export interface UdeskSessionMessage {
   id: string;
   sentAt: string;
   senderType?: string;
@@ -31,7 +32,7 @@ export interface UdescSessionMessage {
   rawPayload?: Record<string, unknown>;
 }
 
-export interface UdescSessionRecord {
+export interface UdeskSessionRecord {
   id: string;
   agentId?: string;
   startedAt: string;
@@ -39,14 +40,14 @@ export interface UdescSessionRecord {
   rating: number | null;
   isConsultToDemand: boolean;
   messageCount: number;
-  messages: UdescSessionMessage[];
+  messages: UdeskSessionMessage[];
 }
 
-export interface UdescSessionListResp {
+export interface UdeskSessionListResp {
   page: number;
   pageSize: number;
   total: number;
-  records: UdescSessionRecord[];
+  records: UdeskSessionRecord[];
 }
 
 export interface SyncProgress {
@@ -116,7 +117,7 @@ export interface SyncConfig {
   updatedAt: string;
 }
 
-export interface UdescDailyAgentStats {
+export interface UdeskDailyAgentStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];
   series: Array<{
@@ -126,7 +127,7 @@ export interface UdescDailyAgentStats {
   }>;
 }
 
-export interface UdescDailyRatingStats {
+export interface UdeskDailyRatingStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];
   series: Array<{
@@ -185,7 +186,7 @@ export interface ZouwuFeedbackStatistics {
 
 // ========== 新增：评价、客户、客服、指标 ==========
 
-export interface UdescSessionVote {
+export interface UdeskSessionVote {
   id: string;
   sessionId: string;
   rating: number | null;
@@ -198,17 +199,17 @@ export interface UdescSessionVote {
   sessionStartedAt?: string;
 }
 
-export interface UdescVoteListResp {
+export interface UdeskVoteListResp {
   page: number;
   pageSize: number;
   total: number;
   totalSessions: number;
-  records: UdescSessionVote[];
+  records: UdeskSessionVote[];
   avgRating: number | null;
   ratingDistribution: Record<number, number>;
 }
 
-export interface UdescAgentDetail {
+export interface UdeskAgentDetail {
   id: string;
   name: string | null;
   email: string | null;
@@ -224,11 +225,11 @@ export interface UdescAgentDetail {
   avgRating?: number | null;
 }
 
-export interface UdescAgentListResp {
-  records: UdescAgentDetail[];
+export interface UdeskAgentListResp {
+  records: UdeskAgentDetail[];
 }
 
-export interface UdescAgentPerformance {
+export interface UdeskAgentPerformance {
   agentId: string;
   dateRange: { startDate: string; endDate: string };
   totalSessions: number;
@@ -245,7 +246,7 @@ export interface UdescAgentPerformance {
   }>;
 }
 
-export interface UdescSessionMetrics {
+export interface UdeskSessionMetrics {
   id: string;
   sessionId: string;
   agentId?: string;
@@ -269,14 +270,14 @@ export interface UdescSessionMetrics {
   };
 }
 
-export interface UdescMetricsListResp {
+export interface UdeskMetricsListResp {
   page: number;
   pageSize: number;
   total: number;
-  records: UdescSessionMetrics[];
+  records: UdeskSessionMetrics[];
 }
 
-export interface UdescMetricsSummary {
+export interface UdeskMetricsSummary {
   dateRange: { startDate: string; endDate: string };
   totalSessions: number;
   avgFirstResponseTime: number | null;
@@ -291,7 +292,7 @@ export interface UdescMetricsSummary {
 
 // ========== 工单分析 ==========
 
-export interface UdescTicket {
+export interface UdeskTicket {
   id: string;
   fieldNum?: string;
   subject?: string;
@@ -311,14 +312,14 @@ export interface UdescTicket {
   imSubSessionId?: string;
 }
 
-export interface UdescTicketListResp {
+export interface UdeskTicketListResp {
   page: number;
   pageSize: number;
   total: number;
-  records: UdescTicket[];
+  records: UdeskTicket[];
 }
 
-export interface UdescTicketSummary {
+export interface UdeskTicketSummary {
   dateRange: { startDate: string; endDate: string };
   total: number;
   byStatus: Record<string, number>;
@@ -333,10 +334,9 @@ export interface UdescTicketSummary {
   resolvedCount: number;
 }
 
-export interface UdescTicketDailyStats {
+export interface UdeskTicketDailyStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];
   created: number[];
   resolved: number[];
 }
-

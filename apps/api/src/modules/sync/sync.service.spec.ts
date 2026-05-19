@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { SyncService } from './sync.service';
 import { PrismaService } from '../../common/prisma.service';
-import { UdescClient } from './udesc.client';
+import { UdeskClient } from './udesk.client';
 import { ZouwuClient } from './zouwu.client';
 
 describe('SyncService', () => {
@@ -26,12 +26,12 @@ describe('SyncService', () => {
       update: jest.fn(),
       findMany: jest.fn(),
     },
-    udescSession: {
+    udeskSession: {
       upsert: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
     },
-    udescSessionMessage: {
+    udeskSessionMessage: {
       count: jest.fn(),
     },
     syncCheckpoint: {
@@ -54,9 +54,9 @@ describe('SyncService', () => {
   const mockConfigService = {
     get: jest.fn((key: string) => {
       const config: Record<string, string | undefined> = {
-        UDESC_SYNC_WINDOW_DAYS: '7',
-        UDESC_BASE_URL: 'https://test.udesk.cn',
-        UDESC_API_KEY: 'test-key',
+        UDESK_SYNC_WINDOW_DAYS: '7',
+        UDESK_BASE_URL: 'https://test.udesk.cn',
+        UDESK_API_KEY: 'test-key',
         ZOUWU_BASE_URL: 'https://test.zouwu.com',
         ZOUWU_API_TOKEN: 'test-token',
       };
@@ -64,7 +64,7 @@ describe('SyncService', () => {
     }),
   };
 
-  const mockUdescClient = {
+  const mockUdeskClient = {
     getAccessToken: jest.fn(),
     fetchSessions: jest.fn(),
     fetchSessionMessages: jest.fn(),
@@ -86,7 +86,7 @@ describe('SyncService', () => {
         SyncService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ConfigService, useValue: mockConfigService },
-        { provide: UdescClient, useValue: mockUdescClient },
+        { provide: UdeskClient, useValue: mockUdeskClient },
         { provide: ZouwuClient, useValue: mockZouwuClient },
       ],
     }).compile();
@@ -103,7 +103,7 @@ describe('SyncService', () => {
     it('should return config when exists', async () => {
       const mockConfig = {
         id: '1',
-        source: 'udesc',
+        source: 'udesk',
         lastSyncAt: new Date(),
         enabled: true,
         settings: {},
@@ -112,25 +112,25 @@ describe('SyncService', () => {
       };
       mockPrismaService.syncConfig.findUnique.mockResolvedValue(mockConfig);
 
-      const result = await service.getSyncConfig('udesc');
+      const result = await service.getSyncConfig('udesk');
 
       expect(result).toEqual(mockConfig);
       expect(mockPrismaService.syncConfig.findUnique).toHaveBeenCalledWith({
-        where: { source: 'udesc' },
+        where: { source: 'udesk' },
       });
     });
   });
 
-  describe('getUdescProgress', () => {
+  describe('getUdeskProgress', () => {
     it('should return progress data with isRunning flag', () => {
-      const result = service.getUdescProgress();
+      const result = service.getUdeskProgress();
 
       expect(result).toHaveProperty('isRunning');
       expect(typeof result.isRunning).toBe('boolean');
     });
 
     it('should return progress with all required fields', () => {
-      const result = service.getUdescProgress();
+      const result = service.getUdeskProgress();
 
       expect(result).toHaveProperty('source');
       expect(result).toHaveProperty('totalWindows');
@@ -140,9 +140,9 @@ describe('SyncService', () => {
     });
   });
 
-  describe('triggerUdescSync', () => {
+  describe('triggerUdeskSync', () => {
     it('should return sync trigger response', () => {
-      const result = service.triggerUdescSync();
+      const result = service.triggerUdeskSync();
 
       expect(result).toHaveProperty('accepted');
       expect(result).toHaveProperty('progress');

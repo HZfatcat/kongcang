@@ -3,24 +3,24 @@ import axios, { AxiosInstance } from 'axios';
 import { createHash, randomBytes } from 'crypto';
 import {
   SyncFetchResult,
-  UdescMessageRecord,
-  UdescSessionRecord,
-  UdescVoteRecord,
-  UdescCustomerRecord,
-  UdescAgentRecord,
-  UdescOrganizationRecord,
-  UdescTicketRecord,
-  UdescSessionStats,
+  UdeskMessageRecord,
+  UdeskSessionRecord,
+  UdeskVoteRecord,
+  UdeskCustomerRecord,
+  UdeskAgentRecord,
+  UdeskOrganizationRecord,
+  UdeskTicketRecord,
+  UdeskSessionStats,
 } from './sync.types';
 
 @Injectable()
-export class UdescClient {
-  private readonly logger = new Logger(UdescClient.name);
+export class UdeskClient {
+  private readonly logger = new Logger(UdeskClient.name);
   private readonly http: AxiosInstance;
   private runtimeOpenApiToken?: string;
 
   constructor() {
-    const baseURL = (process.env.UDESC_BASE_URL ?? '').replace(/\/+$/, '');
+    const baseURL = (process.env.UDESK_BASE_URL ?? '').replace(/\/+$/, '');
     this.http = axios.create({
       baseURL,
       timeout: 10000,
@@ -48,7 +48,7 @@ export class UdescClient {
   }
 
   private async ensureOpenApiToken(): Promise<string> {
-    const envToken = (process.env.UDESC_TOKEN ?? '').trim();
+    const envToken = (process.env.UDESK_TOKEN ?? '').trim();
     if (envToken) {
       return envToken;
     }
@@ -57,11 +57,11 @@ export class UdescClient {
       return this.runtimeOpenApiToken;
     }
 
-    const email = (process.env.UDESC_EMAIL ?? '').trim();
-    const password = process.env.UDESC_PASSWORD ?? '';
+    const email = (process.env.UDESK_EMAIL ?? '').trim();
+    const password = process.env.UDESK_PASSWORD ?? '';
 
     if (!email || !password) {
-      throw new Error('缺少 UDESC_EMAIL/UDESC_PASSWORD 或 UDESC_TOKEN 配置');
+      throw new Error('缺少 UDESK_EMAIL/UDESK_PASSWORD 或 UDESK_TOKEN 配置');
     }
 
     const resp = await this.http.post('/open_api_v1/log_in', {
@@ -72,7 +72,7 @@ export class UdescClient {
     const token = this.parseTokenFromLoginBody(data);
 
     if (!token) {
-      throw new Error(`udesc log_in 未获取到 token: ${JSON.stringify(data)}`);
+      throw new Error(`udesk log_in 未获取到 token: ${JSON.stringify(data)}`);
     }
 
     this.runtimeOpenApiToken = token;
@@ -80,13 +80,13 @@ export class UdescClient {
   }
 
   private async signOpenApiQuery(): Promise<Record<string, string>> {
-    const email = (process.env.UDESC_EMAIL ?? '').trim();
+    const email = (process.env.UDESK_EMAIL ?? '').trim();
     if (!email) {
-      throw new Error('UDESC_EMAIL 不能为空');
+      throw new Error('UDESK_EMAIL 不能为空');
     }
 
     const token = await this.ensureOpenApiToken();
-    const signVersion = process.env.UDESC_SIGN_VERSION ?? 'v2';
+    const signVersion = process.env.UDESK_SIGN_VERSION ?? 'v2';
     const timestamp = String(Math.floor(Date.now() / 1000));
     const nonce = randomBytes(16).toString('hex');
     const raw = `${email}&${token}&${timestamp}&${nonce}&${signVersion}`;
@@ -211,7 +211,7 @@ export class UdescClient {
   private mapSession(
     item: Record<string, unknown>,
     fallbackStartDate: string,
-  ): UdescSessionRecord {
+  ): UdeskSessionRecord {
     const startedAt =
       this.pickString(item, ['start_time', 'session_start_at', 'started_at', 'created_at']) ??
       fallbackStartDate;
@@ -234,7 +234,7 @@ export class UdescClient {
     };
   }
 
-  private mapMessage(item: Record<string, unknown>, sessionId: string): UdescMessageRecord {
+  private mapMessage(item: Record<string, unknown>, sessionId: string): UdeskMessageRecord {
     const sentAt =
       this.pickString(item, ['created_at', 'send_time', 'sent_at', 'timestamp']) ?? new Date().toISOString();
     
@@ -266,14 +266,14 @@ export class UdescClient {
     pageSize: number;
     startDate: string;
     endDate: string;
-  }): Promise<SyncFetchResult<UdescSessionRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
-      this.logger.warn('UDESC_BASE_URL 未配置真实地址，跳过远端同步，返回空数据。');
+  }): Promise<SyncFetchResult<UdeskSessionRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
+      this.logger.warn('UDESK_BASE_URL 未配置真实地址，跳过远端同步，返回空数据。');
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_IM_SESSION_PATH ?? 'im/sessions/search';
+    const endpoint = process.env.UDESK_IM_SESSION_PATH ?? 'im/sessions/search';
     const resp = await this.openApiGet(endpoint, {
       page: String(page),
       page_size: String(params.pageSize),
@@ -305,13 +305,13 @@ export class UdescClient {
     pageSize: number;
     startDate?: string;
     endDate?: string;
-  }): Promise<SyncFetchResult<UdescMessageRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+  }): Promise<SyncFetchResult<UdeskMessageRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_IM_LOG_PATH ?? 'im/sessions/log';
+    const endpoint = process.env.UDESK_IM_LOG_PATH ?? 'im/sessions/log';
     const resp = await this.openApiGet(endpoint, {
       session_id: params.sessionId,
       page: String(page),
@@ -349,13 +349,13 @@ export class UdescClient {
     pageSize: number;
     startDate?: string;
     endDate?: string;
-  }): Promise<SyncFetchResult<UdescVoteRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+  }): Promise<SyncFetchResult<UdeskVoteRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_IM_VOTE_PATH ?? 'im/sessions/vote';
+    const endpoint = process.env.UDESK_IM_VOTE_PATH ?? 'im/sessions/vote';
     const resp = await this.openApiGet(endpoint, {
       ...(params.sessionId ? { session_id: params.sessionId } : {}),
       ...(params.startDate ? { start_time: params.startDate } : {}),
@@ -365,7 +365,7 @@ export class UdescClient {
     });
     const data = (resp.data ?? {}) as Record<string, unknown>;
     const items = this.extractItems(data);
-    const records: UdescVoteRecord[] = items.map((item) => ({
+    const records: UdeskVoteRecord[] = items.map((item) => ({
       id: String(item.id ?? item.survey_id ?? `${item.session_id}_${item.created_at ?? Date.now()}`),
       sessionId: String(item.session_id ?? params.sessionId),
       rating: this.pickRating(item),
@@ -394,13 +394,13 @@ export class UdescClient {
     pageSize: number;
     startDate?: string;
     endDate?: string;
-  }): Promise<SyncFetchResult<UdescCustomerRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+  }): Promise<SyncFetchResult<UdeskCustomerRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_CUSTOMER_PATH ?? 'customers';
+    const endpoint = process.env.UDESK_CUSTOMER_PATH ?? 'customers';
     const resp = await this.openApiGet(endpoint, {
       page: String(page),
       page_size: String(params.pageSize),
@@ -409,7 +409,7 @@ export class UdescClient {
     });
     const data = (resp.data ?? {}) as Record<string, unknown>;
     const items = this.extractItems(data);
-    const records: UdescCustomerRecord[] = items.map((item) => ({
+    const records: UdeskCustomerRecord[] = items.map((item) => ({
       id: this.pickString(item, ['id', 'customer_id', 'user_id']) ?? `${Date.now()}-${randomBytes(4).toString('hex')}`,
       name: this.pickString(item, ['name', 'nick_name', 'nickname', 'customer_name']),
       phone: this.pickString(item, ['phone', 'mobile', 'cellphone']),
@@ -436,14 +436,14 @@ export class UdescClient {
   async fetchAgents(params: {
     cursor?: string;
     pageSize: number;
-  }): Promise<SyncFetchResult<UdescAgentRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
-      this.logger.warn('UDESC_BASE_URL not configured, skipping agent fetch');
+  }): Promise<SyncFetchResult<UdeskAgentRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
+      this.logger.warn('UDESK_BASE_URL not configured, skipping agent fetch');
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_AGENTS_PATH ?? 'agents';
+    const endpoint = process.env.UDESK_AGENTS_PATH ?? 'agents';
     this.logger.log(`Fetching agents from ${endpoint}, page=${page}`);
     
     try {
@@ -456,7 +456,7 @@ export class UdescClient {
       
       const items = this.extractItems(data);
       this.logger.log(`Agent API returned ${items.length} items`);
-    const records: UdescAgentRecord[] = items.map((item) => ({
+    const records: UdeskAgentRecord[] = items.map((item) => ({
       id: this.pickString(item, ['id', 'agent_id', 'user_id']) ?? `${Date.now()}-${randomBytes(4).toString('hex')}`,
       name: this.pickString(item, ['name', 'nick_name', 'nickname', 'display_name']),
       email: this.pickString(item, ['email', 'mail']),
@@ -486,13 +486,13 @@ export class UdescClient {
   /**
    * 获取会话统计（响应时间等）
    */
-  async fetchSessionStats(sessionId: string): Promise<UdescSessionStats | undefined> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+  async fetchSessionStats(sessionId: string): Promise<UdeskSessionStats | undefined> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
       return undefined;
     }
 
     try {
-      const endpoint = process.env.UDESC_SESSION_STATS_PATH ?? 'im/sessions/stats';
+      const endpoint = process.env.UDESK_SESSION_STATS_PATH ?? 'im/sessions/stats';
       const resp = await this.openApiGet(endpoint, { session_id: sessionId });
       const data = (resp.data ?? {}) as Record<string, unknown>;
       
@@ -549,13 +549,13 @@ export class UdescClient {
   async fetchOrganizations(params: {
     cursor?: string;
     pageSize: number;
-  }): Promise<SyncFetchResult<UdescOrganizationRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+  }): Promise<SyncFetchResult<UdeskOrganizationRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_ORGANIZATIONS_PATH ?? 'organizations';
+    const endpoint = process.env.UDESK_ORGANIZATIONS_PATH ?? 'organizations';
     this.logger.log(`Fetching organizations from ${endpoint}, page=${page}`);
     
     try {
@@ -569,7 +569,7 @@ export class UdescClient {
       // organizations API 返回格式: { organizations: [...] }
       const orgItems = Array.isArray(data.organizations) ? data.organizations : items;
       
-      const records: UdescOrganizationRecord[] = orgItems
+      const records: UdeskOrganizationRecord[] = orgItems
         .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
         .map((item) => ({
           id: String(item.id ?? ''),
@@ -604,13 +604,13 @@ export class UdescClient {
     pageSize: number;
     startDate?: string;
     endDate?: string;
-  }): Promise<SyncFetchResult<UdescTicketRecord>> {
-    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+  }): Promise<SyncFetchResult<UdeskTicketRecord>> {
+    if (!process.env.UDESK_BASE_URL || process.env.UDESK_BASE_URL.includes('example.com')) {
       return { records: [], hasMore: false };
     }
 
     const page = Math.max(1, Number(params.cursor ?? '1'));
-    const endpoint = process.env.UDESC_TICKETS_PATH ?? 'tickets';
+    const endpoint = process.env.UDESK_TICKETS_PATH ?? 'tickets';
     this.logger.log(`Fetching tickets from ${endpoint}, page=${page}`);
     
     try {
@@ -628,7 +628,7 @@ export class UdescClient {
         .map((c: any) => c?.ticket)
         .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null);
       
-      const records: UdescTicketRecord[] = ticketItems.map((item) => ({
+      const records: UdeskTicketRecord[] = ticketItems.map((item) => ({
         id: String(item.id ?? ''),
         fieldNum: this.pickString(item, ['field_num', 'ticket_num']),
         subject: this.pickString(item, ['subject', 'title']),

@@ -7,7 +7,7 @@ describe('KpiService', () => {
   let prisma: PrismaService;
 
   const mockPrismaService = {
-    udescSession: {
+    udeskSession: {
       findMany: jest.fn(),
       count: jest.fn(),
     },
@@ -65,7 +65,7 @@ describe('KpiService', () => {
 
   describe('getOverview', () => {
     it('should return overview statistics', async () => {
-      mockPrismaService.udescSession.findMany.mockResolvedValue([
+      mockPrismaService.udeskSession.findMany.mockResolvedValue([
         { rating: 5, isConsultToDemand: false },
         { rating: 4, isConsultToDemand: true },
         { rating: 3, isConsultToDemand: false },
@@ -82,7 +82,7 @@ describe('KpiService', () => {
     });
 
     it('should handle no sessions', async () => {
-      mockPrismaService.udescSession.findMany.mockResolvedValue([]);
+      mockPrismaService.udeskSession.findMany.mockResolvedValue([]);
       mockPrismaService.zouwuRequirement.count.mockResolvedValue(0);
 
       const result = await service.getOverview();

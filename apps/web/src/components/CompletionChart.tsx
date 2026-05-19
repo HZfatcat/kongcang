@@ -12,7 +12,7 @@ export function CompletionChart({ data }: Props) {
     },
     xAxis: {
       type: 'category',
-      data: ['满意度', '需求结单率'],
+      data: ['满意度', '需求关单率'],
     },
     yAxis: {
       type: 'value',

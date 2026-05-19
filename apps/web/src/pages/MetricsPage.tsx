@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, type AgentMetricsSummary } from '../api/udesc';
-import type { UdescSessionMetrics, AgentProfile } from '../types/udesc';
+import { fetchUdeskMetrics, fetchAgents, fetchUdeskAgentMetricsSummary, type AgentMetricsSummary } from '../api/udesk';
+import type { UdeskSessionMetrics, AgentProfile } from '../types/udesk';
 
 const { RangePicker } = DatePicker;
 
@@ -14,7 +14,7 @@ export function MetricsPage() {
   
   // 状态
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ records: UdescSessionMetrics[]; total: number } | null>(null);
+  const [data, setData] = useState<{ records: UdeskSessionMetrics[]; total: number } | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
     const end = dayjs();
@@ -96,7 +96,7 @@ export function MetricsPage() {
     const { sortBy, sortOrder, agentFilter, agentId, range } = stateRef.current;
     setLoading(true);
     try {
-      const resp = await fetchUdescMetrics({
+      const resp = await fetchUdeskMetrics({
         startDate: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         endDate: range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         agentId,
@@ -124,7 +124,7 @@ export function MetricsPage() {
     const loadAgentSummary = async () => {
       setAgentSummaryLoading(true);
       try {
-        const resp = await fetchUdescAgentMetricsSummary({
+        const resp = await fetchUdeskAgentMetricsSummary({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
         });
@@ -145,14 +145,14 @@ export function MetricsPage() {
     return `${(seconds / 3600).toFixed(1)}小时`;
   };
 
-  const columns: ColumnsType<UdescSessionMetrics> = [
+  const columns: ColumnsType<UdeskSessionMetrics> = [
     {
       title: '会话ID',
       dataIndex: 'sessionId',
       width: 120,
       ellipsis: true,
       render: (id: string, record) => (
-        <Typography.Link onClick={() => navigate(`/udesc/sessions?highlightSessionId=${id}`)}>
+        <Typography.Link onClick={() => navigate(`/udesk/sessions?highlightSessionId=${id}`)}>
           {id}
         </Typography.Link>
       ),

@@ -5,13 +5,13 @@ ALTER TABLE "SyncIssue" ADD COLUMN     "resolvedAt" TIMESTAMP(3);
 CREATE INDEX "SyncIssue_source_category_externalId_idx" ON "SyncIssue"("source", "category", "externalId");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMetrics_firstResponseTime_idx" ON "UdescSessionMetrics"("firstResponseTime");
+CREATE INDEX "UdeskSessionMetrics_firstResponseTime_idx" ON "UdeskSessionMetrics"("firstResponseTime");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMetrics_avgResponseTime_idx" ON "UdescSessionMetrics"("avgResponseTime");
+CREATE INDEX "UdeskSessionMetrics_avgResponseTime_idx" ON "UdeskSessionMetrics"("avgResponseTime");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMetrics_waitTime_idx" ON "UdescSessionMetrics"("waitTime");
+CREATE INDEX "UdeskSessionMetrics_waitTime_idx" ON "UdeskSessionMetrics"("waitTime");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMetrics_resolutionTime_idx" ON "UdescSessionMetrics"("resolutionTime");
+CREATE INDEX "UdeskSessionMetrics_resolutionTime_idx" ON "UdeskSessionMetrics"("resolutionTime");

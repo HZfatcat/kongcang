@@ -96,7 +96,7 @@ first_deploy() {
         echo "  - CORS_ORIGIN: 允许的前端域名"
         echo "  - WECOM_*: 企业微信配置"
         echo "  - ZOUWU_*: 驺吾系统配置"
-        echo "  - UDESC_*: Udesk 配置"
+        echo "  - UDESK_*: Udesk 配置"
         echo ""
         read -p "是否现在编辑配置文件？(y/N): " edit_env
         if [ "$edit_env" = "y" ] || [ "$edit_env" = "Y" ]; then

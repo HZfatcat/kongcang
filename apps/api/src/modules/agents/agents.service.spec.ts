@@ -12,7 +12,7 @@ describe('AgentsService', () => {
       upsert: jest.fn(),
       delete: jest.fn(),
     },
-    udescSession: {
+    udeskSession: {
       findMany: jest.fn(),
     },
   };
@@ -53,23 +53,23 @@ describe('AgentsService', () => {
     });
   });
 
-  describe('listUdescAgentIds', () => {
-    it('should return unique agent IDs from udesc sessions', async () => {
-      mockPrismaService.udescSession.findMany.mockResolvedValue([
+  describe('listUdeskAgentIds', () => {
+    it('should return unique agent IDs from udesk sessions', async () => {
+      mockPrismaService.udeskSession.findMany.mockResolvedValue([
         { agentId: 'agent1' },
         { agentId: 'agent2' },
         { agentId: null },
       ]);
 
-      const result = await service.listUdescAgentIds();
+      const result = await service.listUdeskAgentIds();
 
       expect(result).toEqual(['agent1', 'agent2']);
     });
 
     it('should return empty array when no sessions found', async () => {
-      mockPrismaService.udescSession.findMany.mockResolvedValue([]);
+      mockPrismaService.udeskSession.findMany.mockResolvedValue([]);
 
-      const result = await service.listUdescAgentIds();
+      const result = await service.listUdeskAgentIds();
 
       expect(result).toEqual([]);
     });

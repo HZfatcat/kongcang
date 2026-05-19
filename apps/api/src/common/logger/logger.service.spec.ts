@@ -59,7 +59,7 @@ describe('LoggerService', () => {
   describe('logSync', () => {
     it('should log sync action', () => {
       expect(() => {
-        service.logSync('udesc', 'start', { recordsCount: 100 });
+        service.logSync('udesk', 'start', { recordsCount: 100 });
       }).not.toThrow();
     });
   });

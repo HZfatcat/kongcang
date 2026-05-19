@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "UdescSessionVote" (
+CREATE TABLE "UdeskSessionVote" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "rating" INTEGER,
@@ -11,11 +11,11 @@ CREATE TABLE "UdescSessionVote" (
     "rawPayload" JSONB,
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescSessionVote_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskSessionVote_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "UdescCustomer" (
+CREATE TABLE "UdeskCustomer" (
     "id" TEXT NOT NULL,
     "name" TEXT,
     "phone" TEXT,
@@ -28,11 +28,11 @@ CREATE TABLE "UdescCustomer" (
     "updatedAtSource" TIMESTAMP(3),
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescCustomer_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskCustomer_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "UdescAgent" (
+CREATE TABLE "UdeskAgent" (
     "id" TEXT NOT NULL,
     "name" TEXT,
     "email" TEXT,
@@ -45,11 +45,11 @@ CREATE TABLE "UdescAgent" (
     "rawPayload" JSONB,
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescAgent_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskAgent_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "UdescSessionMetrics" (
+CREATE TABLE "UdeskSessionMetrics" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "firstResponseTime" INTEGER,
@@ -61,35 +61,35 @@ CREATE TABLE "UdescSessionMetrics" (
     "customerMessageCount" INTEGER NOT NULL DEFAULT 0,
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescSessionMetrics_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskSessionMetrics_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE INDEX "UdescSessionVote_sessionId_idx" ON "UdescSessionVote"("sessionId");
+CREATE INDEX "UdeskSessionVote_sessionId_idx" ON "UdeskSessionVote"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionVote_votedAt_idx" ON "UdescSessionVote"("votedAt");
+CREATE INDEX "UdeskSessionVote_votedAt_idx" ON "UdeskSessionVote"("votedAt");
 
 -- CreateIndex
-CREATE INDEX "UdescCustomer_phone_idx" ON "UdescCustomer"("phone");
+CREATE INDEX "UdeskCustomer_phone_idx" ON "UdeskCustomer"("phone");
 
 -- CreateIndex
-CREATE INDEX "UdescCustomer_email_idx" ON "UdescCustomer"("email");
+CREATE INDEX "UdeskCustomer_email_idx" ON "UdeskCustomer"("email");
 
 -- CreateIndex
-CREATE INDEX "UdescCustomer_enterprise_idx" ON "UdescCustomer"("enterprise");
+CREATE INDEX "UdeskCustomer_enterprise_idx" ON "UdeskCustomer"("enterprise");
 
 -- CreateIndex
-CREATE INDEX "UdescAgent_enabled_idx" ON "UdescAgent"("enabled");
+CREATE INDEX "UdeskAgent_enabled_idx" ON "UdeskAgent"("enabled");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UdescSessionMetrics_sessionId_key" ON "UdescSessionMetrics"("sessionId");
+CREATE UNIQUE INDEX "UdeskSessionMetrics_sessionId_key" ON "UdeskSessionMetrics"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "UdescSessionMetrics_sessionId_idx" ON "UdescSessionMetrics"("sessionId");
+CREATE INDEX "UdeskSessionMetrics_sessionId_idx" ON "UdeskSessionMetrics"("sessionId");
 
 -- AddForeignKey
-ALTER TABLE "UdescSessionVote" ADD CONSTRAINT "UdescSessionVote_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "UdescSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UdeskSessionVote" ADD CONSTRAINT "UdeskSessionVote_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "UdeskSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "UdescSessionMetrics" ADD CONSTRAINT "UdescSessionMetrics_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "UdescSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UdeskSessionMetrics" ADD CONSTRAINT "UdeskSessionMetrics_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "UdeskSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -302,7 +302,7 @@ export function LogsPage() {
             value={source}
             onChange={setSource}
           >
-            <Option value="udesc">Udesk</Option>
+            <Option value="udesk">Udesk</Option>
             <Option value="zouwu">驺吾</Option>
           </Select>
           <RangePicker

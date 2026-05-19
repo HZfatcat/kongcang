@@ -72,7 +72,7 @@ kefumonitor/
 │   │       │   ├── opportunity/# 商机管理
 │   │       │   ├── queue/      # BullMQ 任务队列
 │   │       │   ├── sync/       # 数据同步调度
-│   │       │   ├── udesc/      # Udesk 数据查询
+│   │       │   ├── udesk/      # Udesk 数据查询
 │   │       │   ├── websocket/  # WebSocket 推送
 │   │       │   └── wecom-employee/ # 企微员工管理
 │   │       └── common/         # 公共模块（日志、拦截器）
@@ -160,10 +160,10 @@ npm run test             # 运行测试
 ### Udesk 数据
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/udesc/overview` | 满意度统计 |
-| GET | `/api/v1/udesc/tree` | 客服业务树 |
-| GET | `/api/v1/udesc/sessions` | 咨询会话列表 |
-| GET | `/api/v1/udesc/daily-agent-stats` | 客服每日统计 |
+| GET | `/api/v1/udesk/overview` | 满意度统计 |
+| GET | `/api/v1/udesk/tree` | 客服业务树 |
+| GET | `/api/v1/udesk/sessions` | 咨询会话列表 |
+| GET | `/api/v1/udesk/daily-agent-stats` | 客服每日统计 |
 
 ### 数据同步
 | 方法 | 路径 | 说明 |
@@ -225,12 +225,12 @@ npm run test             # 运行测试
 ### Udesk 配置
 | 变量 | 说明 |
 |------|------|
-| `UDESC_BASE_URL` | Udesk API 地址 |
-| `UDESC_EMAIL` / `UDESC_PASSWORD` | 登录凭证 |
-| `UDESC_TOKEN` | 已有 token（可选） |
-| `UDESC_SYNC_START_DATE` | 同步起始日期 |
-| `UDESC_SYNC_WINDOW_DAYS` | 时间窗口天数 |
-| `UDESC_PROVIDER_MAX_LOOKBACK_DAYS` | 最大回溯天数 |
+| `UDESK_BASE_URL` | Udesk API 地址 |
+| `UDESK_EMAIL` / `UDESK_PASSWORD` | 登录凭证 |
+| `UDESK_TOKEN` | 已有 token（可选） |
+| `UDESK_SYNC_START_DATE` | 同步起始日期 |
+| `UDESK_SYNC_WINDOW_DAYS` | 时间窗口天数 |
+| `UDESK_PROVIDER_MAX_LOOKBACK_DAYS` | 最大回溯天数 |
 
 ### 驺吾配置
 | 变量 | 说明 |
@@ -286,8 +286,8 @@ npm run test             # 运行测试
 
 | 模型 | 说明 |
 |------|------|
-| `UdescSession` | Udesk 咨询会话 |
-| `UdescSessionMessage` | 会话消息 |
+| `UdeskSession` | Udesk 咨询会话 |
+| `UdeskSessionMessage` | 会话消息 |
 | `ZouwuRequirement` | 驺吾需求/Bug |
 | `BusinessOpportunity` | 商机 |
 | `AgentProfile` | 客服人员 |

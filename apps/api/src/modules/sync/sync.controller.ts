@@ -12,7 +12,7 @@ export class SyncController {
 
   @Post('run')
   run() {
-    return this.syncService.triggerUdescSync();
+    return this.syncService.triggerUdeskSync();
   }
 
   @Post('zouwu/run')
@@ -43,12 +43,12 @@ export class SyncController {
 
   @Get('progress')
   getProgress() {
-    return this.syncService.getUdescProgress();
+    return this.syncService.getUdeskProgress();
   }
 
   @Get('summary')
   getSummary() {
-    return this.syncService.getUdescSyncSummary();
+    return this.syncService.getUdeskSyncSummary();
   }
 
   @Post('issues/retry')
@@ -58,12 +58,12 @@ export class SyncController {
 
   @Get('config')
   getConfig() {
-    return this.syncService.getSyncConfig('udesc');
+    return this.syncService.getSyncConfig('udesk');
   }
 
   @Post('config')
   updateConfig(@Body() payload: { enabled?: boolean; intervalHours?: number }) {
-    return this.syncService.updateSyncConfig('udesc', payload);
+    return this.syncService.updateSyncConfig('udesk', payload);
   }
 
   @Get('zouwu/config')
@@ -81,27 +81,27 @@ export class SyncController {
     return this.syncService.getZouwuFeedbackStatistics(query);
   }
 
-  @Post('udesc/reset')
-  async resetUdescCursor() {
+  @Post('udesk/reset')
+  async resetUdeskCursor() {
     await this.prisma.syncCheckpoint.deleteMany({
-      where: { source: 'udesc' },
+      where: { source: 'udesk' },
     });
     return { ok: true };
   }
 
-  @Post('udesc/recalc-metrics')
+  @Post('udesk/recalc-metrics')
   async recalcMetrics() {
     const count = await this.syncService.recalculateMetrics();
     return { ok: true, count };
   }
 
-  @Post('udesc/clear')
-  async clearUdescData() {
-    const result = await this.syncService.clearUdescData();
+  @Post('udesk/clear')
+  async clearUdeskData() {
+    const result = await this.syncService.clearUdeskData();
     return { ok: true, ...result };
   }
 
-  @Post('udesc/smart-fix')
+  @Post('udesk/smart-fix')
   async smartFix() {
     const result = await this.syncService.smartFix();
     return { ok: true, ...result };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Typography, Card, DatePicker, Select, Row, Col, Statistic, Spin, Alert, Tooltip } from 'antd';
 import { ClockCircleOutlined, CalendarOutlined, FireOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchUdescHeatmap, UdescHeatmap } from '../api/udesc';
+import { fetchUdeskHeatmap, UdeskHeatmap } from '../api/udesk';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -21,7 +21,7 @@ const getHeatmapColor = (value: number, max: number) => {
 
 export function HeatmapPage() {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<UdescHeatmap | null>(null);
+  const [data, setData] = useState<UdeskHeatmap | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 筛选条件
@@ -35,7 +35,7 @@ export function HeatmapPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchUdescHeatmap({
+      const result = await fetchUdeskHeatmap({
         startDate: dateRange[0].format('YYYY-MM-DD'),
         endDate: dateRange[1].format('YYYY-MM-DD'),
         type: dataType,

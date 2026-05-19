@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-kefumonitor}
       POSTGRES_USER: ${POSTGRES_USER:-kefu}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kefu_pass}
+      POSTGRES_HOST_AUTH_METHOD: trust
       TZ: Asia/Shanghai
     ports:
       - '5432:5432'

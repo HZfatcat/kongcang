@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import {
   RoleListQueryDto,
@@ -10,12 +10,17 @@ import {
   ClearRoleDto,
   SaveRoleMenuDto,
   SaveDataScopeDto,
+  SaveRolePagePermDto,
   PermissionLogQueryDto,
 } from './permission.dto';
 
 @Injectable()
-export class PermissionService {
+export class PermissionService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.initDefaultData();
+  }
 
   // ========== 角色管理 ==========
   async getRoleList(query: RoleListQueryDto) {
@@ -329,6 +334,41 @@ export class PermissionService {
     return { success: true };
   }
 
+  // ========== 页面权限 ==========
+  async getRolePagePerms(roleId: number) {
+    const perms = await this.prisma.sysRolePagePerm.findMany({
+      where: { roleId: BigInt(roleId) },
+    });
+
+    return perms.map((p) => ({
+      pagePath: p.pagePath,
+      canView: p.canView,
+      canOp: p.canOp,
+    }));
+  }
+
+  async saveRolePagePerms(dto: SaveRolePagePermDto) {
+    // 先删除现有页面权限
+    await this.prisma.sysRolePagePerm.deleteMany({
+      where: { roleId: BigInt(dto.roleId) },
+    });
+
+    // 创建新权限
+    if (dto.perms.length > 0) {
+      await this.prisma.sysRolePagePerm.createMany({
+        data: dto.perms.map((p) => ({
+          roleId: BigInt(dto.roleId),
+          pagePath: p.pagePath,
+          canView: p.canView,
+          canOp: p.canOp,
+        })),
+      });
+    }
+
+    await this.logPermission('system', 'page-perm', null, `配置角色页面权限: ${dto.roleId}`, '页面权限配置');
+    return { success: true };
+  }
+
   // ========== 数据权限 ==========
   async saveDataScope(dto: SaveDataScopeDto) {
     const existing = await this.prisma.sysUserDataScope.findUnique({
@@ -438,11 +478,11 @@ export class PermissionService {
     const menuData = [
       { menuName: '客服运营后台', path: '/', component: 'DashboardPage', icon: 'HomeOutlined', sortOrder: 1 },
       { menuName: '用户满意度', path: '/satisfaction', component: 'DashboardPage', icon: 'SmileOutlined', sortOrder: 2 },
-      { menuName: 'Udesk 数据分析', path: '/udesc', component: 'udesc', icon: 'DashboardOutlined', sortOrder: 3, isParent: true },
-      { menuName: '评价分析', path: '/udesc/votes', component: 'VotesPage', parentPath: '/udesc', sortOrder: 31 },
-      { menuName: '会话指标', path: '/udesc/metrics', component: 'MetricsPage', parentPath: '/udesc', sortOrder: 32 },
-      { menuName: '咨询详情', path: '/udesc/sessions', component: 'SessionDetailPage', parentPath: '/udesc', sortOrder: 33 },
-      { menuName: '需求结单率', path: '/demand', component: 'demand', icon: 'CheckCircleOutlined', sortOrder: 4, isParent: true },
+      { menuName: 'Udesk 数据分析', path: '/udesk', component: 'udesk', icon: 'DashboardOutlined', sortOrder: 3, isParent: true },
+      { menuName: '评价分析', path: '/udesk/votes', component: 'VotesPage', parentPath: '/udesk', sortOrder: 31 },
+      { menuName: '会话指标', path: '/udesk/metrics', component: 'MetricsPage', parentPath: '/udesk', sortOrder: 32 },
+      { menuName: '咨询详情', path: '/udesk/sessions', component: 'SessionDetailPage', parentPath: '/udesk', sortOrder: 33 },
+      { menuName: '需求关单率', path: '/demand', component: 'demand', icon: 'CheckCircleOutlined', sortOrder: 4, isParent: true },
       { menuName: '汇总 Dashboard', path: '/demand', component: 'DemandSummaryPage', parentPath: '/demand', sortOrder: 41 },
       { menuName: '需求详情', path: '/demand/requirements', component: 'RequirementDetailPage', parentPath: '/demand', sortOrder: 42 },
       { menuName: 'Bug 详情', path: '/demand/bugs', component: 'BugDetailPage', parentPath: '/demand', sortOrder: 43 },
@@ -451,11 +491,8 @@ export class PermissionService {
       { menuName: '数据同步（驺吾）', path: '/sync-zouwu', component: 'SyncPage', icon: 'SyncOutlined', sortOrder: 7 },
       { menuName: '人员管理', path: '/users', component: 'UsersPage', icon: 'TeamOutlined', sortOrder: 8 },
       { menuName: '系统日志', path: '/logs', component: 'LogsPage', icon: 'FileTextOutlined', sortOrder: 9 },
-      { menuName: '权限管理', path: '/permission', component: 'permission', icon: 'SafetyOutlined', sortOrder: 10, isParent: true },
-      { menuName: '角色管理', path: '/permission/roles', component: 'RoleManagePage', parentPath: '/permission', sortOrder: 101 },
-      { menuName: '用户权限分配', path: '/permission/user-roles', component: 'UserPermissionPage', parentPath: '/permission', sortOrder: 102 },
-      { menuName: '菜单权限配置', path: '/permission/menu-config', component: 'MenuConfigPage', parentPath: '/permission', sortOrder: 103 },
-      { menuName: '权限操作日志', path: '/permission/logs', component: 'PermissionLogsPage', parentPath: '/permission', sortOrder: 104 },
+      { menuName: '权限管理', path: '/access-control', component: 'AccessControlPage', icon: 'SafetyOutlined', sortOrder: 10 },
+      { menuName: '角色管理', path: '/role-manage', component: 'RoleManagePage', icon: 'SafetyOutlined', sortOrder: 11 },
     ];
 
     for (const m of menuData) {

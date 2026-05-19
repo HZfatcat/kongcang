@@ -22,19 +22,19 @@ import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
 import {
-  fetchUdescOverview,
-  fetchUdescTree,
-  fetchUdescSessions,
+  fetchUdeskOverview,
+  fetchUdeskTree,
+  fetchUdeskSessions,
   fetchAgents,
-  fetchUdescDailyRatingStats,
-} from '../api/udesc';
+  fetchUdeskDailyRatingStats,
+} from '../api/udesk';
 import type {
   AgentProfile,
-  UdescSessionRecord,
-  UdescTreeNode,
-  UdescOverview,
-  UdescDailyRatingStats,
-} from '../types/udesc';
+  UdeskSessionRecord,
+  UdeskTreeNode,
+  UdeskOverview,
+  UdeskDailyRatingStats,
+} from '../types/udesk';
 import { fetchOpportunityList, upsertOpportunity } from '../api/opportunity';
 
 const { RangePicker } = DatePicker;
@@ -76,9 +76,9 @@ function renderMessageContent(raw?: string): React.ReactNode {
 export function SessionDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [overview, setOverview] = useState<UdescOverview | null>(null);
-  const [treeData, setTreeData] = useState<UdescTreeNode[]>([]);
-  const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
+  const [overview, setOverview] = useState<UdeskOverview | null>(null);
+  const [treeData, setTreeData] = useState<UdeskTreeNode[]>([]);
+  const [sessions, setSessions] = useState<UdeskSessionRecord[]>([]);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -103,7 +103,7 @@ export function SessionDetailPage() {
   const [opportunityPageSize, setOpportunityPageSize] = useState(20);
   const [sessionSearchId, setSessionSearchId] = useState('');
   const activeSessionSearchRef = useRef<string | null>(null);
-  const [dailyRatingStats, setDailyRatingStats] = useState<UdescDailyRatingStats | null>(null);
+  const [dailyRatingStats, setDailyRatingStats] = useState<UdeskDailyRatingStats | null>(null);
 
   const apiRange = useMemo(
     () => ({
@@ -145,8 +145,8 @@ export function SessionDetailPage() {
     try {
       // 当搜索 sessionId 时，只加载该会话，不加载 overview 和 tree
       if (targetSessionId) {
-        console.log('[reload] calling fetchUdescSessions with sessionId:', targetSessionId);
-        const sessionResp = await fetchUdescSessions({
+        console.log('[reload] calling fetchUdeskSessions with sessionId:', targetSessionId);
+        const sessionResp = await fetchUdeskSessions({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
           page: 1,
@@ -174,9 +174,9 @@ export function SessionDetailPage() {
           return;
         }
         const [overviewData, treeResp, sessionResp, ratingStats] = await Promise.all([
-          fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-          fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-          fetchUdescSessions({
+          fetchUdeskOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+          fetchUdeskTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+          fetchUdeskSessions({
             startDate: apiRange.startDateIso,
             endDate: apiRange.endDateIso,
             page: targetPage,
@@ -184,7 +184,7 @@ export function SessionDetailPage() {
             agentIds:
               targetSessionAgentFilters.length > 0 ? targetSessionAgentFilters.join(',') : undefined,
           }),
-          fetchUdescDailyRatingStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+          fetchUdeskDailyRatingStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         ]);
         setOverview(overviewData);
         setTreeData(Array.isArray(treeResp) ? treeResp : []);
@@ -346,7 +346,7 @@ export function SessionDetailPage() {
       {
         title: '操作',
         key: 'actions',
-        render: (_: unknown, record: UdescSessionRecord) => (
+        render: (_: unknown, record: UdeskSessionRecord) => (
           <Button
             size="small"
             onClick={() => {
