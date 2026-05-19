@@ -529,6 +529,248 @@ export class KpiService {
     };
   }
 
+  // ===== 按客服汇总 =====
+  async getAgentOverview(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    // 需求按客服统计（不含 bug，即 issueType != 1，包含长期演进）
+    const agentRequirementCreatedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 需求完成按客服统计
+    const agentRequirementCompletedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r.status IN ('CLOSED', 'DONE')
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 需求拒绝按客服统计
+    const agentRequirementRejectedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r."isLongTerm" = false
+        AND r.status = 'REJECTED'
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 长期演进需求按客服统计
+    const agentLongTermRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r."isLongTerm" = true
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // Bug 总数按客服统计
+    const agentBugCreatedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // Bug 完成按客服统计（排除长期演进）
+    const agentBugCompletedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+        AND r."isLongTerm" = false
+        AND r.status IN ('CLOSED', 'DONE')
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // Bug 拒绝按客服统计（排除长期演进）
+    const agentBugRejectedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+        AND r."isLongTerm" = false
+        AND r.status = 'REJECTED'
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // Bug 长期演进按客服统计
+    const agentBugLongTermRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+        AND r."isLongTerm" = true
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 超七天未采纳：状态为 OPEN，非长期演进，创建时间距 end 超过 7 天
+    const sevenDaysAgo = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const agentOver7NotAdoptedRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r."isLongTerm" = false
+        AND r.status = 'OPEN'
+        AND r."createdAtSource" < ${sevenDaysAgo}
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 超30天未闭环（需求）：已采纳/开发中/已完成 且超过 30 天未关闭
+    const thirtyDaysAgo = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const agentOver30NotClosedReqRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND (r."issueType" IS NULL OR r."issueType" != 1)
+        AND r."isLongTerm" = false
+        AND r.status IN ('IN_PROGRESS', 'DONE')
+        AND r."createdAtSource" < ${thirtyDaysAgo}
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 超30天未闭环（Bug）：开发中/已完成 且超过 30 天未关闭
+    const agentOver30NotClosedBugRows = await this.prisma.$queryRaw<
+      Array<{ agentName: string; count: bigint }>
+    >`
+      SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
+      FROM "ZouwuRequirement" r
+      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        AND r."issueType" = 1
+        AND r."isLongTerm" = false
+        AND r.status IN ('IN_PROGRESS', 'DONE')
+        AND r."createdAtSource" < ${thirtyDaysAgo}
+      GROUP BY r."createdByName"
+      ORDER BY count DESC
+    `;
+
+    // 收集所有客服名称
+    const allAgents = new Set<string>();
+    const addAgents = (rows: Array<{ agentName: string; count: bigint }>) =>
+      rows.forEach((r) => allAgents.add(r.agentName));
+    addAgents(agentRequirementCreatedRows);
+    addAgents(agentRequirementCompletedRows);
+    addAgents(agentRequirementRejectedRows);
+    addAgents(agentLongTermRows);
+    addAgents(agentBugCreatedRows);
+    addAgents(agentBugCompletedRows);
+    addAgents(agentBugRejectedRows);
+    addAgents(agentBugLongTermRows);
+    addAgents(agentOver7NotAdoptedRows);
+    addAgents(agentOver30NotClosedReqRows);
+    addAgents(agentOver30NotClosedBugRows);
+
+    // 构建 Map 工具
+    const buildMap = (rows: Array<{ agentName: string; count: bigint }>) => {
+      const map = new Map<string, number>();
+      for (const row of rows) {
+        map.set(row.agentName, Number(row.count));
+      }
+      return map;
+    };
+
+    const createdMap = buildMap(agentRequirementCreatedRows);
+    const completedMap = buildMap(agentRequirementCompletedRows);
+    const rejectedMap = buildMap(agentRequirementRejectedRows);
+    const longTermMap = buildMap(agentLongTermRows);
+    const bugCreatedMap = buildMap(agentBugCreatedRows);
+    const bugCompletedMap = buildMap(agentBugCompletedRows);
+    const bugRejectedMap = buildMap(agentBugRejectedRows);
+    const bugLongTermMap = buildMap(agentBugLongTermRows);
+    const over7NotAdoptedMap = buildMap(agentOver7NotAdoptedRows);
+    const over30NotClosedReqMap = buildMap(agentOver30NotClosedReqRows);
+    const over30NotClosedBugMap = buildMap(agentOver30NotClosedBugRows);
+
+    const rows = Array.from(allAgents).map((agentName) => {
+      const reqCreated = createdMap.get(agentName) ?? 0;
+      const reqCompleted = completedMap.get(agentName) ?? 0;
+      const reqRejected = rejectedMap.get(agentName) ?? 0;
+      const reqLongTerm = longTermMap.get(agentName) ?? 0;
+      const bugCreated = bugCreatedMap.get(agentName) ?? 0;
+      const bugCompleted = bugCompletedMap.get(agentName) ?? 0;
+      const bugRejected = bugRejectedMap.get(agentName) ?? 0;
+      const bugLongTerm = bugLongTermMap.get(agentName) ?? 0;
+      const over7NotAdopted = over7NotAdoptedMap.get(agentName) ?? 0;
+      const over30NotClosedReq = over30NotClosedReqMap.get(agentName) ?? 0;
+      const over30NotClosedBug = over30NotClosedBugMap.get(agentName) ?? 0;
+
+      const reqEffectiveTotal = reqCreated - reqLongTerm;
+      const reqCompletionRate = reqEffectiveTotal > 0
+        ? (reqCompleted + reqRejected) / reqEffectiveTotal
+        : 0;
+      const bugEffectiveTotal = bugCreated - bugLongTerm;
+      const bugCompletionRate = bugEffectiveTotal > 0
+        ? (bugCompleted + bugRejected) / bugEffectiveTotal
+        : 0;
+
+      return {
+        agentName,
+        reqCreated,
+        reqCompleted,
+        reqRejected,
+        reqLongTerm,
+        reqCompletionRate,
+        bugCreated,
+        bugCompleted,
+        bugRejected,
+        bugLongTerm,
+        bugCompletionRate,
+        over7NotAdopted,
+        over30NotClosedReq,
+        over30NotClosedBug,
+      };
+    });
+
+    // 按需求总数降序排列
+    rows.sort((a, b) => b.reqCreated - a.reqCreated);
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      rows,
+    };
+  }
+
   private truncateDate(date: Date, granularity: 'day' | 'week' | 'month') {
     const d = new Date(date);
     if (granularity === 'month') {

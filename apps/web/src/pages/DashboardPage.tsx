@@ -35,7 +35,7 @@ import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
 import { ProductModuleChart } from '../components/ProductModuleChart';
-import { fetchConsultationFunnel, fetchDemandOverview, fetchProductModuleDistribution } from '../api/kpi';
+import { fetchConsultationFunnel, fetchDemandOverview, fetchAgentOverview, fetchProductModuleDistribution } from '../api/kpi';
 import {
   deleteOpportunity,
   fetchOpportunityList,
@@ -85,7 +85,7 @@ import type {
   UdescTreeNode,
   ZouwuFeedbackStatistics,
 } from '../types/udesc';
-import type { ConsultationFunnelOverview, DemandOverview, ProductModuleDistribution } from '../types/kpi';
+import type { ConsultationFunnelOverview, DemandOverview, AgentOverview, ProductModuleDistribution } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
 
@@ -122,6 +122,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [syncLoading, setSyncLoading] = useState(false);
   const [overview, setOverview] = useState<UdescOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
+  const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
   const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
   const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
@@ -217,9 +219,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     const targetSessionAgentFilters = nextSessionAgentFilters ?? sessionAgentFilters;
     setLoading(true);
     try {
-      const [overviewData, demandData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
+      const [overviewData, demandData, agentData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
         fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchDemandOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchAgentOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchConsultationFunnel({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
@@ -265,6 +268,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       ]);
       setOverview(overviewData);
       setDemandOverview(demandData);
+      setAgentOverview(agentData);
       setConsultationFunnel(funnelData);
       setDailyStats(dailyStatsData);
       setTreeData(Array.isArray(treeResp) ? treeResp : []);
@@ -1154,7 +1158,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求闭环率</span>}
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1270,7 +1274,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1373,7 +1377,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
     { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
     {
-      title: '需求闭环率',
+      title: '需求关单率',
       key: 'reqCompletionRate',
       width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
@@ -1384,11 +1388,80 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
     { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
     {
-      title: 'Bug闭环率',
+      title: 'Bug关单率',
       key: 'bugCompletionRate',
       width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+  ];
+
+  // ===== 按客服汇总表格（需求和 Bug 合并） =====
+  const mergedAgentRows = useMemo(() => {
+    return (agentOverview?.rows ?? []).map(r => ({
+      agentName: r.agentName,
+      reqCreated: r.reqCreated,
+      reqCompleted: r.reqCompleted,
+      reqRejected: r.reqRejected,
+      reqLongTerm: r.reqLongTerm,
+      reqCompletionRate: r.reqCompletionRate,
+      bugCreated: r.bugCreated,
+      bugCompleted: r.bugCompleted,
+      bugRejected: r.bugRejected,
+      bugLongTerm: r.bugLongTerm,
+      bugCompletionRate: r.bugCompletionRate,
+      over7NotAdopted: r.over7NotAdopted,
+      over30NotClosedReq: r.over30NotClosedReq,
+      over30NotClosedBug: r.over30NotClosedBug,
+    }));
+  }, [agentOverview]);
+
+  const mergedAgentColumns = [
+    { title: '客服名称', dataIndex: 'agentName', key: 'agentName', width: 120, fixed: 'left' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 120 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 140 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
+    {
+      title: '需求关单率',
+      key: 'reqCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.reqCompletionRate * 100).toFixed(2)}%`,
+    },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 120 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 140 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
+    {
+      title: 'Bug关单率',
+      key: 'bugCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+    {
+      title: '总关单率',
+      key: 'totalCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) => {
+        const totalCreated = record.reqCreated + record.bugCreated;
+        const totalCompleted = record.reqCompleted + record.bugCompleted;
+        const totalRejected = record.reqRejected + record.bugRejected;
+        const totalLongTerm = record.reqLongTerm + record.bugLongTerm;
+        const effectiveTotal = totalCreated - totalLongTerm;
+        if (effectiveTotal <= 0) return '0.00%';
+        const rate = (totalCompleted + totalRejected) / effectiveTotal;
+        return `${(rate * 100).toFixed(2)}%`;
+      },
+    },
+    { title: '超7天未采纳', dataIndex: 'over7NotAdopted', key: 'over7NotAdopted', width: 120 },
+    {
+      title: '超30天未闭环',
+      key: 'over30NotClosed',
+      width: 130,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        (record.over30NotClosedReq ?? 0) + (record.over30NotClosedBug ?? 0),
     },
   ];
 
@@ -1411,6 +1484,24 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               bordered
               scroll={{ x: 'max-content' }}
               columns={mergedMonthlyColumns}
+            />
+          </Card>
+        )
+      },
+      { 
+        key: 'agent', 
+        label: '按客服汇总', 
+        children: (
+          <Card extra={<Tag color="blue">已剔除长期演进</Tag>}>
+            <Table
+              rowKey="agentName"
+              dataSource={mergedAgentRows}
+              pagination={false}
+              size="small"
+              bordered
+              scroll={{ x: 'max-content' }}
+              columns={mergedAgentColumns}
+              loading={agentLoading}
             />
           </Card>
         )
