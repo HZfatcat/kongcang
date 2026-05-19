@@ -230,6 +230,18 @@ export function VotesPage() {
               },
             }}
             onChange={(pagination, filters, sorter) => {
+              // 处理评分筛选（表头列筛选）
+              const ratingFilter = filters.rating as number[] | null | undefined;
+              if (ratingFilter && ratingFilter.length > 0) {
+                setMinRating(ratingFilter[0]);
+                setMaxRating(ratingFilter[0]);
+              } else {
+                setMinRating(undefined);
+                setMaxRating(undefined);
+              }
+              // 筛选变化时回到第一页
+              setPage(1);
+              // 处理排序
               if (sorter && !Array.isArray(sorter)) {
                 setSortBy(sorter.field as string);
                 setSortOrder(sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : undefined);
