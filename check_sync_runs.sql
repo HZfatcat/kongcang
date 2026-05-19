@@ -1,0 +1,1 @@
+SELECT * FROM "SyncRun" ORDER BY "startedAt" DESC LIMIT 5;

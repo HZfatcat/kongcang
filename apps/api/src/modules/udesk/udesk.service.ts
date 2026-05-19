@@ -11,12 +11,60 @@ function toLocalISOString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
+/**
+ * 判断消息是否为系统自动消息（不包含在消息数统计中）
+ * 匹配内容包含系统提示、超时、会话关闭、满意度调查等
+ */
+function isSystemMessage(content: string | object | null | undefined): boolean {
+  if (!content) return false;
+  const text = typeof content === 'string' ? content : JSON.stringify(content);
+  const patterns = [
+    /"push_type":"sys_welcome_msg"/,
+    /"auto":true/,
+    /"is_welcome":true/,
+    /"type":"survey"/,
+    /满意度调查/,
+    /系统将暂时关闭/,
+    /接入人工服务/,
+    /有新的咨询进来了/,
+    /长时间未响应/,
+    /超时未回复/,
+    /系统将自动结束会话/,
+    /已为您转接/,
+    /正在为您转接/,
+    /转接至/,
+    /会话已结束/,
+    /会话已关闭/,
+    /客服已离线/,
+    /客服已上线/,
+  ];
+  return patterns.some(p => p.test(text));
+}
+
+function countNonSystemMessages(messages: any[]): number {
+  return messages.filter(m => !isSystemMessage(m.content)).length;
+}
+
+/**
+ * 规范化消息 senderType：系统消息统一显示为 "系统"
+ */
+function normalizeSenderType(msg: any): string {
+  return isSystemMessage(msg.content) ? '系统' : msg.senderType;
+}
+
 @Injectable()
-export class UdeskService {
+export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
 
   private resolveRange(startDate?: string, endDate?: string) {
-    const end = endDate ? new Date(endDate) : new Date();
+    let end: Date;
+    if (endDate) {
+      // 将 endDate 设置为当天的 23:59:59.999，确保包含当天所有数据
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end = new Date();
+    }
     const start = startDate
       ? new Date(startDate)
       : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
@@ -32,8 +80,8 @@ export class UdeskService {
       },
     };
 
-    // 获取时间范围内的 sessionIds，用于从 UdeskSessionVote 表查询评价
-    const sessionsInRange = await this.prisma.udeskSession.findMany({
+    // 获取时间范围内的 sessionIds，用于从 UdescSessionVote 表查询评价
+    const sessionsInRange = await this.prisma.udescSession.findMany({
       where,
       select: { id: true },
     });
@@ -44,13 +92,13 @@ export class UdeskService {
 
     const [totalSessions, totalMessages, agentCount, ratedCount, avgRating, topAgents, voteTagStats, customerCount, returnVisitCount] =
       await Promise.all([
-      this.prisma.udeskSession.count({ where }),
-      this.prisma.udeskSessionMessage.count({
+      this.prisma.udescSession.count({ where }),
+      this.prisma.udescSessionMessage.count({
         where: {
           session: where,
         },
       }),
-      this.prisma.udeskSession
+      this.prisma.udescSession
         .findMany({
           where: {
             ...where,
@@ -60,21 +108,21 @@ export class UdeskService {
           select: { agentId: true },
         })
         .then((rows) => rows.length),
-      // 从 UdeskSessionVote 表统计总评价数（与评价分析页 getVotes 的 total 逻辑一致）
-      this.prisma.udeskSessionVote.count({
+      // 从 UdescSessionVote 表统计总评价数（与评价分析页 getVotes 的 total 逻辑一致）
+      this.prisma.udescSessionVote.count({
         where: {
           sessionId: { in: sessionIds },
         },
       }),
-      // 从 UdeskSessionVote 表计算平均评分
-      this.prisma.udeskSessionVote.aggregate({
+      // 从 UdescSessionVote 表计算平均评分
+      this.prisma.udescSessionVote.aggregate({
         where: {
           sessionId: { in: sessionIds },
           rating: { not: null },
         },
         _avg: { rating: true },
       }),
-      this.prisma.udeskSession.groupBy({
+      this.prisma.udescSession.groupBy({
         by: ['agentId'],
         where: {
           ...where,
@@ -87,9 +135,9 @@ export class UdeskService {
         take: 10,
       }),
       voteTagStatsPromise,
-      this.prisma.udeskCustomer.count(),
-      // 统计回访会话数：查找 UdeskSessionVote 中 tags 包含"回访"的会话
-      this.prisma.udeskSessionVote
+      this.prisma.udescCustomer.count(),
+      // 统计回访会话数：查找 UdescSessionVote 中 tags 包含"回访"的会话
+      this.prisma.udescSessionVote
         .findMany({
           where: {
             sessionId: { in: sessionIds },
@@ -120,13 +168,13 @@ export class UdeskService {
 
   private async getVoteTagStats(start: Date, end: Date) {
     // 先获取时间范围内的 sessionId
-    const sessionsInRange = await this.prisma.udeskSession.findMany({
+    const sessionsInRange = await this.prisma.udescSession.findMany({
       where: { startedAt: { gte: start, lte: end } },
       select: { id: true },
     });
     const sessionIds = sessionsInRange.map((s) => s.id);
 
-    const votes = await this.prisma.udeskSessionVote.findMany({
+    const votes = await this.prisma.udescSessionVote.findMany({
       where: {
         sessionId: { in: sessionIds },
       },
@@ -157,7 +205,7 @@ export class UdeskService {
 
   async getAgentTree(startDate?: string, endDate?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
-    const sessions = await this.prisma.udeskSession.findMany({
+    const sessions = await this.prisma.udescSession.findMany({
       where: {
         startedAt: { gte: start, lte: end },
       },
@@ -251,8 +299,8 @@ export class UdeskService {
     console.log('[Service] getSessions where clause:', JSON.stringify(where, null, 2));
 
     const [total, rows] = await Promise.all([
-      this.prisma.udeskSession.count({ where }),
-      this.prisma.udeskSession.findMany({
+      this.prisma.udescSession.count({ where }),
+      this.prisma.udescSession.findMany({
         where,
         orderBy: { startedAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -277,11 +325,11 @@ export class UdeskService {
         endedAt: item.endedAt ? toLocalISOString(item.endedAt) : null,
         rating: item.rating,
         isConsultToDemand: item.isConsultToDemand,
-        messageCount: item.messages.length,
+        messageCount: countNonSystemMessages(item.messages),
         messages: item.messages.map((msg) => ({
           id: msg.id,
           sentAt: toLocalISOString(msg.sentAt),
-          senderType: msg.senderType,
+          senderType: normalizeSenderType(msg),
           senderId: msg.senderId,
           content: msg.content,
         })),
@@ -303,7 +351,7 @@ export class UdeskService {
         DATE_TRUNC('day', s."startedAt") AS day,
         s."agentId" AS "agentId",
         COUNT(*)::bigint AS "sessionCount"
-      FROM "UdeskSession" s
+      FROM "UdescSession" s
       WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
       GROUP BY DATE_TRUNC('day', s."startedAt"), s."agentId"
       ORDER BY day ASC
@@ -320,8 +368,8 @@ export class UdeskService {
         DATE_TRUNC('day', s."startedAt") AS day,
         s."agentId" AS "agentId",
         COUNT(m."id")::bigint AS "messageCount"
-      FROM "UdeskSession" s
-      LEFT JOIN "UdeskSessionMessage" m ON m."sessionId" = s."id"
+      FROM "UdescSession" s
+      LEFT JOIN "UdescSessionMessage" m ON m."sessionId" = s."id"
       WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
       GROUP BY DATE_TRUNC('day', s."startedAt"), s."agentId"
       ORDER BY day ASC
@@ -380,7 +428,7 @@ export class UdeskService {
         s."agentId" AS "agentId",
         AVG(s."rating")::double precision AS "avgRating",
         COUNT(s."rating")::bigint AS "ratingCount"
-      FROM "UdeskSession" s
+      FROM "UdescSession" s
       WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
         AND s."rating" IS NOT NULL
       GROUP BY DATE_TRUNC('day', s."startedAt"), s."agentId"
@@ -458,8 +506,8 @@ export class UdeskService {
     };
 
     const [total, rows] = await Promise.all([
-      this.prisma.udeskCustomer.count({ where }),
-      this.prisma.udeskCustomer.findMany({
+      this.prisma.udescCustomer.count({ where }),
+      this.prisma.udescCustomer.findMany({
         where,
         orderBy: { syncedAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -485,7 +533,7 @@ export class UdeskService {
   }
 
   async getCustomerDetail(id: string) {
-    const customer = await this.prisma.udeskCustomer.findUnique({
+    const customer = await this.prisma.udescCustomer.findUnique({
       where: { id },
     });
 
@@ -514,19 +562,19 @@ export class UdeskService {
       ...(params.enabled !== undefined ? { enabled: params.enabled } : {}),
     };
 
-    const agents = await this.prisma.udeskAgent.findMany({
+    const agents = await this.prisma.udescAgent.findMany({
       where,
       orderBy: { name: 'asc' },
     });
 
     return agents.map((agent) => ({
-      agentId: agent.id,
-      displayName: agent.name,
+      id: agent.id,
+      name: agent.name,
       email: agent.email,
       phone: agent.phone,
-      role: agent.roleName,
+      roleName: agent.roleName,
       enabled: agent.enabled,
-      team: agent.groups,
+      groups: agent.groups,
       skills: agent.skills,
     }));
   }
@@ -535,7 +583,7 @@ export class UdeskService {
     const { start, end } = this.resolveRange(startDate, endDate);
 
     const [sessionStats, ratingStats, messageStats] = await Promise.all([
-      this.prisma.udeskSession.groupBy({
+      this.prisma.udescSession.groupBy({
         by: ['agentId'],
         where: {
           agentId,
@@ -543,7 +591,7 @@ export class UdeskService {
         },
         _count: { id: true },
       }),
-      this.prisma.udeskSession.aggregate({
+      this.prisma.udescSession.aggregate({
         where: {
           agentId,
           startedAt: { gte: start, lte: end },
@@ -552,7 +600,7 @@ export class UdeskService {
         _avg: { rating: true },
         _count: { rating: true },
       }),
-      this.prisma.udeskSessionMessage.aggregate({
+      this.prisma.udescSessionMessage.aggregate({
         where: {
           session: { agentId, startedAt: { gte: start, lte: end } },
         },
@@ -561,7 +609,7 @@ export class UdeskService {
     ]);
 
     // 按天统计
-    const dailySessions = await this.prisma.udeskSession.groupBy({
+    const dailySessions = await this.prisma.udescSession.groupBy({
       by: ['startedAt'],
       where: {
         agentId,
@@ -629,7 +677,7 @@ export class UdeskService {
       sessionIds = [params.sessionId];
     } else {
       // 先获取时间范围内的 sessionId 列表
-      const sessionsInRange = await this.prisma.udeskSession.findMany({
+      const sessionsInRange = await this.prisma.udescSession.findMany({
         where: { startedAt: { gte: start, lte: end } },
         select: { id: true },
       });
@@ -660,8 +708,8 @@ export class UdeskService {
     }
 
     const [total, rows, ratingStats, avgRatingResult, totalSessions] = await Promise.all([
-      this.prisma.udeskSessionVote.count({ where }),
-      this.prisma.udeskSessionVote.findMany({
+      this.prisma.udescSessionVote.count({ where }),
+      this.prisma.udescSessionVote.findMany({
         where,
         orderBy,
         skip: (page - 1) * pageSize,
@@ -675,33 +723,33 @@ export class UdeskService {
           },
         },
       }),
-      this.prisma.udeskSessionVote.groupBy({
+      this.prisma.udescSessionVote.groupBy({
         by: ['rating'],
         where: { ...where, rating: { not: null } },
         _count: { rating: true },
       }),
-      this.prisma.udeskSessionVote.aggregate({
+      this.prisma.udescSessionVote.aggregate({
         where: { ...where, rating: { not: null } },
         _avg: { rating: true },
       }),
-      this.prisma.udeskSession.count({
+      this.prisma.udescSession.count({
         where: { startedAt: { gte: start, lte: end } },
       }),
     ]);
 
-    // 获取客服名字映射（优先 AgentProfile，fallback 到 UdeskAgent）
+    // 获取客服名字映射（优先 AgentProfile，fallback 到 UdescAgent）
     const agentIds = [...new Set(rows.map((r) => r.session.agentId).filter(Boolean))] as string[];
-    const [agentProfiles, udeskAgents] = await Promise.all([
+    const [agentProfiles, udescAgents] = await Promise.all([
       this.prisma.agentProfile.findMany({
         where: { agentId: { in: agentIds } },
       }),
-      this.prisma.udeskAgent.findMany({
+      this.prisma.udescAgent.findMany({
         where: { id: { in: agentIds } },
       }),
     ]);
     const agentNameMap = new Map<string, string>();
-    // 先从 UdeskAgent 填充名字
-    for (const a of udeskAgents) {
+    // 先从 UdescAgent 填充名字
+    for (const a of udescAgents) {
       if (a.name) agentNameMap.set(a.id, a.name);
     }
     // AgentProfile 覆盖优先级更高
@@ -799,7 +847,7 @@ export class UdeskService {
     const isComputedSort = sortBy === 'sessionDuration';
     
     // 构建排序条件 - 直接使用 relation filter，让数据库优化执行计划
-    // 指标字段已在 UdeskSessionMetrics 表上有索引，可直接排序
+    // 指标字段已在 UdescSessionMetrics 表上有索引，可直接排序
     const orderBy = sortBy === 'sessionId'
       ? { session: { startedAt: sortOrder } }
       : sortBy === 'startedAt'
@@ -810,8 +858,8 @@ export class UdeskService {
       ? undefined
       : { [sortFieldMap[sortBy]]: sortOrder };
 
-    // 先从 UdeskSessionMetrics 取，如果为空则从消息计算
-    let metricsRows = await this.prisma.udeskSessionMetrics.findMany({
+    // 先从 UdescSessionMetrics 取，如果为空则从消息计算
+    let metricsRows = await this.prisma.udescSessionMetrics.findMany({
       where: { session: sessionWhere },
       ...(orderBy ? { orderBy } : {}),
       ...(isComputedSort ? {} : { skip: (page - 1) * pageSize, take: pageSize }),
@@ -831,7 +879,7 @@ export class UdeskService {
     // 如果 metrics 表为空，从消息计算
     if (metricsRows.length === 0) {
       // 获取所有符合条件的会话用于计算
-      const sessions = await this.prisma.udeskSession.findMany({
+      const sessions = await this.prisma.udescSession.findMany({
         where: sessionWhere,
         include: {
           messages: {
@@ -842,20 +890,20 @@ export class UdeskService {
 
       const total = sessions.length;
 
-      // 获取所有 agentId 并关联 AgentProfile，fallback 到 UdeskAgent
+      // 获取所有 agentId 并关联 AgentProfile，fallback 到 UdescAgent
       const agentIds = [...new Set(sessions.map((s) => s.agentId).filter((id): id is string => !!id))];
-      const [agentProfiles, udeskAgents] = agentIds.length > 0 ? await Promise.all([
+      const [agentProfiles, udescAgents] = agentIds.length > 0 ? await Promise.all([
         this.prisma.agentProfile.findMany({
           where: { agentId: { in: agentIds } },
           select: { agentId: true, displayName: true },
         }),
-        this.prisma.udeskAgent.findMany({
+        this.prisma.udescAgent.findMany({
           where: { id: { in: agentIds } },
           select: { id: true, name: true },
         }),
       ]) : [[], []];
       const agentNameMap = new Map<string, string>();
-      for (const a of udeskAgents) {
+      for (const a of udescAgents) {
         if (a.name) agentNameMap.set(a.id, a.name);
       }
       for (const a of agentProfiles) {
@@ -866,12 +914,16 @@ export class UdeskService {
       const records = sessions.map((s) => {
         const messages = s.messages;
         const agentMsgs = messages.filter((m) =>
-          m.senderType === 'agent' ||
-          (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
+          !isSystemMessage(m.content) && (
+            m.senderType === 'agent' ||
+            (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
+          )
         );
         const customerMsgs = messages.filter((m) =>
-          m.senderType === 'customer' ||
-          (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
+          !isSystemMessage(m.content) && (
+            m.senderType === 'customer' ||
+            (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
+          )
         );
 
         // 计算首次响应时间（无法计算时返回 null）
@@ -933,7 +985,7 @@ export class UdeskService {
           avgResponseTime,
           waitTime: 0,
           resolutionTime,
-          messageCount: messages.length,
+          messageCount: countNonSystemMessages(messages),
           agentMessageCount: agentMsgs.length,
           customerMessageCount: customerMsgs.length,
         };
@@ -978,24 +1030,24 @@ export class UdeskService {
       };
     }
 
-    const total = await this.prisma.udeskSessionMetrics.count({
+    const total = await this.prisma.udescSessionMetrics.count({
       where: { session: sessionWhere },
     });
 
-    // 获取所有 agentId 并关联 AgentProfile，fallback 到 UdeskAgent
+    // 获取所有 agentId 并关联 AgentProfile，fallback 到 UdescAgent
     const agentIds = [...new Set(metricsRows.map((m) => m.session.agentId).filter((id): id is string => !!id))];
-    const [agentProfiles, udeskAgents] = agentIds.length > 0 ? await Promise.all([
+    const [agentProfiles, udescAgents] = agentIds.length > 0 ? await Promise.all([
       this.prisma.agentProfile.findMany({
         where: { agentId: { in: agentIds } },
         select: { agentId: true, displayName: true },
       }),
-      this.prisma.udeskAgent.findMany({
+      this.prisma.udescAgent.findMany({
         where: { id: { in: agentIds } },
         select: { id: true, name: true },
       }),
     ]) : [[], []];
     const agentNameMap = new Map<string, string>();
-    for (const a of udeskAgents) {
+    for (const a of udescAgents) {
       if (a.name) agentNameMap.set(a.id, a.name);
     }
     for (const a of agentProfiles) {
@@ -1048,7 +1100,7 @@ export class UdeskService {
     console.log('[getMetricsSummary] params:', { startDate, endDate, agentId, start: start.toISOString(), end: end.toISOString() });
 
     // 查询符合条件的 session
-    const sessions = await this.prisma.udeskSession.findMany({
+    const sessions = await this.prisma.udescSession.findMany({
       where: {
         startedAt: { gte: start, lte: end },
         ...(agentId ? { agentId } : {}),
@@ -1086,7 +1138,7 @@ export class UdeskService {
           sm."sessionId",
           sm."sentAt",
           sm."senderType"
-        FROM "UdeskSessionMessage" sm
+        FROM "UdescSessionMessage" sm
         WHERE sm."sessionId" = ANY(${sessionIds}::text[])
       ),
       aggregated AS (
@@ -1124,7 +1176,6 @@ export class UdeskService {
           firstResponseTimes.push(HUNDRED_HOURS);
         }
       }
-      totalMessages += Number(row.total_msgs);
       sessionsWithMessages++;
     }
 
@@ -1140,9 +1191,9 @@ export class UdeskService {
     const resolutionTimes: number[] = [];
 
     // 批量获取消息，按 sessionId 和 sentAt 排序
-    const allMessages = await this.prisma.udeskSessionMessage.findMany({
+    const allMessages = await this.prisma.udescSessionMessage.findMany({
       where: { sessionId: { in: sessionIds } },
-      select: { sessionId: true, sentAt: true, senderType: true },
+      select: { sessionId: true, sentAt: true, senderType: true, content: true },
       orderBy: [{ sessionId: 'asc' }, { sentAt: 'asc' }],
     });
 
@@ -1156,7 +1207,7 @@ export class UdeskService {
     }
 
     // 获取会话的 endedAt
-    const sessionEndTimes = await this.prisma.udeskSession.findMany({
+    const sessionEndTimes = await this.prisma.udescSession.findMany({
       where: { id: { in: sessionIds } },
       select: { id: true, startedAt: true, endedAt: true },
     });
@@ -1167,18 +1218,22 @@ export class UdeskService {
       const session = sessionEndMap.get(sessionId);
       if (!session) continue;
 
-      // 计算解决时间（会话结束 - 第一条消息）
-      if (session.endedAt && messages.length > 0) {
-        const firstMsgTime = new Date(messages[0].sentAt).getTime();
+      // 跳过系统消息
+      const nonSystemMsgs = messages.filter(m => !isSystemMessage(m.content));
+      totalMessages += nonSystemMsgs.length;
+
+      // 计算解决时间（会话结束 - 第一条非系统消息）
+      if (session.endedAt && nonSystemMsgs.length > 0) {
+        const firstMsgTime = new Date(nonSystemMsgs[0].sentAt).getTime();
         const endedTime = new Date(session.endedAt).getTime();
         if (endedTime >= firstMsgTime) {
           resolutionTimes.push(Math.round((endedTime - firstMsgTime) / 1000));
         }
       }
 
-      // 分离客户和客服消息
-      const customerMsgs = messages.filter(m => m.senderType === 'customer');
-      const agentMsgs = messages.filter(m => m.senderType === 'agent');
+      // 分离客户和客服消息（排除系统消息）
+      const customerMsgs = messages.filter(m => m.senderType === 'customer' && !isSystemMessage(m.content));
+      const agentMsgs = messages.filter(m => m.senderType === 'agent' && !isSystemMessage(m.content));
 
       // 计算响应时间：每条客户消息后的第一条客服回复
       for (const customerMsg of customerMsgs) {
@@ -1235,7 +1290,7 @@ export class UdeskService {
     const { start, end } = this.resolveRange(startDate, endDate);
 
     // 获取所有客服的会话，按 agentId 分组
-    const sessions = await this.prisma.udeskSession.findMany({
+    const sessions = await this.prisma.udescSession.findMany({
       where: {
         startedAt: { gte: start, lte: end },
         agentId: { not: null },
@@ -1259,20 +1314,20 @@ export class UdeskService {
       }
     }
 
-    // 获取客服名称（优先 AgentProfile，fallback 到 UdeskAgent）
+    // 获取客服名称（优先 AgentProfile，fallback 到 UdescAgent）
     const agentIds = Array.from(agentSessionMap.keys());
-    const [agentProfiles, udeskAgents] = await Promise.all([
+    const [agentProfiles, udescAgents] = await Promise.all([
       this.prisma.agentProfile.findMany({
         where: { agentId: { in: agentIds } },
         select: { agentId: true, displayName: true },
       }),
-      this.prisma.udeskAgent.findMany({
+      this.prisma.udescAgent.findMany({
         where: { id: { in: agentIds } },
         select: { id: true, name: true },
       }),
     ]);
     const agentNameMap = new Map<string, string>();
-    for (const a of udeskAgents) {
+    for (const a of udescAgents) {
       if (a.name) agentNameMap.set(a.id, a.name);
     }
     for (const a of agentProfiles) {
@@ -1281,9 +1336,9 @@ export class UdeskService {
 
     // 获取所有消息
     const allSessionIds = sessions.map(s => s.id);
-    const allMessages = await this.prisma.udeskSessionMessage.findMany({
+    const allMessages = await this.prisma.udescSessionMessage.findMany({
       where: { sessionId: { in: allSessionIds } },
-      select: { sessionId: true, sentAt: true, senderType: true },
+      select: { sessionId: true, sentAt: true, senderType: true, content: true },
       orderBy: { sentAt: 'asc' },
     });
 
@@ -1316,10 +1371,12 @@ export class UdeskService {
         const messages = messagesBySession.get(sessionId) || [];
         const session = sessionEndMap.get(sessionId);
 
-        totalMessages += messages.length;
+        // 排除系统消息
+        const nonSystemMsgs = messages.filter(m => !isSystemMessage(m.content));
+        totalMessages += nonSystemMsgs.length;
 
-        const customerMsgs = messages.filter(m => m.senderType === 'customer');
-        const agentMsgs = messages.filter(m => m.senderType === 'agent');
+        const customerMsgs = nonSystemMsgs.filter(m => m.senderType === 'customer');
+        const agentMsgs = nonSystemMsgs.filter(m => m.senderType === 'agent');
 
         const HUNDRED_HOURS = 100 * 60 * 60; // 360000 秒
 
@@ -1371,9 +1428,9 @@ export class UdeskService {
         }
 
         // 解决时间
-        if (session?.endedAt && messages.length > 0) {
+        if (session?.endedAt && nonSystemMsgs.length > 0) {
           const diff = Math.round(
-            (new Date(session.endedAt).getTime() - new Date(messages[0].sentAt).getTime()) / 1000
+            (new Date(session.endedAt).getTime() - new Date(nonSystemMsgs[0].sentAt).getTime()) / 1000
           );
           if (diff >= 0) {
             totalResolutionTime += diff;
@@ -1436,8 +1493,8 @@ export class UdeskService {
     orderBy[sortBy] = sortOrder;
 
     const [total, records] = await Promise.all([
-      this.prisma.udeskTicket.count({ where }),
-      this.prisma.udeskTicket.findMany({
+      this.prisma.udescTicket.count({ where }),
+      this.prisma.udescTicket.findMany({
         where,
         orderBy,
         skip: (page - 1) * pageSize,
@@ -1488,24 +1545,24 @@ export class UdeskService {
     // 基础统计
     const [total, byStatus, byPriority, byAssignee] = await Promise.all([
       // 总数
-      this.prisma.udeskTicket.count({ where }),
+      this.prisma.udescTicket.count({ where }),
 
       // 按状态分组
-      this.prisma.udeskTicket.groupBy({
+      this.prisma.udescTicket.groupBy({
         by: ['status'],
         where,
         _count: { id: true },
       }),
 
       // 按优先级分组
-      this.prisma.udeskTicket.groupBy({
+      this.prisma.udescTicket.groupBy({
         by: ['priority'],
         where,
         _count: { id: true },
       }),
 
       // 按受理人分组（取前10）
-      this.prisma.udeskTicket.groupBy({
+      this.prisma.udescTicket.groupBy({
         by: ['assigneeId', 'assigneeName'],
         where,
         _count: { id: true },
@@ -1515,7 +1572,7 @@ export class UdeskService {
     ]);
 
     // 计算平均解决时间
-    const resolvedTickets = await this.prisma.udeskTicket.findMany({
+    const resolvedTickets = await this.prisma.udescTicket.findMany({
       where: {
         ...where,
         createdAt: { not: null },
@@ -1539,7 +1596,7 @@ export class UdeskService {
     const avgResolutionHours = resolvedCount > 0 ? totalResolutionHours / resolvedCount : null;
 
     // 计算首次响应时间
-    const firstReplyTickets = await this.prisma.udeskTicket.findMany({
+    const firstReplyTickets = await this.prisma.udescTicket.findMany({
       where: {
         ...where,
         createdAt: { not: null },
@@ -1597,7 +1654,7 @@ export class UdeskService {
     // 按天统计创建数
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
       SELECT DATE("createdAt") as date, COUNT(*) as count
-      FROM "UdeskTicket"
+      FROM "UdescTicket"
       WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
       GROUP BY DATE("createdAt")
       ORDER BY date
@@ -1606,7 +1663,7 @@ export class UdeskService {
     // 按天统计解决数
     const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
       SELECT DATE("resolvedAt") as date, COUNT(*) as count
-      FROM "UdeskTicket"
+      FROM "UdescTicket"
       WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
       GROUP BY DATE("resolvedAt")
       ORDER BY date
@@ -1646,12 +1703,15 @@ export class UdeskService {
     const matrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
 
     if (type === 'session') {
-      // 查询会话数据
-      const sessions = await this.prisma.udeskSession.findMany({
-        where: {
-          startedAt: { gte: start, lte: end },
-          agentId: agentId,
-        },
+      // 查询会话数据（全量统计，不额外过滤会话状态，与 Udesk 对话报表口径一致）
+      const where: any = {
+        startedAt: { gte: start, lte: end },
+      };
+      if (agentId) {
+        where.agentId = agentId;
+      }
+      const sessions = await this.prisma.udescSession.findMany({
+        where,
         select: { startedAt: true },
       });
 
@@ -1664,7 +1724,7 @@ export class UdeskService {
       }
     } else {
       // 查询工单数据
-      const tickets = await this.prisma.udeskTicket.findMany({
+      const tickets = await this.prisma.udescTicket.findMany({
         where: {
           createdAt: { gte: start, lte: end },
           assigneeId: agentId,

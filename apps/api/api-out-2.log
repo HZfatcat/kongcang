@@ -1,0 +1,5 @@
+[AppModule] envFilePath: D:\kefumonitor\.env exists: true
+[ZouwuClient] ZOUWU_BASE_URL from process.env: https://zouwu.gitcode.com
+[ZouwuClient] ZOUWU_BASE_URL from configService: https://zouwu.gitcode.com
+[ZouwuClient] ZOUWU_BASE_URL final value: https://zouwu.gitcode.com
+[ZouwuClient] baseUrl: https://zouwu.gitcode.com proxyMode: auto

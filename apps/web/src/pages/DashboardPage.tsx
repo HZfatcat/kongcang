@@ -53,11 +53,11 @@ import {
   fetchSyncProgress,
   fetchSyncRuns,
   fetchSyncSummary,
-  fetchUdeskDailyAgentStats,
-  fetchUdeskAgentIds,
-  fetchUdeskOverview,
-  fetchUdeskSessions,
-  fetchUdeskTree,
+  fetchUdescDailyAgentStats,
+  fetchUdescAgentIds,
+  fetchUdescOverview,
+  fetchUdescSessions,
+  fetchUdescTree,
   retrySyncIssues,
   runSync,
   runZouwuSync,
@@ -68,9 +68,9 @@ import {
   fetchWecomEmployees,
   upsertWecomEmployee,
   deleteWecomEmployee,
-  clearUdeskData,
+  clearUdescData,
   smartFix,
-} from '../api/udesk';
+} from '../api/udesc';
 import type {
   AgentProfile,
   WecomEmployee,
@@ -79,12 +79,12 @@ import type {
   SyncProgress,
   SyncRun,
   SyncSummary,
-  UdeskDailyAgentStats,
-  UdeskOverview,
-  UdeskSessionRecord,
-  UdeskTreeNode,
+  UdescDailyAgentStats,
+  UdescOverview,
+  UdescSessionRecord,
+  UdescTreeNode,
   ZouwuFeedbackStatistics,
-} from '../types/udesk';
+} from '../types/udesc';
 import type { ConsultationFunnelOverview, DemandOverview, AgentOverview, ProductModuleDistribution } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
@@ -110,31 +110,31 @@ function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, 
   return [start.startOf('day'), end.endOf('day')];
 }
 
-export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenuKey?: 'satisfaction' | 'demand' | 'opportunity' | 'sync-udesk' | 'sync-zouwu' | 'agents' } = {}) {
+export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenuKey?: 'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents' } = {}) {
   const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true';
   const loginUser = getLoginUser();
   const [activeMenuKey, setActiveMenuKey] = useState<
-    'satisfaction' | 'demand' | 'opportunity' | 'sync-udesk' | 'sync-zouwu' | 'agents'
+    'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents'
   >(initialMenuKey);
   const [agentForm] = Form.useForm();
   const [opportunityForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  const [overview, setOverview] = useState<UdeskOverview | null>(null);
+  const [overview, setOverview] = useState<UdescOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
   const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
-  const [dailyStats, setDailyStats] = useState<UdeskDailyAgentStats | null>(null);
+  const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['__summary__']);
   const [selectedMetrics, setSelectedMetrics] = useState<Array<'sessions' | 'messages'>>([
     'sessions',
     'messages',
   ]);
-  const [treeData, setTreeData] = useState<UdeskTreeNode[]>([]);
-  const [sessions, setSessions] = useState<UdeskSessionRecord[]>([]);
+  const [treeData, setTreeData] = useState<UdescTreeNode[]>([]);
+  const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [opportunityLoading, setOpportunityLoading] = useState(false);
   const [opportunitySummary, setOpportunitySummary] = useState<OpportunitySummary | null>(null);
@@ -162,7 +162,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [zouwuConfig, setZouwuConfig] = useState<SyncConfig | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
-  const [udeskAgentIds, setUdeskAgentIds] = useState<string[]>([]);
+  const [udescAgentIds, setUdescAgentIds] = useState<string[]>([]);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [savingAgent, setSavingAgent] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
@@ -173,15 +173,14 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [savingWecomEmployee, setSavingWecomEmployee] = useState(false);
   const [editingWecomUserId, setEditingWecomUserId] = useState<string | null>(null);
   const [wecomEmployeeForm] = Form.useForm();
-  const [agentsTabKey, setAgentsTabKey] = useState<'udesk' | 'wecom'>('udesk');
+  const [agentsTabKey, setAgentsTabKey] = useState<'udesc' | 'wecom'>('udesc');
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
-    const end = dayjs();
-    const start = end.subtract(30, 'day');
-    return [start.startOf('day'), end.endOf('day')];
-  });
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs('2026-04-11').startOf('day'),
+    dayjs('2026-05-11').endOf('day'),
+  ]);
   const quickRangePresets = useMemo(
     () => [
       { label: '今天', value: () => createPresetRange(dayjs(), dayjs()) },
@@ -221,7 +220,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     setLoading(true);
     try {
       const [overviewData, demandData, agentData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
-        fetchUdeskOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchDemandOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchAgentOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchConsultationFunnel({
@@ -229,9 +228,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           endDate: apiRange.endDateIso,
           granularity: funnelGranularity,
         }),
-        fetchUdeskDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdeskTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdeskSessions({
+        fetchUdescDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdescSessions({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
           page: targetPage,
@@ -384,10 +383,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     }
   };
 
-  const loadUdeskAgentIds = async () => {
+  const loadUdescAgentIds = async () => {
     try {
-      const ids = await fetchUdeskAgentIds();
-      setUdeskAgentIds(ids);
+      const ids = await fetchUdescAgentIds();
+      setUdescAgentIds(ids);
     } catch {
       message.error('加载 Udesk 人员ID失败');
     }
@@ -432,7 +431,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   useEffect(() => {
     if (activeMenuKey === 'agents') {
       void loadAgents();
-      void loadUdeskAgentIds();
+      void loadUdescAgentIds();
       void loadWecomEmployees();
     }
   }, [activeMenuKey]);
@@ -498,7 +497,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       {
         title: '操作',
         key: 'actions',
-        render: (_: unknown, record: UdeskSessionRecord) => (
+        render: (_: unknown, record: UdescSessionRecord) => (
           <Button
             size="small"
             onClick={() => {
@@ -915,7 +914,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                     {record.messages.length === 0 && <Typography.Text type="secondary">无本地消息明细</Typography.Text>}
                     {record.messages.map((msg) => (
                       <div key={msg.id} style={{ marginBottom: 8 }}>
-                        <Tag color="blue">{msg.senderType ?? 'unknown'}</Tag>
+                        <Tag color={msg.senderType === '系统' ? 'orange' : 'blue'}>{msg.senderType ?? 'unknown'}</Tag>
                         <Typography.Text type="secondary">
                           {dayjs(msg.sentAt).format('YYYY-MM-DD HH:mm:ss')}
                         </Typography.Text>
@@ -1905,7 +1904,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           title="清空全部数据"
           description="将删除所有 Udesk 数据（会话、消息、评价等），此操作不可恢复！"
           onConfirm={async () => {
-            const resp = await clearUdeskData();
+            const resp = await clearUdescData();
             message.success(`已清空 ${resp.sessions} 会话, ${resp.messages} 消息, ${resp.votes} 评价`);
             const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
             setSyncProgress(progress);
@@ -2005,7 +2004,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Card title="历史同步记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={syncRuns.filter((item) => item.source === 'udesk')}
+          dataSource={syncRuns.filter((item) => item.source === 'udesc')}
           pagination={false}
           size="small"
           columns={[
@@ -2031,7 +2030,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Card title="最近失败记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={syncIssues.filter((item) => item.source === 'udesk').slice(0, 50)}
+          dataSource={syncIssues.filter((item) => item.source === 'udesc').slice(0, 50)}
           pagination={false}
           size="small"
           columns={[
@@ -2149,10 +2148,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     <Card title="人员管理">
       <Tabs
         activeKey={agentsTabKey}
-        onChange={(key) => setAgentsTabKey(key as 'udesk' | 'wecom')}
+        onChange={(key) => setAgentsTabKey(key as 'udesc' | 'wecom')}
         items={[
           {
-            key: 'udesk',
+            key: 'udesc',
             label: 'Udesk 客服人员',
             children: (
               <>
@@ -2163,7 +2162,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                       setEditingAgentId(null);
                       agentForm.resetFields();
                       agentForm.setFieldsValue({ enabled: true });
-                      void loadUdeskAgentIds();
+                      void loadUdescAgentIds();
                       setAgentModalOpen(true);
                     }}
                   >
@@ -2203,7 +2202,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                                 enabled: record.enabled,
                                 remark: record.remark,
                               });
-                              void loadUdeskAgentIds();
+                              void loadUdescAgentIds();
                               setAgentModalOpen(true);
                             }}
                           >
@@ -2385,7 +2384,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         {!loading && overview && activeMenuKey === 'satisfaction' && satisfactionTab}
         {!loading && demandOverview && activeMenuKey === 'demand' && demandTab}
         {activeMenuKey === 'opportunity' && opportunityTab}
-        {activeMenuKey === 'sync-udesk' && syncTab}
+        {activeMenuKey === 'sync-udesc' && syncTab}
         {activeMenuKey === 'sync-zouwu' && zouwuSyncTab}
         {activeMenuKey === 'agents' && agentsTab}
 
@@ -2411,7 +2410,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             <Form.Item name="agentId" label="人员ID" rules={[{ required: true, message: '请输入人员ID' }]}>
               <AutoComplete
                 disabled={Boolean(editingAgentId)}
-                options={udeskAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
+                options={udescAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
                 placeholder="优先选择 Udesk 人员ID"
                 filterOption={(inputValue, option) =>
                   `${option?.value ?? ''}${option?.label ?? ''}`.toLowerCase().includes(inputValue.toLowerCase())
@@ -2581,7 +2580,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             </Form.Item>
             <Form.Item name="agentId" label="负责人客服ID">
               <AutoComplete
-                options={udeskAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
+                options={udescAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
                 placeholder="可关联客服ID"
               />
             </Form.Item>

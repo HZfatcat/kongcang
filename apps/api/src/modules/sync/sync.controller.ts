@@ -11,8 +11,13 @@ export class SyncController {
   ) {}
 
   @Post('run')
-  run() {
-    return this.syncService.triggerUdeskSync();
+  run(@Body() body?: { startDate?: string; endDate?: string; resetCursor?: boolean }) {
+    const options = body?.startDate || body?.endDate || body?.resetCursor ? {
+      startDate: body.startDate ? new Date(body.startDate) : undefined,
+      endDate: body.endDate ? new Date(body.endDate) : undefined,
+      resetCursor: body.resetCursor,
+    } : undefined;
+    return this.syncService.triggerUdescSync(options);
   }
 
   @Post('zouwu/run')
@@ -43,12 +48,12 @@ export class SyncController {
 
   @Get('progress')
   getProgress() {
-    return this.syncService.getUdeskProgress();
+    return this.syncService.getUdescProgress();
   }
 
   @Get('summary')
   getSummary() {
-    return this.syncService.getUdeskSyncSummary();
+    return this.syncService.getUdescSyncSummary();
   }
 
   @Post('issues/retry')
@@ -58,12 +63,12 @@ export class SyncController {
 
   @Get('config')
   getConfig() {
-    return this.syncService.getSyncConfig('udesk');
+    return this.syncService.getSyncConfig('udesc');
   }
 
   @Post('config')
   updateConfig(@Body() payload: { enabled?: boolean; intervalHours?: number }) {
-    return this.syncService.updateSyncConfig('udesk', payload);
+    return this.syncService.updateSyncConfig('udesc', payload);
   }
 
   @Get('zouwu/config')
@@ -81,29 +86,36 @@ export class SyncController {
     return this.syncService.getZouwuFeedbackStatistics(query);
   }
 
-  @Post('udesk/reset')
-  async resetUdeskCursor() {
+  @Post('udesc/reset')
+  async resetUdescCursor() {
     await this.prisma.syncCheckpoint.deleteMany({
-      where: { source: 'udesk' },
+      where: { source: 'udesc' },
     });
     return { ok: true };
   }
 
-  @Post('udesk/recalc-metrics')
+  @Post('udesc/recalc-metrics')
   async recalcMetrics() {
     const count = await this.syncService.recalculateMetrics();
     return { ok: true, count };
   }
 
-  @Post('udesk/clear')
-  async clearUdeskData() {
-    const result = await this.syncService.clearUdeskData();
+  @Post('udesc/clear')
+  async clearUdescData() {
+    const result = await this.syncService.clearUdescData();
     return { ok: true, ...result };
   }
 
-  @Post('udesk/smart-fix')
+  @Post('udesc/smart-fix')
   async smartFix() {
     const result = await this.syncService.smartFix();
     return { ok: true, ...result };
+  }
+
+  @Post('udesc/resync')
+  async resyncUdesc(@Body() body?: { startDate?: string; endDate?: string }) {
+    const startDate = body?.startDate ? new Date(body.startDate) : undefined;
+    const endDate = body?.endDate ? new Date(body.endDate) : undefined;
+    return this.syncService.triggerUdescSync({ startDate, endDate, resetCursor: true });
   }
 }

@@ -52,7 +52,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   
   // 根据当前路径计算默认展开的菜单
   const getDefaultOpenKeys = (pathname: string): string[] => {
-    if (pathname.startsWith('/udesk')) return ['udesk'];
+    if (pathname.startsWith('/udesc')) return ['udesc'];
     if (pathname.startsWith('/demand')) return ['demand'];
     if (pathname.startsWith('/access-control') || pathname.startsWith('/role-manage')) return ['access-control'];
     return [];
@@ -72,15 +72,15 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       label: '用户满意度',
     },
     {
-      key: 'udesk',
+      key: 'udesc',
       icon: <DashboardOutlined />,
       label: 'Udesk 数据分析',
       children: [
-        { key: '/udesk/votes', label: '评价分析' },
-        { key: '/udesk/metrics', label: '会话指标' },
-        { key: '/udesk/tickets', label: '工单分析' },
-        { key: '/udesk/heatmap', label: '时段热力图' },
-        { key: '/udesk/sessions', label: '咨询详情' },
+        { key: '/udesc/votes', label: '评价分析' },
+        { key: '/udesc/metrics', label: '会话指标' },
+        { key: '/udesc/tickets', label: '工单分析' },
+        { key: '/udesc/heatmap', label: '时段热力图' },
+        { key: '/udesc/sessions', label: '咨询详情' },
       ],
     },
     {
@@ -245,17 +245,17 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
         <Route path="/satisfaction" element={<AppLayout><DashboardPage initialMenuKey="satisfaction" /></AppLayout>} />
-        <Route path="/udesk/votes" element={<AppLayout><VotesPage /></AppLayout>} />
-        <Route path="/udesk/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
-        <Route path="/udesk/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
-        <Route path="/udesk/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
-        <Route path="/udesk/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
+        <Route path="/udesc/votes" element={<AppLayout><VotesPage /></AppLayout>} />
+        <Route path="/udesc/metrics" element={<AppLayout><MetricsPage /></AppLayout>} />
+        <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
+        <Route path="/udesc/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
+        <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
         <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
         <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
         <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
         <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
         <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
-        <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesk" /></AppLayout>} />
+        <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
         <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
         <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
         <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />

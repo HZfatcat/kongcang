@@ -55,8 +55,8 @@ export async function fetchUdeskSessions(params: {
   return resp.data;
 }
 
-export async function runSync() {
-  const resp = await apiClient.post<{ accepted: boolean }>('/sync/run');
+export async function runSync(options?: { startDate?: string; endDate?: string; resetCursor?: boolean }) {
+  const resp = await apiClient.post<{ accepted: boolean }>('/sync/run', options);
   return resp.data;
 }
 
@@ -351,4 +351,3 @@ export async function fetchUdeskHeatmap(params: {
   const resp = await apiClient.get<UdeskHeatmap>('/udesk/heatmap', { params });
   return resp.data;
 }
-

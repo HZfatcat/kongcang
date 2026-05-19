@@ -28,7 +28,7 @@ enum OpportunityStatus {
   LOST
 }
 
-model UdeskSession {
+model UdescSession {
   id                String                @id
   agentId           String?
   startedAt         DateTime
@@ -39,14 +39,13 @@ model UdeskSession {
   updatedAtSource   DateTime?
   syncedAt          DateTime              @default(now())
   opportunities     BusinessOpportunity[]
-  messages          UdeskSessionMessage[]
-  metrics           UdeskSessionMetrics?
-  votes             UdeskSessionVote[]
+  messages          UdescSessionMessage[]
+  metrics           UdescSessionMetrics?
+  votes             UdescSessionVote[]
 
   @@index([startedAt])
   @@index([updatedAtSource])
   @@index([isConsultToDemand])
-  @@map("UdescSession")
 }
 
 model BusinessOpportunity {
@@ -75,7 +74,7 @@ model BusinessOpportunity {
   feedbackChannel String?
   feedbackPerson  String?
   feedbackResult  String?
-  sourceSession   UdeskSession?         @relation(fields: [sourceSessionId], references: [id])
+  sourceSession   UdescSession?         @relation(fields: [sourceSessionId], references: [id])
 
   @@index([status, createdAt])
   @@index([sourceType, createdAt])
@@ -83,7 +82,7 @@ model BusinessOpportunity {
   @@index([sourceSessionId])
 }
 
-model UdeskSessionMessage {
+model UdescSessionMessage {
   id         String       @id
   sessionId  String
   sentAt     DateTime
@@ -92,11 +91,10 @@ model UdeskSessionMessage {
   content    String?
   rawPayload Json?
   syncedAt   DateTime     @default(now())
-  session    UdeskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session    UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, sentAt])
   @@index([senderType])
-  @@map("UdescSessionMessage")
 }
 
 model ZouwuRequirement {
@@ -303,7 +301,7 @@ model SystemLog {
   @@index([userId])
 }
 
-model UdeskSessionVote {
+model UdescSessionVote {
   id         String       @id @default(cuid())
   sessionId  String
   rating     Int?
@@ -314,14 +312,13 @@ model UdeskSessionVote {
   votedAt    DateTime?
   rawPayload Json?
   syncedAt   DateTime     @default(now())
-  session    UdeskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session    UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([votedAt])
-  @@map("UdescSessionVote")
 }
 
-model UdeskCustomer {
+model UdescCustomer {
   id              String    @id
   name            String?
   phone           String?
@@ -337,10 +334,9 @@ model UdeskCustomer {
   @@index([phone])
   @@index([email])
   @@index([enterprise])
-  @@map("UdescCustomer")
 }
 
-model UdeskAgent {
+model UdescAgent {
   id         String   @id
   name       String?
   email      String?
@@ -354,10 +350,9 @@ model UdeskAgent {
   syncedAt   DateTime @default(now())
 
   @@index([enabled])
-  @@map("UdescAgent")
 }
 
-model UdeskSessionMetrics {
+model UdescSessionMetrics {
   id                   String       @id @default(cuid())
   sessionId            String       @unique
   firstResponseTime    Int?
@@ -368,17 +363,16 @@ model UdeskSessionMetrics {
   agentMessageCount    Int          @default(0)
   customerMessageCount Int          @default(0)
   syncedAt             DateTime     @default(now())
-  session              UdeskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session              UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([firstResponseTime])
   @@index([avgResponseTime])
   @@index([waitTime])
   @@index([resolutionTime])
-  @@map("UdescSessionMetrics")
 }
 
-model UdeskOrganization {
+model UdescOrganization {
   id              String    @id
   name            String?
   domains         String?
@@ -391,10 +385,9 @@ model UdeskOrganization {
   syncedAt        DateTime  @default(now())
 
   @@index([name])
-  @@map("UdescOrganization")
 }
 
-model UdeskTicket {
+model UdescTicket {
   id                String    @id
   fieldNum          String?
   subject           String?
@@ -443,5 +436,5 @@ model UdeskTicket {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([imSubSessionId])
-  @@map("UdescTicket")
+
 }
