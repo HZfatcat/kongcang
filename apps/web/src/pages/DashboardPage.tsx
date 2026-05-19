@@ -53,11 +53,11 @@ import {
   fetchSyncProgress,
   fetchSyncRuns,
   fetchSyncSummary,
-  fetchUdescDailyAgentStats,
-  fetchUdescAgentIds,
-  fetchUdescOverview,
-  fetchUdescSessions,
-  fetchUdescTree,
+  fetchUdeskDailyAgentStats,
+  fetchUdeskAgentIds,
+  fetchUdeskOverview,
+  fetchUdeskSessions,
+  fetchUdeskTree,
   retrySyncIssues,
   runSync,
   runZouwuSync,
@@ -68,9 +68,9 @@ import {
   fetchWecomEmployees,
   upsertWecomEmployee,
   deleteWecomEmployee,
-  clearUdescData,
+  clearUdeskData,
   smartFix,
-} from '../api/udesc';
+} from '../api/udesk';
 import type {
   AgentProfile,
   WecomEmployee,
@@ -79,12 +79,12 @@ import type {
   SyncProgress,
   SyncRun,
   SyncSummary,
-  UdescDailyAgentStats,
-  UdescOverview,
-  UdescSessionRecord,
-  UdescTreeNode,
+  UdeskDailyAgentStats,
+  UdeskOverview,
+  UdeskSessionRecord,
+  UdeskTreeNode,
   ZouwuFeedbackStatistics,
-} from '../types/udesc';
+} from '../types/udesk';
 import type { ConsultationFunnelOverview, DemandOverview, AgentOverview, ProductModuleDistribution } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
@@ -120,21 +120,21 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [opportunityForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  const [overview, setOverview] = useState<UdescOverview | null>(null);
+  const [overview, setOverview] = useState<UdeskOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
   const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
-  const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
+  const [dailyStats, setDailyStats] = useState<UdeskDailyAgentStats | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['__summary__']);
   const [selectedMetrics, setSelectedMetrics] = useState<Array<'sessions' | 'messages'>>([
     'sessions',
     'messages',
   ]);
-  const [treeData, setTreeData] = useState<UdescTreeNode[]>([]);
-  const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
+  const [treeData, setTreeData] = useState<UdeskTreeNode[]>([]);
+  const [sessions, setSessions] = useState<UdeskSessionRecord[]>([]);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [opportunityLoading, setOpportunityLoading] = useState(false);
   const [opportunitySummary, setOpportunitySummary] = useState<OpportunitySummary | null>(null);
@@ -220,7 +220,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     setLoading(true);
     try {
       const [overviewData, demandData, agentData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
-        fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdeskOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchDemandOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchAgentOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchConsultationFunnel({
@@ -228,9 +228,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           endDate: apiRange.endDateIso,
           granularity: funnelGranularity,
         }),
-        fetchUdescDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdescSessions({
+        fetchUdeskDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdeskTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdeskSessions({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
           page: targetPage,
@@ -385,7 +385,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
   const loadUdescAgentIds = async () => {
     try {
-      const ids = await fetchUdescAgentIds();
+      const ids = await fetchUdeskAgentIds();
       setUdescAgentIds(ids);
     } catch {
       message.error('加载 Udesk 人员ID失败');
@@ -497,7 +497,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       {
         title: '操作',
         key: 'actions',
-        render: (_: unknown, record: UdescSessionRecord) => (
+        render: (_: unknown, record: UdeskSessionRecord) => (
           <Button
             size="small"
             onClick={() => {
@@ -1094,7 +1094,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const requirementTabContent = (
     <>
       <Row gutter={16}>
-        <Col span={4}>
+        <Col span={3}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
               title={<span style={{ color: '#666', fontSize: 13 }}>需求总数</span>} 
@@ -1103,7 +1103,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={4}>
+        <Col span={3}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
               title={<span style={{ color: '#666', fontSize: 13 }}>需求闭环数</span>} 
@@ -1112,7 +1112,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={4}>
+        <Col span={3}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
               title={<span style={{ color: '#666', fontSize: 13 }}>已拒绝需求数</span>} 
@@ -1121,7 +1121,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={4}>
+        <Col span={3}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
               title={<span style={{ color: '#666', fontSize: 13 }}>长期演进</span>} 
@@ -1130,7 +1130,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={4} style={{ position: 'relative' }}>
+        <Col span={3} style={{ position: 'relative' }}>
           <div style={{ padding: '20px 16px' }}>
             <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
               <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的需求（已剔除长期演进）">
@@ -1147,7 +1147,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={4} style={{ position: 'relative' }}>
+        <Col span={3} style={{ position: 'relative' }}>
           <div style={{ padding: '20px 16px' }}>
             <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
               <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
@@ -1164,6 +1164,32 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               valueStyle={{ color: '#52c41a' }}
             />
           </div>
+        </Col>
+        <Col span={3} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
+              <Tooltip title="总关单率 = (需求闭环数 + 已拒绝需求 + Bug闭环数 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666' }}>总关单率</span>}
+              value={(() => {
+                const numerator = (demandOverview?.completedCount ?? 0) + (demandOverview?.rejectedCount ?? 0) + (demandOverview?.bugCompletedCount ?? 0) + (demandOverview?.bugRejectedCount ?? 0);
+                const denominator = (demandOverview?.totalIdentifiedCount ?? 0) + (demandOverview?.bugCount ?? 0) - (demandOverview?.longTermCount ?? 0) - (demandOverview?.bugLongTermCount ?? 0);
+                const rate = denominator > 0 ? numerator / denominator : 0;
+                return Number((rate * 100).toFixed(2));
+              })()}
+              suffix="%"
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </div>
+        </Col>
+        <Col span={3}>
+          <div style={{ padding: '20px 16px' }} />
         </Col>
       </Row>
       <Row gutter={16} style={{ marginTop: 16 }}>
@@ -1312,6 +1338,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       bugRejected: number;
       bugLongTerm: number;
       bugCompletionRate: number;
+      totalCompletionRate: number;
     }> = [];
     
     const sortedMonths = Array.from(months).sort().reverse();
@@ -1336,6 +1363,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       const bugEffectiveTotal = bugCreated - bugLongTerm;
       const bugCompletionRate = bugEffectiveTotal > 0 ? (bugCompleted + bugRejected) / bugEffectiveTotal : 0;
       
+      const totalEffective = (reqCreated+bugCreated) - (reqLongTerm+bugLongTerm);
+      const totalCompletionRate = totalEffective > 0 ? (reqCompleted+bugCompleted+reqRejected+bugRejected) / totalEffective : 0;
+      
       rows.push({
         month,
         reqCreated,
@@ -1348,6 +1378,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         bugRejected,
         bugLongTerm,
         bugCompletionRate,
+        totalCompletionRate,
       });
     });
     
@@ -1364,6 +1395,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       bugRejected: demandOverview?.bugRejectedCount ?? 0,
       bugLongTerm: demandOverview?.bugLongTermCount ?? 0,
       bugCompletionRate: demandOverview?.bugCompletionRate ?? 0,
+      totalCompletionRate: (() => {
+        const totalCreated = (demandOverview?.totalWithLongTerm ?? 0) + (demandOverview?.bugCount ?? 0);
+        const totalClosed = (demandOverview?.completedCount ?? 0) + (demandOverview?.bugCompletedCount ?? 0) + (demandOverview?.rejectedCount ?? 0) + (demandOverview?.bugRejectedCount ?? 0);
+        const totalLongTerm = (demandOverview?.longTermCount ?? 0) + (demandOverview?.bugLongTermCount ?? 0);
+        const totalEffective = totalCreated - totalLongTerm;
+        return totalEffective > 0 ? totalClosed / totalEffective : 0;
+      })(),
     });
     
     return rows;
@@ -1393,6 +1431,13 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+    {
+      title: '总关单率',
+      key: 'totalCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
+        `${(record.totalCompletionRate * 100).toFixed(2)}%`,
     },
   ];
 
@@ -1904,7 +1949,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           title="清空全部数据"
           description="将删除所有 Udesk 数据（会话、消息、评价等），此操作不可恢复！"
           onConfirm={async () => {
-            const resp = await clearUdescData();
+            const resp = await clearUdeskData();
             message.success(`已清空 ${resp.sessions} 会话, ${resp.messages} 消息, ${resp.votes} 评价`);
             const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
             setSyncProgress(progress);
@@ -2600,3 +2645,4 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     </div>
   );
 }
+ 
