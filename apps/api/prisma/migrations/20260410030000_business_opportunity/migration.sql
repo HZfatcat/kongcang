@@ -38,4 +38,4 @@ CREATE INDEX "BusinessOpportunity_agentId_createdAt_idx" ON "BusinessOpportunity
 CREATE INDEX "BusinessOpportunity_sourceSessionId_idx" ON "BusinessOpportunity"("sourceSessionId");
 
 -- AddForeignKey
-ALTER TABLE "BusinessOpportunity" ADD CONSTRAINT "BusinessOpportunity_sourceSessionId_fkey" FOREIGN KEY ("sourceSessionId") REFERENCES "UdescSession"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "BusinessOpportunity" ADD CONSTRAINT "BusinessOpportunity_sourceSessionId_fkey" FOREIGN KEY ("sourceSessionId") REFERENCES "UdeskSession"("id") ON DELETE SET NULL ON UPDATE CASCADE;

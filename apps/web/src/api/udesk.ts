@@ -6,41 +6,41 @@ import type {
   SyncProgress,
   SyncRun,
   SyncSummary,
-  UdescDailyAgentStats,
-  UdescDailyRatingStats,
-  UdescOverview,
-  UdescSessionListResp,
-  UdescTreeNode,
+  UdeskDailyAgentStats,
+  UdeskDailyRatingStats,
+  UdeskOverview,
+  UdeskSessionListResp,
+  UdeskTreeNode,
   ZouwuFeedbackStatistics,
-  UdescVoteListResp,
-  UdescAgentListResp,
-  UdescAgentPerformance,
-  UdescMetricsListResp,
-  UdescMetricsSummary,
-} from '../types/udesc';
-import type { WecomEmployee } from '../types/udesc';
+  UdeskVoteListResp,
+  UdeskAgentListResp,
+  UdeskAgentPerformance,
+  UdeskMetricsListResp,
+  UdeskMetricsSummary,
+} from '../types/udesk';
+import type { WecomEmployee } from '../types/udesk';
 
-export async function fetchUdescOverview(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<UdescOverview>('/udesc/overview', { params });
+export async function fetchUdeskOverview(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdeskOverview>('/udesk/overview', { params });
   return resp.data;
 }
 
-export async function fetchUdescTree(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<UdescTreeNode[]>('/udesc/tree', { params });
+export async function fetchUdeskTree(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdeskTreeNode[]>('/udesk/tree', { params });
   return resp.data;
 }
 
-export async function fetchUdescDailyAgentStats(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<UdescDailyAgentStats>('/udesc/daily-agent-stats', { params });
+export async function fetchUdeskDailyAgentStats(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdeskDailyAgentStats>('/udesk/daily-agent-stats', { params });
   return resp.data;
 }
 
-export async function fetchUdescDailyRatingStats(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<UdescDailyRatingStats>('/udesc/daily-rating-stats', { params });
+export async function fetchUdeskDailyRatingStats(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdeskDailyRatingStats>('/udesk/daily-rating-stats', { params });
   return resp.data;
 }
 
-export async function fetchUdescSessions(params: {
+export async function fetchUdeskSessions(params: {
   startDate?: string;
   endDate?: string;
   page?: number;
@@ -49,9 +49,9 @@ export async function fetchUdescSessions(params: {
   agentIds?: string;
   sessionId?: string;
 }) {
-  console.log('[API] fetchUdescSessions params:', JSON.stringify(params));
-  const resp = await apiClient.get<UdescSessionListResp>('/udesc/sessions', { params });
-  console.log('[API] fetchUdescSessions response:', resp.data.total, 'records');
+  console.log('[API] fetchUdeskSessions params:', JSON.stringify(params));
+  const resp = await apiClient.get<UdeskSessionListResp>('/udesk/sessions', { params });
+  console.log('[API] fetchUdeskSessions response:', resp.data.total, 'records');
   return resp.data;
 }
 
@@ -90,13 +90,13 @@ export async function retrySyncIssues() {
   return resp.data;
 }
 
-export async function clearUdescData() {
-  const resp = await apiClient.post<{ ok: boolean; sessions: number; messages: number; votes: number }>('/sync/udesc/clear');
+export async function clearUdeskData() {
+  const resp = await apiClient.post<{ ok: boolean; sessions: number; messages: number; votes: number }>('/sync/udesk/clear');
   return resp.data;
 }
 
 export async function smartFix() {
-  const resp = await apiClient.post<{ ok: boolean; votes: number; messages: number; sessions: number; total: number }>('/sync/udesc/smart-fix');
+  const resp = await apiClient.post<{ ok: boolean; votes: number; messages: number; sessions: number; total: number }>('/sync/udesk/smart-fix');
   return resp.data;
 }
 
@@ -134,8 +134,8 @@ export async function fetchAgents() {
   return resp.data;
 }
 
-export async function fetchUdescAgentIds() {
-  const resp = await apiClient.get<string[]>('/agents/udesc-agent-ids');
+export async function fetchUdeskAgentIds() {
+  const resp = await apiClient.get<string[]>('/agents/udesk-agent-ids');
   return resp.data;
 }
 
@@ -183,7 +183,7 @@ export async function deleteWecomEmployee(userId: string) {
 }
 
 // ========== 评价分析 ==========
-export async function fetchUdescVotes(params: {
+export async function fetchUdeskVotes(params: {
   startDate?: string;
   endDate?: string;
   minRating?: number;
@@ -194,23 +194,23 @@ export async function fetchUdescVotes(params: {
   pageSize?: number;
   sessionId?: string;
 }) {
-  const resp = await apiClient.get<UdescVoteListResp>('/udesc/votes', { params });
+  const resp = await apiClient.get<UdeskVoteListResp>('/udesk/votes', { params });
   return resp.data;
 }
 
 // ========== 客服管理 ==========
-export async function fetchUdescAgents(params?: { enabled?: boolean }) {
-  const resp = await apiClient.get<UdescAgentListResp>('/udesc/agents', { params });
+export async function fetchUdeskAgents(params?: { enabled?: boolean }) {
+  const resp = await apiClient.get<UdeskAgentListResp>('/udesk/agents', { params });
   return resp.data;
 }
 
-export async function fetchUdescAgentPerformance(agentId: string, params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<UdescAgentPerformance>(`/udesc/agents/${encodeURIComponent(agentId)}/performance`, { params });
+export async function fetchUdeskAgentPerformance(agentId: string, params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<UdeskAgentPerformance>(`/udesk/agents/${encodeURIComponent(agentId)}/performance`, { params });
   return resp.data;
 }
 
 // ========== 会话性能指标 ==========
-export async function fetchUdescMetrics(params: {
+export async function fetchUdeskMetrics(params: {
   startDate?: string;
   endDate?: string;
   agentId?: string;
@@ -220,17 +220,17 @@ export async function fetchUdescMetrics(params: {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }) {
-  const resp = await apiClient.get<UdescMetricsListResp>('/udesc/metrics', { params });
+  const resp = await apiClient.get<UdeskMetricsListResp>('/udesk/metrics', { params });
   return resp.data;
 }
 
-export async function fetchUdescMetricsSummary(params: { startDate?: string; endDate?: string; agentId?: string }) {
-  const resp = await apiClient.get<UdescMetricsSummary>('/udesc/metrics/summary', { params });
+export async function fetchUdeskMetricsSummary(params: { startDate?: string; endDate?: string; agentId?: string }) {
+  const resp = await apiClient.get<UdeskMetricsSummary>('/udesk/metrics/summary', { params });
   return resp.data;
 }
 
-export async function fetchUdescAgentMetricsSummary(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<AgentMetricsSummary[]>('/udesc/metrics/agent-summary', { params });
+export async function fetchUdeskAgentMetricsSummary(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<AgentMetricsSummary[]>('/udesk/metrics/agent-summary', { params });
   return resp.data;
 }
 
@@ -247,7 +247,7 @@ export interface AgentMetricsSummary {
 
 // ========== 工单分析 ==========
 
-export interface UdescTicket {
+export interface UdeskTicket {
   id: string;
   fieldNum?: string;
   subject?: string;
@@ -267,14 +267,14 @@ export interface UdescTicket {
   imSubSessionId?: string;
 }
 
-export interface UdescTicketListResp {
+export interface UdeskTicketListResp {
   page: number;
   pageSize: number;
   total: number;
-  records: UdescTicket[];
+  records: UdeskTicket[];
 }
 
-export interface UdescTicketSummary {
+export interface UdeskTicketSummary {
   dateRange: { startDate: string; endDate: string };
   total: number;
   byStatus: Record<string, number>;
@@ -289,14 +289,14 @@ export interface UdescTicketSummary {
   resolvedCount: number;
 }
 
-export interface UdescTicketDailyStats {
+export interface UdeskTicketDailyStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];
   created: number[];
   resolved: number[];
 }
 
-export async function fetchUdescTickets(params: {
+export async function fetchUdeskTickets(params: {
   startDate?: string;
   endDate?: string;
   status?: string;
@@ -306,31 +306,31 @@ export async function fetchUdescTickets(params: {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
-}): Promise<UdescTicketListResp> {
-  const resp = await apiClient.get<UdescTicketListResp>('/udesc/tickets', { params });
+}): Promise<UdeskTicketListResp> {
+  const resp = await apiClient.get<UdeskTicketListResp>('/udesk/tickets', { params });
   return resp.data;
 }
 
-export async function fetchUdescTicketSummary(params: {
+export async function fetchUdeskTicketSummary(params: {
   startDate?: string;
   endDate?: string;
   assigneeId?: string;
-}): Promise<UdescTicketSummary> {
-  const resp = await apiClient.get<UdescTicketSummary>('/udesc/tickets/summary', { params });
+}): Promise<UdeskTicketSummary> {
+  const resp = await apiClient.get<UdeskTicketSummary>('/udesk/tickets/summary', { params });
   return resp.data;
 }
 
-export async function fetchUdescTicketDailyStats(params: {
+export async function fetchUdeskTicketDailyStats(params: {
   startDate?: string;
   endDate?: string;
-}): Promise<UdescTicketDailyStats> {
-  const resp = await apiClient.get<UdescTicketDailyStats>('/udesc/tickets/daily-stats', { params });
+}): Promise<UdeskTicketDailyStats> {
+  const resp = await apiClient.get<UdeskTicketDailyStats>('/udesk/tickets/daily-stats', { params });
   return resp.data;
 }
 
 // ========== 时段热力图 ==========
 
-export interface UdescHeatmap {
+export interface UdeskHeatmap {
   dateRange: { startDate: string; endDate: string };
   type: 'session' | 'ticket';
   hours: number[];
@@ -342,13 +342,13 @@ export interface UdescHeatmap {
   peakDays: { day: number; dayName: string; count: number }[];
 }
 
-export async function fetchUdescHeatmap(params: {
+export async function fetchUdeskHeatmap(params: {
   startDate?: string;
   endDate?: string;
   agentId?: string;
   type?: 'session' | 'ticket';
-}): Promise<UdescHeatmap> {
-  const resp = await apiClient.get<UdescHeatmap>('/udesc/heatmap', { params });
+}): Promise<UdeskHeatmap> {
+  const resp = await apiClient.get<UdeskHeatmap>('/udesk/heatmap', { params });
   return resp.data;
 }
 

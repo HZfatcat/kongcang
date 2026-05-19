@@ -18,8 +18,8 @@ async function main() {
         s.id as session_id,
         MIN(m."sentAt") FILTER (WHERE m."senderType" = 'customer') as first_customer_msg,
         MIN(m."sentAt") FILTER (WHERE m."senderType" = 'agent') as first_agent_msg
-      FROM "UdescSession" s
-      JOIN "UdescSessionMessage" m ON m."sessionId" = s.id
+      FROM "UdeskSession" s
+      JOIN "UdeskSessionMessage" m ON m."sessionId" = s.id
       WHERE s."startedAt" >= '2025-06-01' AND s."startedAt" < '2025-06-30 23:59:59'
       GROUP BY s.id
     ),
@@ -79,8 +79,8 @@ async function main() {
         s.id as session_id,
         MIN(m."sentAt") FILTER (WHERE m."senderType" = 'customer') as first_customer_msg,
         MIN(m."sentAt") FILTER (WHERE m."senderType" = 'agent') as first_agent_msg
-      FROM "UdescSession" s
-      JOIN "UdescSessionMessage" m ON m."sessionId" = s.id
+      FROM "UdeskSession" s
+      JOIN "UdeskSessionMessage" m ON m."sessionId" = s.id
       WHERE s."startedAt" >= '2025-06-01' AND s."startedAt" < '2025-06-30 23:59:59'
       GROUP BY s.id
     )

@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-export class UdescDateRangeDto {
+export class UdeskDateRangeDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
@@ -11,7 +11,7 @@ export class UdescDateRangeDto {
   endDate?: string;
 }
 
-export class UdescSessionQueryDto extends UdescDateRangeDto {
+export class UdeskSessionQueryDto extends UdeskDateRangeDto {
   @IsOptional()
   @IsString()
   agentId?: string;
@@ -38,7 +38,7 @@ export class UdescSessionQueryDto extends UdescDateRangeDto {
   pageSize?: number;
 }
 
-export class UdescCustomerQueryDto {
+export class UdeskCustomerQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -61,19 +61,19 @@ export class UdescCustomerQueryDto {
   enterprise?: string;
 }
 
-export class UdescAgentQueryDto {
+export class UdeskAgentQueryDto {
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()
   enabled?: boolean;
 }
 
-export class UdescAgentPerformanceDto extends UdescDateRangeDto {
+export class UdeskAgentPerformanceDto extends UdeskDateRangeDto {
   @IsString()
   agentId!: string;
 }
 
-export class UdescVoteQueryDto extends UdescDateRangeDto {
+export class UdeskVoteQueryDto extends UdeskDateRangeDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -114,7 +114,7 @@ export class UdescVoteQueryDto extends UdescDateRangeDto {
   sessionId?: string;
 }
 
-export class UdescMetricsQueryDto extends UdescDateRangeDto {
+export class UdeskMetricsQueryDto extends UdeskDateRangeDto {
   @IsOptional()
   @IsString()
   agentId?: string;
@@ -149,7 +149,7 @@ export class UdescMetricsQueryDto extends UdescDateRangeDto {
   pageSize?: number;
 }
 
-export class UdescTicketQueryDto extends UdescDateRangeDto {
+export class UdeskTicketQueryDto extends UdeskDateRangeDto {
   @IsOptional()
   @IsString()
   status?: string;
@@ -184,7 +184,7 @@ export class UdescTicketQueryDto extends UdescDateRangeDto {
   pageSize?: number;
 }
 
-export class UdescHeatmapQueryDto extends UdescDateRangeDto {
+export class UdeskHeatmapQueryDto extends UdeskDateRangeDto {
   @IsOptional()
   @IsString()
   agentId?: string;

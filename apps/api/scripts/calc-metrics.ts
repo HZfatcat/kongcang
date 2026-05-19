@@ -1,5 +1,5 @@
 /**
- * 从本地消息计算会话指标并写入 UdescSessionMetrics 表
+ * 从本地消息计算会话指标并写入 UdeskSessionMetrics 表
  * 运行: npx ts-node scripts/calc-metrics.ts
  */
 import { PrismaClient } from '@prisma/client';
@@ -10,7 +10,7 @@ async function main() {
   console.log('开始计算会话指标...');
   
   // 获取所有会话及其消息
-  const sessions = await prisma.udescSession.findMany({
+  const sessions = await prisma.udeskSession.findMany({
     include: {
       messages: {
         orderBy: { sentAt: 'asc' },
@@ -94,7 +94,7 @@ async function main() {
     
     // 写入数据库
     try {
-      await prisma.udescSessionMetrics.upsert({
+      await prisma.udeskSessionMetrics.upsert({
         where: { sessionId: session.id },
         create: {
           sessionId: session.id,
@@ -129,8 +129,8 @@ async function main() {
   console.log(`\n完成！创建: ${created}, 更新: ${updated}, 跳过: ${skipped}`);
   
   // 验证
-  const count = await prisma.udescSessionMetrics.count();
-  console.log(`UdescSessionMetrics 表现有 ${count} 条记录`);
+  const count = await prisma.udeskSessionMetrics.count();
+  console.log(`UdeskSessionMetrics 表现有 ${count} 条记录`);
 }
 
 main()

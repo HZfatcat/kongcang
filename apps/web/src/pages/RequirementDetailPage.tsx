@@ -1,7 +1,9 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag } from 'antd';
-import { useKpi } from '../api/kpi';
+import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tabs, Table } from 'antd';
+import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../api/kpi';
+import type { ProductModuleDistribution, AgentOverview } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
+import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
@@ -31,7 +33,7 @@ interface MonthlyRow {
 const statusTextMap: Record<string, string> = {
   'OPEN': '待评估',
   'IN_PROGRESS': '已采纳',
-  'DONE': '已完成',
+  'DONE': '已闭环',
   'CLOSED': '已闭环',
   'REJECTED': '已拒绝',
 };
@@ -39,6 +41,38 @@ const statusTextMap: Record<string, string> = {
 export function RequirementDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
   const [pageSize, setPageSize] = React.useState(20);
+  const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
+  const [agentOverview, setAgentOverview] = React.useState<AgentOverview | null>(null);
+  const [agentLoading, setAgentLoading] = React.useState(false);
+
+  // 加载产品模块分布数据
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchProductModuleDistribution({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+      issueType: '0',
+    }).then((data) => {
+      if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
+
+  // 加载客服汇总数据
+  React.useEffect(() => {
+    let cancelled = false;
+    setAgentLoading(true);
+    fetchAgentOverview({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then((data) => {
+      if (!cancelled) {
+        setAgentOverview(data);
+        setAgentLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
 
   const requirementList: RequirementRow[] = React.useMemo(() => {
     return (demandOverview?.recentRequirements ?? []).filter(r => r.issueType !== 1);
@@ -103,13 +137,6 @@ export function RequirementDetailPage() {
       render: (isLongTerm: boolean) => (
         <Tag color={isLongTerm ? 'orange' : 'default'}>{isLongTerm ? '是' : '否'}</Tag>
       ),
-      width: 100,
-    },
-    {
-      title: '来源会话',
-      dataIndex: 'sourceSessionId',
-      key: 'sourceSessionId',
-      render: (value?: string | null) => value ?? '-',
       width: 120,
     },
     {
@@ -131,7 +158,7 @@ export function RequirementDetailPage() {
       width: 170,
     },
     {
-      title: '完成时间',
+      title: '闭环时间',
       dataIndex: 'completedAtSource',
       key: 'completedAtSource',
       sorter: (a: RequirementRow, b: RequirementRow) => {
@@ -160,7 +187,7 @@ export function RequirementDetailPage() {
       width: 100,
     },
     { 
-      title: '已完成', 
+      title: '闭环数', 
       dataIndex: 'completed', 
       key: 'completed', 
       sorter: (a: MonthlyRow, b: MonthlyRow) => a.completed - b.completed,
@@ -181,7 +208,7 @@ export function RequirementDetailPage() {
       width: 90,
     },
     {
-      title: '结单率',
+      title: '关单率',
       key: 'completionRate',
       sorter: (a: MonthlyRow, b: MonthlyRow) => {
         const aRate = a.created - a.longTermCount > 0 ? (a.completed + a.rejectedCount) / (a.created - a.longTermCount) : 0;
@@ -220,7 +247,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>识别需求总数</span>} 
+              title={<span style={{ color: '#666' }}>需求总数</span>} 
               value={demandOverview?.totalWithLongTerm ?? 0}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -233,7 +260,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic 
-              title={<span style={{ color: '#666' }}>已结单需求数</span>} 
+              title={<span style={{ color: '#666' }}>已闭环需求数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -272,7 +299,7 @@ export function RequirementDetailPage() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -282,17 +309,67 @@ export function RequirementDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>按月需求结单率</span>} 
+        title={<span style={{ fontWeight: 600 }}>汇总数据</span>}
+        extra={<Tag color="blue">已剔除长期演进</Tag>}
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
-        <ResizableTable<MonthlyRow>
-          rowKey="month"
-          dataSource={(demandOverview?.monthlyRequirement ?? []).slice().reverse()}
-          pagination={false}
-          size="middle"
-          columns={monthlyColumns}
-          loading={demandLoading}
-        />
+        <Tabs defaultActiveKey="monthly" items={[
+          {
+            key: 'monthly',
+            label: '按月汇总',
+            children: (
+              <ResizableTable<MonthlyRow>
+                rowKey="month"
+                dataSource={(demandOverview?.monthlyRequirement ?? []).slice().reverse()}
+                pagination={false}
+                size="middle"
+                columns={monthlyColumns}
+                loading={demandLoading}
+              />
+            ),
+          },
+          {
+            key: 'agent',
+            label: '按客服汇总',
+            children: (
+              <ResizableTable<{ agentName: string; created: number; completed: number; rejectedCount: number; longTermCount: number; completionRate: number; over30NotClosedReq: number }>
+                rowKey="agentName"
+                dataSource={(agentOverview?.rows ?? []).map(r => ({
+                  agentName: r.agentName,
+                  created: r.reqCreated,
+                  completed: r.reqCompleted,
+                  rejectedCount: r.reqRejected,
+                  longTermCount: r.reqLongTerm,
+                  completionRate: r.reqCompletionRate,
+                  over30NotClosedReq: r.over30NotClosedReq,
+                }))}
+                pagination={false}
+                size="middle"
+                columns={[
+                  { title: '客服名称', dataIndex: 'agentName', key: 'agentName', sorter: (a, b) => a.agentName.localeCompare(b.agentName), width: 100 },
+                  { title: '需求总数', dataIndex: 'created', key: 'created', sorter: (a, b) => a.created - b.created, width: 100 },
+                  { title: '闭环数', dataIndex: 'completed', key: 'completed', sorter: (a, b) => a.completed - b.completed, width: 90 },
+                  { title: '已拒绝', dataIndex: 'rejectedCount', key: 'rejectedCount', sorter: (a, b) => a.rejectedCount - b.rejectedCount, width: 80 },
+                  { title: '长期演进', dataIndex: 'longTermCount', key: 'longTermCount', sorter: (a, b) => a.longTermCount - b.longTermCount, width: 90 },
+                  {
+                    title: '关单率',
+                    key: 'completionRate',
+                    sorter: (a, b) => a.completionRate - b.completionRate,
+                    render: (_: unknown, record: { created: number; completed: number; rejectedCount: number; longTermCount: number; completionRate: number }) => {
+                      const effectiveTotal = record.created - record.longTermCount;
+                      if (effectiveTotal <= 0) return '0.00%';
+                      const rate = (record.completed + record.rejectedCount) / effectiveTotal;
+                      return `${(rate * 100).toFixed(2)}%`;
+                    },
+                    width: 90,
+                  },
+                  { title: '超30天未闭环需求', key: 'over30NotClosedReq', render: (_: unknown, record: { over30NotClosedReq?: number }) => record.over30NotClosedReq ?? 0, sorter: (a, b) => (a.over30NotClosedReq ?? 0) - (b.over30NotClosedReq ?? 0), width: 150 },
+                ]}
+                loading={agentLoading}
+              />
+            ),
+          },
+        ]} />
       </Card>
 
       <Card 
@@ -315,6 +392,11 @@ export function RequirementDetailPage() {
           loading={demandLoading}
         />
       </Card>
+      <ProductModuleChart
+        data={productModuleData}
+        loading={demandLoading}
+        title="产品模块分布"
+      />
     </div>
   );
 }

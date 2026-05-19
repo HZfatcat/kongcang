@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "UdescOrganization" (
+CREATE TABLE "UdeskOrganization" (
     "id" TEXT NOT NULL,
     "name" TEXT,
     "domains" TEXT,
@@ -11,11 +11,11 @@ CREATE TABLE "UdescOrganization" (
     "updatedAtSource" TIMESTAMP(3),
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescOrganization_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskOrganization_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "UdescTicket" (
+CREATE TABLE "UdeskTicket" (
     "id" TEXT NOT NULL,
     "fieldNum" TEXT,
     "subject" TEXT,
@@ -57,29 +57,29 @@ CREATE TABLE "UdescTicket" (
     "rawPayload" JSONB,
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UdescTicket_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "UdeskTicket_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE INDEX "UdescOrganization_name_idx" ON "UdescOrganization"("name");
+CREATE INDEX "UdeskOrganization_name_idx" ON "UdeskOrganization"("name");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_userId_idx" ON "UdescTicket"("userId");
+CREATE INDEX "UdeskTicket_userId_idx" ON "UdeskTicket"("userId");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_assigneeId_idx" ON "UdescTicket"("assigneeId");
+CREATE INDEX "UdeskTicket_assigneeId_idx" ON "UdeskTicket"("assigneeId");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_organizationId_idx" ON "UdescTicket"("organizationId");
+CREATE INDEX "UdeskTicket_organizationId_idx" ON "UdeskTicket"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_status_idx" ON "UdescTicket"("status");
+CREATE INDEX "UdeskTicket_status_idx" ON "UdeskTicket"("status");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_createdAt_idx" ON "UdescTicket"("createdAt");
+CREATE INDEX "UdeskTicket_createdAt_idx" ON "UdeskTicket"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_updatedAt_idx" ON "UdescTicket"("updatedAt");
+CREATE INDEX "UdeskTicket_updatedAt_idx" ON "UdeskTicket"("updatedAt");
 
 -- CreateIndex
-CREATE INDEX "UdescTicket_imSubSessionId_idx" ON "UdescTicket"("imSubSessionId");
+CREATE INDEX "UdeskTicket_imSubSessionId_idx" ON "UdeskTicket"("imSubSessionId");

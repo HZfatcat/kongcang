@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, RequirementStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { UdescClient } from './udesc.client';
+import { UdeskClient } from './udesk.client';
 import { ZouwuClient } from './zouwu.client';
 
 interface SyncProgressSnapshot {
@@ -44,7 +44,7 @@ export class SyncService {
   private readonly logger = new Logger(SyncService.name);
   private zouwuRunning = false;
   private readonly progress: SyncProgressSnapshot = {
-    source: 'udesc',
+    source: 'udesk',
     isRunning: false,
     totalWindows: 0,
     processedWindows: 0,
@@ -63,7 +63,7 @@ export class SyncService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly udescClient: UdescClient,
+    private readonly udeskClient: UdeskClient,
     private readonly zouwuClient: ZouwuClient,
   ) {}
 
@@ -152,17 +152,17 @@ export class SyncService {
     });
   }
 
-  private resolveUdescStartDate(): Date {
-    const configured = process.env.UDESC_SYNC_START_DATE ?? '2026-01-01T00:00:00.000Z';
+  private resolveUdeskStartDate(): Date {
+    const configured = process.env.UDESK_SYNC_START_DATE ?? '2000-01-01T00:00:00.000Z';
     const value = new Date(configured);
     if (Number.isNaN(value.getTime())) {
-      throw new Error(`UDESC_SYNC_START_DATE 非法: ${configured}`);
+      throw new Error(`UDESK_SYNC_START_DATE 非法: ${configured}`);
     }
     return value;
   }
 
   private resolveProviderEarliestDate(now: Date): Date {
-    const maxLookbackDays = Number(process.env.UDESC_PROVIDER_MAX_LOOKBACK_DAYS ?? 30);
+    const maxLookbackDays = Number(process.env.UDESK_PROVIDER_MAX_LOOKBACK_DAYS ?? 30);
     const earliest = new Date(now);
     earliest.setUTCDate(earliest.getUTCDate() - Math.max(1, maxLookbackDays));
     return earliest;
@@ -229,12 +229,12 @@ export class SyncService {
     });
   }
 
-  async syncUdesc() {
+  async syncUdesk() {
     if (this.progress.isRunning) {
-      throw new Error('udesc sync is already running');
+      throw new Error('udesk sync is already running');
     }
 
-    const run = await this.startRun('udesc');
+    const run = await this.startRun('udesk');
     let sessionSynced = 0;
     let messageSynced = 0;
     let voteSynced = 0;
@@ -248,10 +248,10 @@ export class SyncService {
 
     try {
       const checkpoint = await this.prisma.syncCheckpoint.findUnique({
-        where: { source: 'udesc' },
+        where: { source: 'udesk' },
       });
       const finalEnd = new Date();
-      const startDate = this.resolveUdescStartDate();
+      const startDate = this.resolveUdeskStartDate();
       const providerEarliest = this.resolveProviderEarliestDate(finalEnd);
       let windowStart = checkpoint?.cursor ? new Date(checkpoint.cursor) : startDate;
       if (Number.isNaN(windowStart.getTime()) || windowStart < startDate) {
@@ -261,18 +261,18 @@ export class SyncService {
         issueCount += 1;
         await this.recordIssue({
           runId: run.id,
-          source: 'udesc',
+          source: 'udesk',
           category: 'PROVIDER_LIMIT',
-          errorMessage: `udesc 当前仅支持最近时间窗口，已自动从 ${providerEarliest.toISOString()} 开始同步`,
+          errorMessage: `udesk 当前仅支持最近时间窗口，已自动从 ${providerEarliest.toISOString()} 开始同步`,
         });
         windowStart = providerEarliest;
       }
 
-      const windowDays = Math.max(1, Number(process.env.UDESC_SYNC_WINDOW_DAYS ?? 1));
-      const pageSize = Number(process.env.UDESC_SYNC_PAGE_SIZE ?? 100);
-      const syncLogs = (process.env.UDESC_SYNC_FETCH_LOGS ?? 'true').toLowerCase() !== 'false';
-      const logPageSize = Number(process.env.UDESC_LOG_SYNC_PAGE_SIZE ?? 100);
-      const logMaxPagesPerSession = Number(process.env.UDESC_LOG_MAX_PAGES_PER_SESSION ?? 10);
+      const windowDays = Math.max(1, Number(process.env.UDESK_SYNC_WINDOW_DAYS ?? 1));
+      const pageSize = Number(process.env.UDESK_SYNC_PAGE_SIZE ?? 100);
+      const syncLogs = (process.env.UDESK_SYNC_FETCH_LOGS ?? 'true').toLowerCase() !== 'false';
+      const logPageSize = Number(process.env.UDESK_LOG_SYNC_PAGE_SIZE ?? 100);
+      const logMaxPagesPerSession = Number(process.env.UDESK_LOG_MAX_PAGES_PER_SESSION ?? 10);
       const totalWindows = this.estimateWindowCount(windowStart, finalEnd, windowDays);
 
       this.progress.isRunning = true;
@@ -299,15 +299,15 @@ export class SyncService {
         this.progress.currentWindowStart = windowStart.toISOString();
         this.progress.currentWindowEnd = windowEnd.toISOString();
         this.logger.log(
-          `udesc sync window ${windowStart.toISOString()} -> ${windowEnd.toISOString()}`,
+          `udesk sync window ${windowStart.toISOString()} -> ${windowEnd.toISOString()}`,
         );
 
         let pageCursor: string | undefined = undefined;
         let hasMore = true;
 
         while (hasMore) {
-          const resp = await this.withRetry('udesc.fetchSessions', () =>
-            this.udescClient.fetchSessions({
+          const resp = await this.withRetry('udesk.fetchSessions', () =>
+            this.udeskClient.fetchSessions({
               cursor: pageCursor,
               pageSize,
               startDate: windowStart.toISOString(),
@@ -321,7 +321,7 @@ export class SyncService {
               issueCount += 1;
               await this.recordIssue({
                 runId: run.id,
-                source: 'udesc',
+                source: 'udesk',
                 category: 'SESSION_VALIDATE',
                 externalId: record.id,
                 payload: record.rawPayload,
@@ -332,7 +332,7 @@ export class SyncService {
             }
 
             try {
-              await this.prisma.udescSession.upsert({
+              await this.prisma.udeskSession.upsert({
                 where: { id: record.id },
                 create: {
                   id: record.id,
@@ -358,7 +358,7 @@ export class SyncService {
               sessionSynced += 1;
               // 标记之前的失败记录为已解决
               await this.markIssueResolved({
-                source: 'udesc',
+                source: 'udesk',
                 category: 'SESSION_UPSERT',
                 externalId: record.id,
               });
@@ -367,7 +367,7 @@ export class SyncService {
               const message = error instanceof Error ? error.message : String(error);
               await this.recordIssue({
                 runId: run.id,
-                source: 'udesc',
+                source: 'udesk',
                 category: 'SESSION_UPSERT',
                 externalId: record.id,
                 payload: record.rawPayload,
@@ -391,8 +391,8 @@ export class SyncService {
 
             while (logHasMore && logPageCount < logMaxPagesPerSession) {
               try {
-                const logResp = await this.withRetry('udesc.fetchSessionLogs', () =>
-                  this.udescClient.fetchSessionLogs({
+                const logResp = await this.withRetry('udesk.fetchSessionLogs', () =>
+                  this.udeskClient.fetchSessionLogs({
                     sessionId: record.id,
                     cursor: logCursor,
                     pageSize: logPageSize,
@@ -407,7 +407,7 @@ export class SyncService {
                     issueCount += 1;
                     await this.recordIssue({
                       runId: run.id,
-                      source: 'udesc',
+                      source: 'udesk',
                       category: 'MESSAGE_VALIDATE',
                       externalId: messageRecord.id,
                       payload: messageRecord.rawPayload,
@@ -418,7 +418,7 @@ export class SyncService {
                   }
 
                   try {
-                    await this.prisma.udescSessionMessage.upsert({
+                    await this.prisma.udeskSessionMessage.upsert({
                       where: { id: messageRecord.id },
                       create: {
                         id: messageRecord.id,
@@ -450,7 +450,7 @@ export class SyncService {
                         if (surveyOptionId) {
                           // 找到对应的评价记录，更新 votedAt 为真实评价时间
                           await this.prisma.$executeRaw`
-                            UPDATE "UdescSessionVote"
+                            UPDATE "UdeskSessionVote"
                             SET "votedAt" = ${sentAt}, "syncedAt" = NOW()
                             WHERE "sessionId" = ${record.id}
                               AND "rawPayload"::text LIKE ${'%"survey_option_id":' + String(surveyOptionId) + '%'}
@@ -463,7 +463,7 @@ export class SyncService {
                     }
                     // 标记之前的失败记录为已解决
                     await this.markIssueResolved({
-                      source: 'udesc',
+                      source: 'udesk',
                       category: 'MESSAGE_UPSERT',
                       externalId: messageRecord.id,
                     });
@@ -472,7 +472,7 @@ export class SyncService {
                     const upsertError = error instanceof Error ? error.message : String(error);
                     await this.recordIssue({
                       runId: run.id,
-                      source: 'udesc',
+                      source: 'udesk',
                       category: 'MESSAGE_UPSERT',
                       externalId: messageRecord.id,
                       payload: messageRecord.rawPayload,
@@ -490,7 +490,7 @@ export class SyncService {
                 const message = error instanceof Error ? error.message : String(error);
                 await this.recordIssue({
                   runId: run.id,
-                  source: 'udesc',
+                  source: 'udesk',
                   category: 'MESSAGE_FETCH',
                   externalId: record.id,
                   errorMessage: message,
@@ -507,9 +507,9 @@ export class SyncService {
 
         const nextWindowStart = new Date(windowEnd.getTime() + 1);
         await this.prisma.syncCheckpoint.upsert({
-          where: { source: 'udesc' },
+          where: { source: 'udesk' },
           create: {
-            source: 'udesc',
+            source: 'udesk',
             cursor: nextWindowStart.toISOString(),
             lastSyncedAt: new Date(),
           },
@@ -566,8 +566,8 @@ export class SyncService {
           let voteCursor: string | undefined = undefined;
           let voteHasMore = true;
           while (voteHasMore) {
-            const voteResp = await this.withRetry('udesc.fetchSessionVotes', () =>
-              this.udescClient.fetchSessionVotes({
+            const voteResp = await this.withRetry('udesk.fetchSessionVotes', () =>
+              this.udeskClient.fetchSessionVotes({
                 cursor: voteCursor,
                 pageSize: 100,
                 startDate: voteWindowStartActual.toISOString(),
@@ -579,7 +579,7 @@ export class SyncService {
             for (const vote of voteResp.records) {
               if (!vote.sessionId) continue;
               try {
-                await this.prisma.udescSessionVote.upsert({
+                await this.prisma.udeskSessionVote.upsert({
                   where: { id: vote.id },
                   create: {
                     id: vote.id,
@@ -603,7 +603,7 @@ export class SyncService {
                   },
                 });
                 if (vote.rating !== undefined && vote.rating !== null) {
-                  await this.prisma.udescSession.update({
+                  await this.prisma.udeskSession.update({
                     where: { id: vote.sessionId },
                     data: { rating: vote.rating },
                   }).catch(() => { /* session may not exist */ });
@@ -631,9 +631,9 @@ export class SyncService {
       try {
         // JSONB 转 text 后双引号会被转义，需用更宽松的匹配
         const voteTimeUpdates = await this.prisma.$executeRaw`
-          UPDATE "UdescSessionVote" v
+          UPDATE "UdeskSessionVote" v
           SET "votedAt" = m."sentAt", "syncedAt" = NOW()
-          FROM "UdescSessionMessage" m
+          FROM "UdeskSessionMessage" m
           WHERE m."sessionId" = v."sessionId"
             AND m."rawPayload"::text LIKE '%"type":%survey%'
             AND m."rawPayload"::text LIKE '%客户评价%'
@@ -652,8 +652,8 @@ export class SyncService {
         let customerCursor: string | undefined = undefined;
         let customerHasMore = true;
         while (customerHasMore) {
-          const customerResp = await this.withRetry('udesc.fetchCustomers', () =>
-            this.udescClient.fetchCustomers({
+          const customerResp = await this.withRetry('udesk.fetchCustomers', () =>
+            this.udeskClient.fetchCustomers({
               cursor: customerCursor,
               pageSize: 100,
             }),
@@ -661,7 +661,7 @@ export class SyncService {
           for (const customer of customerResp.records) {
             if (!customer.id) continue;
             try {
-              await this.prisma.udescCustomer.upsert({
+              await this.prisma.udeskCustomer.upsert({
                 where: { id: customer.id },
                 create: {
                   id: customer.id,
@@ -704,8 +704,8 @@ export class SyncService {
         let agentCursor: string | undefined = undefined;
         let agentHasMore = true;
         while (agentHasMore) {
-          const agentResp = await this.withRetry('udesc.fetchAgents', () =>
-            this.udescClient.fetchAgents({
+          const agentResp = await this.withRetry('udesk.fetchAgents', () =>
+            this.udeskClient.fetchAgents({
               cursor: agentCursor,
               pageSize: 100,
             }),
@@ -713,7 +713,7 @@ export class SyncService {
           for (const agent of agentResp.records) {
             if (!agent.id) continue;
             try {
-              await this.prisma.udescAgent.upsert({
+              await this.prisma.udeskAgent.upsert({
                 where: { id: agent.id },
                 create: {
                   id: agent.id,
@@ -774,8 +774,8 @@ export class SyncService {
         let orgCursor: string | undefined = undefined;
         let orgHasMore = true;
         while (orgHasMore) {
-          const orgResp = await this.withRetry('udesc.fetchOrganizations', () =>
-            this.udescClient.fetchOrganizations({
+          const orgResp = await this.withRetry('udesk.fetchOrganizations', () =>
+            this.udeskClient.fetchOrganizations({
               cursor: orgCursor,
               pageSize: 100,
             }),
@@ -783,7 +783,7 @@ export class SyncService {
           for (const org of orgResp.records) {
             if (!org.id) continue;
             try {
-              await this.prisma.udescOrganization.upsert({
+              await this.prisma.udeskOrganization.upsert({
                 where: { id: org.id },
                 create: {
                   id: org.id,
@@ -825,16 +825,18 @@ export class SyncService {
         let ticketCursor: string | undefined = undefined;
         let ticketHasMore = true;
         while (ticketHasMore) {
-          const ticketResp = await this.withRetry('udesc.fetchTickets', () =>
-            this.udescClient.fetchTickets({
+          const ticketResp = await this.withRetry('udesk.fetchTickets', () =>
+            this.udeskClient.fetchTickets({
               cursor: ticketCursor,
               pageSize: 100,
+              startDate: startDate.toISOString(),
+              endDate: finalEnd.toISOString(),
             }),
           );
           for (const ticket of ticketResp.records) {
             if (!ticket.id) continue;
             try {
-              await this.prisma.udescTicket.upsert({
+              await this.prisma.udeskTicket.upsert({
                 where: { id: ticket.id },
                 create: {
                   id: ticket.id,
@@ -950,10 +952,10 @@ export class SyncService {
       this.progress.estimatedRemainingRecords = 0;
       this.progress.estimatedRemainingSeconds = 0;
       this.progress.note = '同步完成';
-      return { source: 'udesc', sessionSynced, messageSynced, voteSynced, customerSynced, agentSynced, metricsSynced, issueCount };
+      return { source: 'udesk', sessionSynced, messageSynced, voteSynced, customerSynced, agentSynced, metricsSynced, issueCount };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
-      this.logger.error(`sync udesc failed: ${message}`);
+      this.logger.error(`sync udesk failed: ${message}`);
       await this.finishRun(run.id, {
         status: 'FAILED',
         recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
@@ -980,14 +982,14 @@ export class SyncService {
   private async calculateSessionMetricsFromLocal(): Promise<number> {
     this.logger.log('开始从 Udesk 原始数据同步会话指标...');
     
-    const sessions = await this.prisma.udescSession.findMany();
+    const sessions = await this.prisma.udeskSession.findMany();
 
     let count = 0;
     for (const session of sessions) {
       const rawPayload = session.rawPayload as Record<string, unknown> | null;
 
       // 先统计实际消息数量（用于验证 UDesk 数据）
-      const actualMessages = await this.prisma.udescSessionMessage.groupBy({
+      const actualMessages = await this.prisma.udeskSessionMessage.groupBy({
         by: ['senderType'],
         where: { sessionId: session.id },
         _count: true,
@@ -1029,12 +1031,12 @@ export class SyncService {
             firstResponseTime = respSeconds;
           } else {
             // UDesk 数据为 0 或无效，从本地消息记录计算
-            const firstCustomerMsg = await this.prisma.udescSessionMessage.findFirst({
+            const firstCustomerMsg = await this.prisma.udeskSessionMessage.findFirst({
               where: { sessionId: session.id, senderType: 'customer' },
               orderBy: { sentAt: 'asc' },
               select: { sentAt: true },
             });
-            const firstAgentMsg = await this.prisma.udescSessionMessage.findFirst({
+            const firstAgentMsg = await this.prisma.udeskSessionMessage.findFirst({
               where: { sessionId: session.id, senderType: 'agent' },
               orderBy: { sentAt: 'asc' },
               select: { sentAt: true },
@@ -1066,7 +1068,7 @@ export class SyncService {
         messageCount = actualAgentMsgCount + actualCustomerMsgCount;
       }
 
-      await this.prisma.udescSessionMetrics.upsert({
+      await this.prisma.udeskSessionMetrics.upsert({
         where: { sessionId: session.id },
         create: {
           sessionId: session.id,
@@ -1110,7 +1112,10 @@ export class SyncService {
       });
       const pageSize = Number(process.env.ZOUWU_SYNC_PAGE_SIZE ?? 100);
       
-      const start = options?.startDate ?? (checkpoint?.lastSyncedAt ? new Date(checkpoint.lastSyncedAt) : this.buildDateRange().start);
+      // 由于 Zouwu API 仅支持按创建时间查询(listFeedback 的 startCreatedTime/endCreatedTime),
+      // 但增量同步会漏掉"之前创建、最近状态变更"的项(如:3月创建的项在5月被关闭)。
+      // 因此始终从项目初始日期开始全量同步，确保所有项的最新状态都被拉取。
+      const start = options?.startDate ?? (process.env.SYNC_START_DATE ? new Date(process.env.SYNC_START_DATE) : new Date('2026-01-01T00:00:00.000Z'));
       const end = options?.endDate ?? new Date();
       
       let cursor = options?.resetCursor ? undefined : (checkpoint?.cursor ?? undefined);
@@ -1200,9 +1205,9 @@ export class SyncService {
 
   async syncAll() {
     const enableZouwu = (process.env.SYNC_ENABLE_ZOUWU ?? 'true').toLowerCase() === 'true';
-    const udesc = await this.syncUdesc();
+    const udesk = await this.syncUdesk();
     const zouwu = enableZouwu ? await this.syncZouwu() : null;
-    return { udesc, zouwu };
+    return { udesk, zouwu };
   }
 
   async getZouwuFeedbackStatistics(query: ZouwuFeedbackStatisticsQuery) {
@@ -1250,27 +1255,27 @@ export class SyncService {
     });
   }
 
-  async getUdescSyncSummary() {
+  async getUdeskSyncSummary() {
     const [totalSessions, totalMessages, issueCount, latestRun, checkpoint] = await this.prisma.$transaction([
-      this.prisma.udescSession.count(),
-      this.prisma.udescSessionMessage.count(),
-      this.prisma.syncIssue.count({ where: { source: 'udesc' } }),
+      this.prisma.udeskSession.count(),
+      this.prisma.udeskSessionMessage.count(),
+      this.prisma.syncIssue.count({ where: { source: 'udesk' } }),
       this.prisma.syncRun.findFirst({
-        where: { source: 'udesc' },
+        where: { source: 'udesk' },
         orderBy: { startedAt: 'desc' },
       }),
       this.prisma.syncCheckpoint.findUnique({
-        where: { source: 'udesc' },
+        where: { source: 'udesk' },
       }),
     ]);
 
     const latestSuccessRun = await this.prisma.syncRun.findFirst({
-      where: { source: 'udesc', status: 'SUCCESS' },
+      where: { source: 'udesk', status: 'SUCCESS' },
       orderBy: { finishedAt: 'desc' },
     });
 
     return {
-      source: 'udesc',
+      source: 'udesk',
       totalSessions,
       totalMessages,
       totalRecords: totalSessions + totalMessages,
@@ -1295,8 +1300,8 @@ export class SyncService {
     };
   }
 
-  async triggerScheduledUdescSync() {
-    const config = await this.getSyncConfig('udesc');
+  async triggerScheduledUdeskSync() {
+    const config = await this.getSyncConfig('udesk');
     if (!config.enabled) {
       return { accepted: false, reason: 'disabled', config };
     }
@@ -1307,7 +1312,7 @@ export class SyncService {
 
     const latestRun = await this.prisma.syncRun.findFirst({
       where: {
-        source: 'udesc',
+        source: 'udesk',
         status: 'SUCCESS',
       },
       orderBy: { finishedAt: 'desc' },
@@ -1327,7 +1332,7 @@ export class SyncService {
       };
     }
 
-    return this.triggerUdescSync();
+    return this.triggerUdeskSync();
   }
 
   async triggerScheduledZouwuSync() {
@@ -1365,27 +1370,27 @@ export class SyncService {
     return this.triggerZouwuSync();
   }
 
-  getUdescProgress() {
+  getUdeskProgress() {
     return { ...this.progress };
   }
 
-  triggerUdescSync() {
+  triggerUdeskSync() {
     if (this.progress.isRunning) {
       return {
         accepted: false,
         reason: 'running',
-        progress: this.getUdescProgress(),
+        progress: this.getUdeskProgress(),
       };
     }
 
-    void this.syncUdesc().catch((error) => {
+    void this.syncUdesk().catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`triggered udesc sync failed: ${message}`);
+      this.logger.error(`triggered udesk sync failed: ${message}`);
     });
 
     return {
       accepted: true,
-      progress: this.getUdescProgress(),
+      progress: this.getUdeskProgress(),
     };
   }
 
@@ -1411,7 +1416,7 @@ export class SyncService {
 
   async retryFailedIssues() {
     const latestIssues = await this.prisma.syncIssue.findMany({
-      where: { source: 'udesc' },
+      where: { source: 'udesk' },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -1426,7 +1431,7 @@ export class SyncService {
 
     const rewindDays = Math.max(1, Number(process.env.SYNC_RETRY_REWIND_DAYS ?? 3));
     const checkpoint = await this.prisma.syncCheckpoint.findUnique({
-      where: { source: 'udesc' },
+      where: { source: 'udesk' },
     });
 
     const now = new Date();
@@ -1437,9 +1442,9 @@ export class SyncService {
     const adjustedCursor = rewindCursor < providerEarliest ? providerEarliest : rewindCursor;
 
     await this.prisma.syncCheckpoint.upsert({
-      where: { source: 'udesc' },
+      where: { source: 'udesk' },
       create: {
-        source: 'udesc',
+        source: 'udesk',
         cursor: adjustedCursor.toISOString(),
         lastSyncedAt: null,
       },
@@ -1449,7 +1454,7 @@ export class SyncService {
       },
     });
 
-    const trigger = this.triggerUdescSync();
+    const trigger = this.triggerUdeskSync();
     return {
       accepted: trigger.accepted,
       reason: trigger.accepted ? 'retry_started' : 'running',
@@ -1462,20 +1467,20 @@ export class SyncService {
   /**
    * 清空 Udesk 全部数据
    */
-  async clearUdescData() {
+  async clearUdeskData() {
     this.logger.log('开始清空 Udesk 数据...');
 
     // 按顺序删除，避免外键约束问题
-    const votes = await this.prisma.udescSessionVote.deleteMany({});
-    const metrics = await this.prisma.udescSessionMetrics.deleteMany({});
-    const messages = await this.prisma.udescSessionMessage.deleteMany({});
+    const votes = await this.prisma.udeskSessionVote.deleteMany({});
+    const metrics = await this.prisma.udeskSessionMetrics.deleteMany({});
+    const messages = await this.prisma.udeskSessionMessage.deleteMany({});
     const opportunities = await this.prisma.businessOpportunity.deleteMany({});
-    const sessions = await this.prisma.udescSession.deleteMany({});
-    const customers = await this.prisma.udescCustomer.deleteMany({});
-    const agents = await this.prisma.udescAgent.deleteMany({});
-    const organizations = await this.prisma.udescOrganization.deleteMany({});
-    const tickets = await this.prisma.udescTicket.deleteMany({});
-    const checkpoints = await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
+    const sessions = await this.prisma.udeskSession.deleteMany({});
+    const customers = await this.prisma.udeskCustomer.deleteMany({});
+    const agents = await this.prisma.udeskAgent.deleteMany({});
+    const organizations = await this.prisma.udeskOrganization.deleteMany({});
+    const tickets = await this.prisma.udeskTicket.deleteMany({});
+    const checkpoints = await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesk' } });
 
     // 重置进度
     this.progress.sessionSynced = 0;
@@ -1512,12 +1517,12 @@ export class SyncService {
 
     // 1. 修复评价数据：删除 id = sessionId 的错误记录
     const wrongVotes = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "UdescSessionVote" WHERE id = "sessionId"
+      SELECT id FROM "UdeskSessionVote" WHERE id = "sessionId"
     `;
     fixedVotes = wrongVotes.length;
     if (fixedVotes > 0) {
       await this.prisma.$executeRaw`
-        DELETE FROM "UdescSessionVote" WHERE id = "sessionId"
+        DELETE FROM "UdeskSessionVote" WHERE id = "sessionId"
       `;
       this.logger.log(`已删除 ${fixedVotes} 条错误评价记录`);
     }
@@ -1525,9 +1530,9 @@ export class SyncService {
     // 2. 修复评价时间：从消息表中获取真实评价时间
     // votedAt 应该等于消息表中的 sentAt（客户的评价消息）
     fixedVoteTimes = await this.prisma.$executeRaw`
-      UPDATE "UdescSessionVote" v
+      UPDATE "UdeskSessionVote" v
       SET "votedAt" = m."sentAt", "syncedAt" = NOW()
-      FROM "UdescSessionMessage" m
+      FROM "UdeskSessionMessage" m
       WHERE m."sessionId" = v."sessionId"
         AND m."rawPayload"::text LIKE '%survey%' 
         AND m."rawPayload"::text LIKE '%客户评价%'
@@ -1541,7 +1546,7 @@ export class SyncService {
     // 例如：孤立消息、孤立评价、重复记录等
 
     // 清除同步检查点，下次同步会重新拉取修复的数据
-    await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesc' } });
+    await this.prisma.syncCheckpoint.deleteMany({ where: { source: 'udesk' } });
 
     this.logger.log(`智能修复完成：评价=${fixedVotes}, 消息=${fixedMessages}, 会话=${fixedSessions}, 评价时间=${fixedVoteTimes}`);
 

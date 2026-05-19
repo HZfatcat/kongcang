@@ -11,9 +11,9 @@ export class AgentsController {
     return this.agentsService.list();
   }
 
-  @Get('udesc-agent-ids')
-  listUdescAgentIds() {
-    return this.agentsService.listUdescAgentIds();
+  @Get('udesk-agent-ids')
+  listUdeskAgentIds() {
+    return this.agentsService.listUdeskAgentIds();
   }
 
   @Post('upsert')

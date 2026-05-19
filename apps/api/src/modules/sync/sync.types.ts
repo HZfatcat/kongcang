@@ -1,4 +1,4 @@
-export interface UdescSessionRecord {
+export interface UdeskSessionRecord {
   id: string;
   agentId?: string;
   startedAt: string;
@@ -9,7 +9,7 @@ export interface UdescSessionRecord {
   rawPayload?: Record<string, unknown>;
 }
 
-export interface UdescMessageRecord {
+export interface UdeskMessageRecord {
   id: string;
   sessionId: string;
   sentAt: string;
@@ -20,7 +20,7 @@ export interface UdescMessageRecord {
 }
 
 // 评价详情记录
-export interface UdescVoteRecord {
+export interface UdeskVoteRecord {
   id: string;
   sessionId: string;
   rating?: number;
@@ -33,7 +33,7 @@ export interface UdescVoteRecord {
 }
 
 // 客户信息记录
-export interface UdescCustomerRecord {
+export interface UdeskCustomerRecord {
   id: string;
   name?: string;
   phone?: string;
@@ -46,7 +46,7 @@ export interface UdescCustomerRecord {
 }
 
 // 客服信息记录
-export interface UdescAgentRecord {
+export interface UdeskAgentRecord {
   id: string;
   name?: string;
   email?: string;
@@ -60,7 +60,7 @@ export interface UdescAgentRecord {
 }
 
 // 客户公司/组织记录
-export interface UdescOrganizationRecord {
+export interface UdeskOrganizationRecord {
   id: string;
   name?: string;
   domains?: string;
@@ -73,7 +73,7 @@ export interface UdescOrganizationRecord {
 }
 
 // 工单记录
-export interface UdescTicketRecord {
+export interface UdeskTicketRecord {
   id: string;
   fieldNum?: string;
   subject?: string;
@@ -116,7 +116,7 @@ export interface UdescTicketRecord {
 }
 
 // 会话统计扩展
-export interface UdescSessionStats {
+export interface UdeskSessionStats {
   firstResponseTime?: number; // 首次响应时间(秒)
   avgResponseTime?: number; // 平均响应时间(秒)
   waitTime?: number; // 排队等待时间(秒)

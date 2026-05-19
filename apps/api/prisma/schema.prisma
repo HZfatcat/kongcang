@@ -7,7 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model UdescSession {
+enum RequirementStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CLOSED
+  REJECTED
+}
+
+enum OpportunitySourceType {
+  CONSULTATION
+  MANUAL
+}
+
+enum OpportunityStatus {
+  NEW
+  QUALIFIED
+  FOLLOWING
+  WON
+  LOST
+}
+
+model UdeskSession {
   id                String                @id
   agentId           String?
   startedAt         DateTime
@@ -18,13 +39,14 @@ model UdescSession {
   updatedAtSource   DateTime?
   syncedAt          DateTime              @default(now())
   opportunities     BusinessOpportunity[]
-  messages          UdescSessionMessage[]
-  metrics           UdescSessionMetrics?
-  votes             UdescSessionVote[]
+  messages          UdeskSessionMessage[]
+  metrics           UdeskSessionMetrics?
+  votes             UdeskSessionVote[]
 
   @@index([startedAt])
   @@index([updatedAtSource])
   @@index([isConsultToDemand])
+  @@map("UdescSession")
 }
 
 model BusinessOpportunity {
@@ -53,7 +75,7 @@ model BusinessOpportunity {
   feedbackChannel String?
   feedbackPerson  String?
   feedbackResult  String?
-  sourceSession   UdescSession?         @relation(fields: [sourceSessionId], references: [id])
+  sourceSession   UdeskSession?         @relation(fields: [sourceSessionId], references: [id])
 
   @@index([status, createdAt])
   @@index([sourceType, createdAt])
@@ -61,7 +83,7 @@ model BusinessOpportunity {
   @@index([sourceSessionId])
 }
 
-model UdescSessionMessage {
+model UdeskSessionMessage {
   id         String       @id
   sessionId  String
   sentAt     DateTime
@@ -70,10 +92,11 @@ model UdescSessionMessage {
   content    String?
   rawPayload Json?
   syncedAt   DateTime     @default(now())
-  session    UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session    UdeskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, sentAt])
   @@index([senderType])
+  @@map("UdescSessionMessage")
 }
 
 model ZouwuRequirement {
@@ -148,8 +171,9 @@ model SysRole {
   roleDesc   String?       @map("role_desc")
   status     Int           @default(1)
   createTime DateTime      @default(now()) @map("create_time")
-  roleMenus  SysRoleMenu[]
-  userRoles  SysUserRole[]
+  roleMenus     SysRoleMenu[]
+  userRoles     SysUserRole[]
+  rolePagePerms SysRolePagePerm[]
 
   @@map("sys_role")
 }
@@ -190,6 +214,20 @@ model SysMenu {
   roleMenus  SysRoleMenu[]
 
   @@map("sys_menu")
+}
+
+// 角色页面权限表（查看/操作）
+model SysRolePagePerm {
+  id       BigInt  @id @default(autoincrement())
+  roleId   BigInt  @map("role_id")
+  pagePath String  @map("page_path")
+  canView  Boolean @default(false) @map("can_view")
+  canOp    Boolean @default(false) @map("can_op")
+  role     SysRole @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+
+  @@map("sys_role_page_perm")
+  @@unique([roleId, pagePath])
+  @@index([roleId])
 }
 
 model SysUserDataScope {
@@ -265,7 +303,7 @@ model SystemLog {
   @@index([userId])
 }
 
-model UdescSessionVote {
+model UdeskSessionVote {
   id         String       @id @default(cuid())
   sessionId  String
   rating     Int?
@@ -276,13 +314,14 @@ model UdescSessionVote {
   votedAt    DateTime?
   rawPayload Json?
   syncedAt   DateTime     @default(now())
-  session    UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session    UdeskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([votedAt])
+  @@map("UdescSessionVote")
 }
 
-model UdescCustomer {
+model UdeskCustomer {
   id              String    @id
   name            String?
   phone           String?
@@ -298,9 +337,10 @@ model UdescCustomer {
   @@index([phone])
   @@index([email])
   @@index([enterprise])
+  @@map("UdescCustomer")
 }
 
-model UdescAgent {
+model UdeskAgent {
   id         String   @id
   name       String?
   email      String?
@@ -314,9 +354,10 @@ model UdescAgent {
   syncedAt   DateTime @default(now())
 
   @@index([enabled])
+  @@map("UdescAgent")
 }
 
-model UdescSessionMetrics {
+model UdeskSessionMetrics {
   id                   String       @id @default(cuid())
   sessionId            String       @unique
   firstResponseTime    Int?
@@ -327,16 +368,17 @@ model UdescSessionMetrics {
   agentMessageCount    Int          @default(0)
   customerMessageCount Int          @default(0)
   syncedAt             DateTime     @default(now())
-  session              UdescSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session              UdeskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([firstResponseTime])
   @@index([avgResponseTime])
   @@index([waitTime])
   @@index([resolutionTime])
+  @@map("UdescSessionMetrics")
 }
 
-model UdescOrganization {
+model UdeskOrganization {
   id              String    @id
   name            String?
   domains         String?
@@ -349,9 +391,10 @@ model UdescOrganization {
   syncedAt        DateTime  @default(now())
 
   @@index([name])
+  @@map("UdescOrganization")
 }
 
-model UdescTicket {
+model UdeskTicket {
   id                String    @id
   fieldNum          String?
   subject           String?
@@ -400,25 +443,5 @@ model UdescTicket {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([imSubSessionId])
-}
-
-enum RequirementStatus {
-  OPEN
-  IN_PROGRESS
-  DONE
-  CLOSED
-  REJECTED
-}
-
-enum OpportunitySourceType {
-  CONSULTATION
-  MANUAL
-}
-
-enum OpportunityStatus {
-  NEW
-  QUALIFIED
-  FOLLOWING
-  WON
-  LOST
+  @@map("UdescTicket")
 }

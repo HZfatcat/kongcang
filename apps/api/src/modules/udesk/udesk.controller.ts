@@ -1,34 +1,34 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
-  UdescDateRangeDto,
-  UdescSessionQueryDto,
-  UdescCustomerQueryDto,
-  UdescAgentQueryDto,
-  UdescVoteQueryDto,
-  UdescMetricsQueryDto,
-  UdescTicketQueryDto,
-  UdescHeatmapQueryDto,
-} from './udesc.dto';
-import { UdescService } from './udesc.service';
+  UdeskDateRangeDto,
+  UdeskSessionQueryDto,
+  UdeskCustomerQueryDto,
+  UdeskAgentQueryDto,
+  UdeskVoteQueryDto,
+  UdeskMetricsQueryDto,
+  UdeskTicketQueryDto,
+  UdeskHeatmapQueryDto,
+} from './udesk.dto';
+import { UdeskService } from './udesk.service';
 
-@Controller('udesc')
-export class UdescController {
-  constructor(private readonly udescService: UdescService) {}
+@Controller('udesk')
+export class UdeskController {
+  constructor(private readonly udeskService: UdeskService) {}
 
   @Get('overview')
-  getOverview(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getOverview(query.startDate, query.endDate);
+  getOverview(@Query() query: UdeskDateRangeDto) {
+    return this.udeskService.getOverview(query.startDate, query.endDate);
   }
 
   @Get('tree')
-  getTree(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getAgentTree(query.startDate, query.endDate);
+  getTree(@Query() query: UdeskDateRangeDto) {
+    return this.udeskService.getAgentTree(query.startDate, query.endDate);
   }
 
   @Get('sessions')
-  getSessions(@Query() query: UdescSessionQueryDto) {
+  getSessions(@Query() query: UdeskSessionQueryDto) {
     console.log('[Controller] getSessions query:', JSON.stringify(query));
-    return this.udescService.getSessions({
+    return this.udeskService.getSessions({
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,
@@ -40,20 +40,20 @@ export class UdescController {
   }
 
   @Get('daily-agent-stats')
-  getDailyAgentStats(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getDailyAgentStats(query.startDate, query.endDate);
+  getDailyAgentStats(@Query() query: UdeskDateRangeDto) {
+    return this.udeskService.getDailyAgentStats(query.startDate, query.endDate);
   }
 
   @Get('daily-rating-stats')
-  getDailyRatingStats(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getDailyRatingStats(query.startDate, query.endDate);
+  getDailyRatingStats(@Query() query: UdeskDateRangeDto) {
+    return this.udeskService.getDailyRatingStats(query.startDate, query.endDate);
   }
 
   // ========== 客户管理 ==========
 
   @Get('customers')
-  getCustomers(@Query() query: UdescCustomerQueryDto) {
-    return this.udescService.getCustomers({
+  getCustomers(@Query() query: UdeskCustomerQueryDto) {
+    return this.udeskService.getCustomers({
       page: query.page,
       pageSize: query.pageSize,
       search: query.search,
@@ -63,14 +63,14 @@ export class UdescController {
 
   @Get('customers/:id')
   getCustomerDetail(@Param('id') id: string) {
-    return this.udescService.getCustomerDetail(id);
+    return this.udeskService.getCustomerDetail(id);
   }
 
   // ========== 客服管理 ==========
 
   @Get('agents')
-  getAgents(@Query() query: UdescAgentQueryDto) {
-    return this.udescService.getAgents({
+  getAgents(@Query() query: UdeskAgentQueryDto) {
+    return this.udeskService.getAgents({
       enabled: query.enabled,
     });
   }
@@ -78,16 +78,16 @@ export class UdescController {
   @Get('agents/:id/performance')
   getAgentPerformance(
     @Param('id') id: string,
-    @Query() query: UdescDateRangeDto
+    @Query() query: UdeskDateRangeDto
   ) {
-    return this.udescService.getAgentPerformance(id, query.startDate, query.endDate);
+    return this.udeskService.getAgentPerformance(id, query.startDate, query.endDate);
   }
 
   // ========== 评价分析 ==========
 
   @Get('votes')
-  getVotes(@Query() query: UdescVoteQueryDto) {
-    return this.udescService.getVotes({
+  getVotes(@Query() query: UdeskVoteQueryDto) {
+    return this.udeskService.getVotes({
       startDate: query.startDate,
       endDate: query.endDate,
       minRating: query.minRating,
@@ -103,9 +103,9 @@ export class UdescController {
   // ========== 会话性能指标 ==========
 
   @Get('metrics')
-  getSessionMetrics(@Query() query: UdescMetricsQueryDto) {
+  getSessionMetrics(@Query() query: UdeskMetricsQueryDto) {
     console.log('[Controller] getSessionMetrics query:', JSON.stringify(query));
-    return this.udescService.getSessionMetrics({
+    return this.udeskService.getSessionMetrics({
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,
@@ -119,21 +119,21 @@ export class UdescController {
   }
 
   @Get('metrics/summary')
-  getMetricsSummary(@Query() query: UdescMetricsQueryDto) {
+  getMetricsSummary(@Query() query: UdeskMetricsQueryDto) {
     console.log('[Controller] getMetricsSummary query:', JSON.stringify(query));
-    return this.udescService.getMetricsSummary(query.startDate, query.endDate, query.agentId);
+    return this.udeskService.getMetricsSummary(query.startDate, query.endDate, query.agentId);
   }
 
   @Get('metrics/agent-summary')
-  getAgentMetricsSummary(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getAgentMetricsSummary(query.startDate, query.endDate);
+  getAgentMetricsSummary(@Query() query: UdeskDateRangeDto) {
+    return this.udeskService.getAgentMetricsSummary(query.startDate, query.endDate);
   }
 
   // ========== 工单分析 ==========
 
   @Get('tickets')
-  getTickets(@Query() query: UdescTicketQueryDto) {
-    return this.udescService.getTickets({
+  getTickets(@Query() query: UdeskTicketQueryDto) {
+    return this.udeskService.getTickets({
       startDate: query.startDate,
       endDate: query.endDate,
       status: query.status,
@@ -147,8 +147,8 @@ export class UdescController {
   }
 
   @Get('tickets/summary')
-  getTicketSummary(@Query() query: UdescTicketQueryDto) {
-    return this.udescService.getTicketSummary({
+  getTicketSummary(@Query() query: UdeskTicketQueryDto) {
+    return this.udeskService.getTicketSummary({
       startDate: query.startDate,
       endDate: query.endDate,
       assigneeId: query.assigneeId,
@@ -156,8 +156,8 @@ export class UdescController {
   }
 
   @Get('tickets/daily-stats')
-  getTicketDailyStats(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getTicketDailyStats({
+  getTicketDailyStats(@Query() query: UdeskDateRangeDto) {
+    return this.udeskService.getTicketDailyStats({
       startDate: query.startDate,
       endDate: query.endDate,
     });
@@ -166,8 +166,8 @@ export class UdescController {
   // ========== 时段热力图 ==========
 
   @Get('heatmap')
-  getHeatmap(@Query() query: UdescHeatmapQueryDto) {
-    return this.udescService.getHeatmap({
+  getHeatmap(@Query() query: UdeskHeatmapQueryDto) {
+    return this.udeskService.getHeatmap({
       startDate: query.startDate,
       endDate: query.endDate,
       agentId: query.agentId,

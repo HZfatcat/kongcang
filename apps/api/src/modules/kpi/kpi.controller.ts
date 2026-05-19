@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { DateRangeQueryDto, FunnelQueryDto } from './kpi.dto';
+import { DateRangeQueryDto, FunnelQueryDto, ProductModuleQueryDto } from './kpi.dto';
 import { KpiService } from './kpi.service';
 
 @Controller('kpi')
@@ -21,12 +21,26 @@ export class KpiController {
     return this.kpiService.getDemandOverview(query.startDate, query.endDate);
   }
 
+  @Get('demand/agent')
+  async getAgentDemand(@Query() query: DateRangeQueryDto) {
+    return this.kpiService.getAgentOverview(query.startDate, query.endDate);
+  }
+
   @Get('consultation-funnel')
   async getConsultationFunnel(@Query() query: FunnelQueryDto) {
     return this.kpiService.getConsultationFunnel(
       query.startDate,
       query.endDate,
       query.granularity ?? 'day',
+    );
+  }
+
+  @Get('product-module')
+  async getProductModule(@Query() query: ProductModuleQueryDto) {
+    return this.kpiService.getProductModuleDistribution(
+      query.startDate,
+      query.endDate,
+      query.issueType as '0' | '1' | undefined,
     );
   }
 }

@@ -8,7 +8,7 @@ describe('AgentsController', () => {
 
   const mockAgentsService = {
     list: jest.fn(),
-    listUdescAgentIds: jest.fn(),
+    listUdeskAgentIds: jest.fn(),
     upsert: jest.fn(),
     remove: jest.fn(),
   };
@@ -47,12 +47,12 @@ describe('AgentsController', () => {
     });
   });
 
-  describe('listUdescAgentIds', () => {
+  describe('listUdeskAgentIds', () => {
     it('should return unique agent IDs', async () => {
       const mockIds = ['agent1', 'agent2'];
-      mockAgentsService.listUdescAgentIds.mockResolvedValue(mockIds);
+      mockAgentsService.listUdeskAgentIds.mockResolvedValue(mockIds);
 
-      const result = await controller.listUdescAgentIds();
+      const result = await controller.listUdeskAgentIds();
 
       expect(result).toEqual(mockIds);
     });

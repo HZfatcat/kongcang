@@ -8,7 +8,7 @@ CREATE TABLE "SyncConfig" (
     CONSTRAINT "SyncConfig_pkey" PRIMARY KEY ("source")
 );
 
--- Seed default config for udesc
+-- Seed default config for udesk
 INSERT INTO "SyncConfig" ("source", "enabled", "intervalHours", "updatedAt")
-VALUES ('udesc', true, 1, CURRENT_TIMESTAMP)
+VALUES ('udesk', true, 1, CURRENT_TIMESTAMP)
 ON CONFLICT ("source") DO NOTHING;

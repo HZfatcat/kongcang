@@ -3,8 +3,8 @@ import { Card, Table, Typography, Tag, Space, Button, Switch, message, DatePicke
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { ResizableTable } from '../components/ResizableTable';
-import { fetchUdescAgents, fetchUdescAgentPerformance, fetchAgents, fetchUdescAgentIds, upsertAgent, deleteAgent, upsertWecomEmployee, deleteWecomEmployee } from '../api/udesc';
-import type { UdescAgentDetail, UdescAgentPerformance, AgentProfile } from '../types/udesc';
+import { fetchUdeskAgents, fetchUdeskAgentPerformance, fetchAgents, fetchUdeskAgentIds, upsertAgent, deleteAgent, upsertWecomEmployee, deleteWecomEmployee } from '../api/udesk';
+import type { UdeskAgentDetail, UdeskAgentPerformance, AgentProfile } from '../types/udesk';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
 
@@ -36,19 +36,19 @@ export function UsersPage() {
   const [savingAgent, setSavingAgent] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [agentForm] = Form.useForm();
-  const [udescAgentIds, setUdescAgentIds] = useState<string[]>([]);
+  const [udeskAgentIds, setUdeskAgentIds] = useState<string[]>([]);
 
   // ========== Udesk 客服绩效状态 ==========
   const [showDisabled, setShowDisabled] = useState(false);
   const [perfLoading, setPerfLoading] = useState(false);
-  const [perfData, setPerfData] = useState<UdescAgentPerformance | null>(null);
+  const [perfData, setPerfData] = useState<UdeskAgentPerformance | null>(null);
   const [perfOpen, setPerfOpen] = useState(false);
   const [perfRange, setPerfRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
     const end = dayjs();
     const start = end.subtract(30, 'day');
     return [start.startOf('day'), end.endOf('day')];
   });
-  const [selectedAgent, setSelectedAgent] = useState<UdescAgentDetail | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<UdeskAgentDetail | null>(null);
 
   const apiRange = useMemo(
     () => ({
@@ -87,10 +87,10 @@ export function UsersPage() {
   };
 
   // 加载 Udesk Agent IDs (用于下拉选择)
-  const loadUdescAgentIds = async () => {
+  const loadUdeskAgentIds = async () => {
     try {
-      const ids = await fetchUdescAgentIds();
-      setUdescAgentIds(ids);
+      const ids = await fetchUdeskAgentIds();
+      setUdeskAgentIds(ids);
     } catch {
       // ignore
     }
@@ -106,7 +106,7 @@ export function UsersPage() {
   const loadPerformance = async (agentId: string) => {
     setPerfLoading(true);
     try {
-      const resp = await fetchUdescAgentPerformance(agentId, {
+      const resp = await fetchUdeskAgentPerformance(agentId, {
         startDate: apiRange.startDateIso,
         endDate: apiRange.endDateIso,
       });
@@ -120,7 +120,7 @@ export function UsersPage() {
 
   const showPerformance = (record: AgentProfile) => {
     // 使用 agentId 查询 Udesk 绩效
-    setSelectedAgent({ id: record.agentId, name: record.displayName } as UdescAgentDetail);
+    setSelectedAgent({ id: record.agentId, name: record.displayName } as UdeskAgentDetail);
     setPerfOpen(true);
     loadPerformance(record.agentId);
   };
@@ -130,7 +130,7 @@ export function UsersPage() {
     setEditingAgentId(null);
     agentForm.resetFields();
     agentForm.setFieldsValue({ enabled: true });
-    loadUdescAgentIds();
+    loadUdeskAgentIds();
     setAgentModalOpen(true);
   };
 
@@ -145,7 +145,7 @@ export function UsersPage() {
       enabled: record.enabled,
       remark: record.remark,
     });
-    loadUdescAgentIds();
+    loadUdeskAgentIds();
     setAgentModalOpen(true);
   };
 
@@ -443,7 +443,7 @@ export function UsersPage() {
               optionFilterProp="children"
               allowClear
             >
-              {udescAgentIds.map((id) => (
+              {udeskAgentIds.map((id) => (
                 <Select.Option key={id} value={id}>
                   {id}
                 </Select.Option>

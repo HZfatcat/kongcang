@@ -20,10 +20,10 @@ const { Option } = Select;
 const PAGE_LABELS: Record<string, string> = {
   '/': '客服运营首页',
   '/satisfaction': '用户满意度',
-  '/udesc/votes': '评价分析',
-  '/udesc/metrics': '会话指标',
-  '/udesc/sessions': '咨询详情',
-  '/demand': '需求结单率',
+  '/udesk/votes': '评价分析',
+  '/udesk/metrics': '会话指标',
+  '/udesk/sessions': '咨询详情',
+  '/demand': '需求关单率',
   '/demand/requirements': '需求详情',
   '/demand/bugs': 'Bug详情',
   '/opportunity': '机会分析',
@@ -31,15 +31,18 @@ const PAGE_LABELS: Record<string, string> = {
   '/sync-zouwu': 'Zouwu同步',
   '/users': '人员管理',
   '/logs': '操作日志',
+  '/access-control': '权限总览',
+  '/role-manage': '角色管理',
 };
 
 // 所有页面路径（固定顺序，用于列头）
 const ALL_PAGES = [
   '/', '/satisfaction',
-  '/udesc/votes', '/udesc/metrics', '/udesc/sessions',
+  '/udesk/votes', '/udesk/metrics', '/udesk/sessions',
   '/demand', '/demand/requirements', '/demand/bugs',
   '/opportunity', '/sync-udesk', '/sync-zouwu',
   '/users', '/logs',
+  '/access-control', '/role-manage',
 ];
 
 export function AccessControlPage() {

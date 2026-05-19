@@ -5,16 +5,16 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
 import {
-  fetchUdescTickets,
-  fetchUdescTicketSummary,
-  fetchUdescTicketDailyStats,
+  fetchUdeskTickets,
+  fetchUdeskTicketSummary,
+  fetchUdeskTicketDailyStats,
   fetchAgents,
-  type UdescTicket,
-  type UdescTicketListResp,
-  type UdescTicketSummary,
-  type UdescTicketDailyStats,
-} from '../api/udesc';
-import type { AgentProfile } from '../types/udesc';
+  type UdeskTicket,
+  type UdeskTicketListResp,
+  type UdeskTicketSummary,
+  type UdeskTicketDailyStats,
+} from '../api/udesk';
+import type { AgentProfile } from '../types/udesk';
 
 const { RangePicker } = DatePicker;
 
@@ -26,14 +26,14 @@ export function TicketsPage() {
   const [loading, setLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
-  const [data, setData] = useState<UdescTicketListResp | null>(null);
-  const [summary, setSummary] = useState<UdescTicketSummary | null>(null);
-  const [dailyStats, setDailyStats] = useState<UdescTicketDailyStats | null>(null);
+  const [data, setData] = useState<UdeskTicketListResp | null>(null);
+  const [summary, setSummary] = useState<UdeskTicketSummary | null>(null);
+  const [dailyStats, setDailyStats] = useState<UdeskTicketDailyStats | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
 
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
     const end = dayjs();
-    const start = end.subtract(30, 'day');
+    const start = dayjs('2025-01-01');
     return [start.startOf('day'), end.endOf('day')];
   });
 
@@ -42,7 +42,7 @@ export function TicketsPage() {
   const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [selectedTicket, setSelectedTicket] = useState<UdescTicket | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<UdeskTicket | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
   // 从 URL 初始化分页状态
@@ -96,7 +96,7 @@ export function TicketsPage() {
     const { sortBy, sortOrder, statusFilter, priorityFilter, assigneeFilter, range } = stateRef.current;
     setLoading(true);
     try {
-      const resp = await fetchUdescTickets({
+      const resp = await fetchUdeskTickets({
         startDate: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         endDate: range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         status: statusFilter,
@@ -119,7 +119,7 @@ export function TicketsPage() {
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
     try {
-      const resp = await fetchUdescTicketSummary({
+      const resp = await fetchUdeskTicketSummary({
         startDate: apiRange.startDateIso,
         endDate: apiRange.endDateIso,
       });
@@ -135,7 +135,7 @@ export function TicketsPage() {
   const loadDailyStats = useCallback(async () => {
     setDailyLoading(true);
     try {
-      const resp = await fetchUdescTicketDailyStats({
+      const resp = await fetchUdeskTicketDailyStats({
         startDate: apiRange.startDateIso,
         endDate: apiRange.endDateIso,
       });
@@ -162,21 +162,15 @@ export function TicketsPage() {
       setSortBy(sorter.field);
       setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
     }
-    // 处理列筛选
-    if (filters.status) {
-      setStatusFilter(filters.status[0]);
-    } else {
-      setStatusFilter(undefined);
+    // 处理列筛选 — 仅当用户实际点击了列头筛选菜单时才更新，避免分页/排序时覆盖顶层 Select 的筛选值
+    if (filters.status !== null) {
+      setStatusFilter(filters.status?.[0]);
     }
-    if (filters.priority) {
-      setPriorityFilter(filters.priority[0]);
-    } else {
-      setPriorityFilter(undefined);
+    if (filters.priority !== null) {
+      setPriorityFilter(filters.priority?.[0]);
     }
-    if (filters.assigneeName) {
-      setAssigneeFilter(filters.assigneeName[0]);
-    } else {
-      setAssigneeFilter(undefined);
+    if (filters.assigneeName !== null) {
+      setAssigneeFilter(filters.assigneeName?.[0]);
     }
   };
 
@@ -196,7 +190,7 @@ export function TicketsPage() {
   };
 
   // 列定义
-  const columns: ColumnsType<UdescTicket> = [
+  const columns: ColumnsType<UdeskTicket> = [
     {
       title: '工单编号',
       dataIndex: 'fieldNum',
@@ -331,7 +325,7 @@ export function TicketsPage() {
             allowClear
             style={{ width: 120 }}
             value={statusFilter}
-            onChange={setStatusFilter}
+            onChange={(v) => { setStatusFilter(v); setPage(1); }}
             options={[
               { label: '新工单', value: '新工单' },
               { label: '受理中', value: '受理中' },
@@ -345,7 +339,7 @@ export function TicketsPage() {
             allowClear
             style={{ width: 100 }}
             value={priorityFilter}
-            onChange={setPriorityFilter}
+            onChange={(v) => { setPriorityFilter(v); setPage(1); }}
             options={[
               { label: '高', value: '高' },
               { label: '中', value: '中' },
@@ -358,7 +352,7 @@ export function TicketsPage() {
             showSearch
             style={{ width: 150 }}
             value={assigneeFilter}
-            onChange={setAssigneeFilter}
+            onChange={(v) => { setAssigneeFilter(v); setPage(1); }}
             options={agents.map((a) => ({ label: a.displayName || a.agentId, value: a.agentId }))}
           />
           <Button onClick={() => { setPage(1); loadData(1, pageSize); }}>刷新</Button>
@@ -441,7 +435,7 @@ export function TicketsPage() {
 
       {/* 工单列表 */}
       <Card title="工单列表" size="small">
-        <Table<UdescTicket>
+        <Table<UdeskTicket>
           rowKey="id"
           columns={columns}
           dataSource={data?.records ?? []}

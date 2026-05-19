@@ -34,7 +34,8 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { fetchConsultationFunnel, fetchDemandOverview } from '../api/kpi';
+import { ProductModuleChart } from '../components/ProductModuleChart';
+import { fetchConsultationFunnel, fetchDemandOverview, fetchAgentOverview, fetchProductModuleDistribution } from '../api/kpi';
 import {
   deleteOpportunity,
   fetchOpportunityList,
@@ -52,11 +53,11 @@ import {
   fetchSyncProgress,
   fetchSyncRuns,
   fetchSyncSummary,
-  fetchUdescDailyAgentStats,
-  fetchUdescAgentIds,
-  fetchUdescOverview,
-  fetchUdescSessions,
-  fetchUdescTree,
+  fetchUdeskDailyAgentStats,
+  fetchUdeskAgentIds,
+  fetchUdeskOverview,
+  fetchUdeskSessions,
+  fetchUdeskTree,
   retrySyncIssues,
   runSync,
   runZouwuSync,
@@ -67,9 +68,9 @@ import {
   fetchWecomEmployees,
   upsertWecomEmployee,
   deleteWecomEmployee,
-  clearUdescData,
+  clearUdeskData,
   smartFix,
-} from '../api/udesc';
+} from '../api/udesk';
 import type {
   AgentProfile,
   WecomEmployee,
@@ -78,13 +79,13 @@ import type {
   SyncProgress,
   SyncRun,
   SyncSummary,
-  UdescDailyAgentStats,
-  UdescOverview,
-  UdescSessionRecord,
-  UdescTreeNode,
+  UdeskDailyAgentStats,
+  UdeskOverview,
+  UdeskSessionRecord,
+  UdeskTreeNode,
   ZouwuFeedbackStatistics,
-} from '../types/udesc';
-import type { ConsultationFunnelOverview, DemandOverview } from '../types/kpi';
+} from '../types/udesk';
+import type { ConsultationFunnelOverview, DemandOverview, AgentOverview, ProductModuleDistribution } from '../types/kpi';
 import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
 import { clearSession, getLoginUser } from '../auth/session';
 
@@ -109,28 +110,31 @@ function createPresetRange(start: dayjs.Dayjs, end: dayjs.Dayjs): [dayjs.Dayjs, 
   return [start.startOf('day'), end.endOf('day')];
 }
 
-export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenuKey?: 'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents' } = {}) {
+export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenuKey?: 'satisfaction' | 'demand' | 'opportunity' | 'sync-udesk' | 'sync-zouwu' | 'agents' } = {}) {
   const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true';
   const loginUser = getLoginUser();
   const [activeMenuKey, setActiveMenuKey] = useState<
-    'satisfaction' | 'demand' | 'opportunity' | 'sync-udesc' | 'sync-zouwu' | 'agents'
+    'satisfaction' | 'demand' | 'opportunity' | 'sync-udesk' | 'sync-zouwu' | 'agents'
   >(initialMenuKey);
   const [agentForm] = Form.useForm();
   const [opportunityForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  const [overview, setOverview] = useState<UdescOverview | null>(null);
+  const [overview, setOverview] = useState<UdeskOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
+  const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [productModuleData, setProductModuleData] = useState<ProductModuleDistribution | null>(null);
   const [funnelGranularity, setFunnelGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [consultationFunnel, setConsultationFunnel] = useState<ConsultationFunnelOverview | null>(null);
-  const [dailyStats, setDailyStats] = useState<UdescDailyAgentStats | null>(null);
+  const [dailyStats, setDailyStats] = useState<UdeskDailyAgentStats | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['__summary__']);
   const [selectedMetrics, setSelectedMetrics] = useState<Array<'sessions' | 'messages'>>([
     'sessions',
     'messages',
   ]);
-  const [treeData, setTreeData] = useState<UdescTreeNode[]>([]);
-  const [sessions, setSessions] = useState<UdescSessionRecord[]>([]);
+  const [treeData, setTreeData] = useState<UdeskTreeNode[]>([]);
+  const [sessions, setSessions] = useState<UdeskSessionRecord[]>([]);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [opportunityLoading, setOpportunityLoading] = useState(false);
   const [opportunitySummary, setOpportunitySummary] = useState<OpportunitySummary | null>(null);
@@ -158,7 +162,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [zouwuConfig, setZouwuConfig] = useState<SyncConfig | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
-  const [udescAgentIds, setUdescAgentIds] = useState<string[]>([]);
+  const [udeskAgentIds, setUdeskAgentIds] = useState<string[]>([]);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [savingAgent, setSavingAgent] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
@@ -169,7 +173,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [savingWecomEmployee, setSavingWecomEmployee] = useState(false);
   const [editingWecomUserId, setEditingWecomUserId] = useState<string | null>(null);
   const [wecomEmployeeForm] = Form.useForm();
-  const [agentsTabKey, setAgentsTabKey] = useState<'udesc' | 'wecom'>('udesc');
+  const [agentsTabKey, setAgentsTabKey] = useState<'udesk' | 'wecom'>('udesk');
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -216,17 +220,18 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     const targetSessionAgentFilters = nextSessionAgentFilters ?? sessionAgentFilters;
     setLoading(true);
     try {
-      const [overviewData, demandData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
-        fetchUdescOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+      const [overviewData, demandData, agentData, funnelData, dailyStatsData, treeResp, sessionResp] = await Promise.all([
+        fetchUdeskOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchDemandOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchAgentOverview({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
         fetchConsultationFunnel({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
           granularity: funnelGranularity,
         }),
-        fetchUdescDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdescTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
-        fetchUdescSessions({
+        fetchUdeskDailyAgentStats({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdeskTree({ startDate: apiRange.startDateIso, endDate: apiRange.endDateIso }),
+        fetchUdeskSessions({
           startDate: apiRange.startDateIso,
           endDate: apiRange.endDateIso,
           page: targetPage,
@@ -254,9 +259,17 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           setSyncSummary(data);
           return data;
         }),
+        fetchProductModuleDistribution({
+          startDate: apiRange.startDateLocal,
+          endDate: apiRange.endDateLocal,
+        }).then((data) => {
+          setProductModuleData(data);
+          return data;
+        }),
       ]);
       setOverview(overviewData);
       setDemandOverview(demandData);
+      setAgentOverview(agentData);
       setConsultationFunnel(funnelData);
       setDailyStats(dailyStatsData);
       setTreeData(Array.isArray(treeResp) ? treeResp : []);
@@ -371,10 +384,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     }
   };
 
-  const loadUdescAgentIds = async () => {
+  const loadUdeskAgentIds = async () => {
     try {
-      const ids = await fetchUdescAgentIds();
-      setUdescAgentIds(ids);
+      const ids = await fetchUdeskAgentIds();
+      setUdeskAgentIds(ids);
     } catch {
       message.error('加载 Udesk 人员ID失败');
     }
@@ -419,7 +432,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   useEffect(() => {
     if (activeMenuKey === 'agents') {
       void loadAgents();
-      void loadUdescAgentIds();
+      void loadUdeskAgentIds();
       void loadWecomEmployees();
     }
   }, [activeMenuKey]);
@@ -485,7 +498,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       {
         title: '操作',
         key: 'actions',
-        render: (_: unknown, record: UdescSessionRecord) => (
+        render: (_: unknown, record: UdeskSessionRecord) => (
           <Button
             size="small"
             onClick={() => {
@@ -707,9 +720,9 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             { name: '咨询量', value: latestFunnelPeriod.consultationCount },
             { name: '问题咨询', value: latestFunnelPeriod.issueConsultCount },
             { name: '问题反馈', value: latestFunnelPeriod.feedbackCount },
-            { name: '识别需求/Bug', value: latestFunnelPeriod.requirementIdentifiedCount },
-            { name: '已完成需求/Bug', value: latestFunnelPeriod.requirementCompletedCount },
-            { name: '需求/Bug上线量', value: latestFunnelPeriod.releaseCount },
+            { name: '需求/Bug识别', value: latestFunnelPeriod.requirementIdentifiedCount },
+            { name: '需求/Bug闭环量', value: latestFunnelPeriod.requirementCompletedCount },
+            { name: '需求/Bug上线闭环量', value: latestFunnelPeriod.releaseCount },
           ],
         },
       ],
@@ -815,21 +828,21 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               pagination={{ pageSize: 10 }}
               dataSource={consultationFunnel?.periods ?? []}
               columns={[
-                { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel' },
+                { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel', sorter: (a: any, b: any) => a.periodStart.localeCompare(b.periodStart), defaultSortOrder: 'descend' as const },
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
                 { title: '问题咨询', dataIndex: 'issueConsultCount', key: 'issueConsultCount' },
                 { title: '问题反馈', dataIndex: 'feedbackCount', key: 'feedbackCount' },
                 {
-                  title: '识别需求/Bug',
+                  title: '需求/Bug识别',
                   dataIndex: 'requirementIdentifiedCount',
                   key: 'requirementIdentifiedCount',
                 },
                 {
-                  title: '已完成需求/Bug',
+                  title: '需求/Bug闭环量',
                   dataIndex: 'requirementCompletedCount',
                   key: 'requirementCompletedCount',
                 },
-                { title: '需求/Bug上线量', dataIndex: 'releaseCount', key: 'releaseCount' },
+                { title: '需求/Bug上线闭环量', dataIndex: 'releaseCount', key: 'releaseCount' },
               ]}
             />
           </Card>
@@ -1094,7 +1107,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={4}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>需求已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>需求闭环数</span>} 
               value={demandOverview?.completedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -1118,10 +1131,35 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={8}>
-          <div style={{ padding: '20px 24px' }}>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的需求（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求结单率</span>}
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中需求</span>}
+              value={demandOverview?.followUpCount ?? 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </div>
+        </Col>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1185,7 +1223,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={4}>
           <div style={{ padding: '20px 16px' }}>
             <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 已结单</span>} 
+              title={<span style={{ color: '#666', fontSize: 13 }}>Bug闭环数</span>} 
               value={demandOverview?.bugCompletedCount ?? 0}
               valueStyle={{ color: '#52c41a' }}
             />
@@ -1209,10 +1247,35 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={8}>
-          <div style={{ padding: '20px 24px' }}>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
+              <Tooltip title="状态为待评估 / 已采纳 / 开发中 / 已完成的 Bug（已剔除长期演进）">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug 结单率</span>}
+              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中 Bug</span>}
+              value={demandOverview?.bugFollowUpCount ?? 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </div>
+        </Col>
+        <Col span={4} style={{ position: 'relative' }}>
+          <div style={{ padding: '20px 16px' }}>
+            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
+              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
+                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
+                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
+                </svg>
+              </Tooltip>
+            </span>
+            <Statistic
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -1252,7 +1315,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       bugCompletionRate: number;
     }> = [];
     
-    const sortedMonths = Array.from(months).sort();
+    const sortedMonths = Array.from(months).sort().reverse();
     
     sortedMonths.forEach(month => {
       const reqData = demandMonthlyRows.find(r => r.month === month);
@@ -1309,33 +1372,103 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
   // 按月汇总表格的列定义
   const mergedMonthlyColumns = [
-    { title: '月份', dataIndex: 'month', key: 'month', width: 80, fixed: 'left' as const },
-    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 90 },
-    { title: '需求已完成', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 100 },
-    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 100 },
-    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 110 },
+    { title: '月份', dataIndex: 'month', key: 'month', width: 110, fixed: 'left' as const, defaultSortOrder: 'descend' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 120 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 140 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
     {
-      title: '需求结单率',
+      title: '需求关单率',
       key: 'reqCompletionRate',
-      width: 100,
+      width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.reqCompletionRate * 100).toFixed(2)}%`,
     },
-    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 90 },
-    { title: 'Bug已完成', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 100 },
-    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 100 },
-    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 110 },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 120 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 140 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
     {
-      title: 'Bug结单率',
+      title: 'Bug关单率',
       key: 'bugCompletionRate',
-      width: 100,
+      width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.bugCompletionRate * 100).toFixed(2)}%`,
     },
   ];
 
+  // ===== 按客服汇总表格（需求和 Bug 合并） =====
+  const mergedAgentRows = useMemo(() => {
+    return (agentOverview?.rows ?? []).map(r => ({
+      agentName: r.agentName,
+      reqCreated: r.reqCreated,
+      reqCompleted: r.reqCompleted,
+      reqRejected: r.reqRejected,
+      reqLongTerm: r.reqLongTerm,
+      reqCompletionRate: r.reqCompletionRate,
+      bugCreated: r.bugCreated,
+      bugCompleted: r.bugCompleted,
+      bugRejected: r.bugRejected,
+      bugLongTerm: r.bugLongTerm,
+      bugCompletionRate: r.bugCompletionRate,
+      over7NotAdopted: r.over7NotAdopted,
+      over30NotClosedReq: r.over30NotClosedReq,
+      over30NotClosedBug: r.over30NotClosedBug,
+    }));
+  }, [agentOverview]);
+
+  const mergedAgentColumns = [
+    { title: '客服名称', dataIndex: 'agentName', key: 'agentName', width: 120, fixed: 'left' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 120 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 140 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
+    {
+      title: '需求关单率',
+      key: 'reqCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.reqCompletionRate * 100).toFixed(2)}%`,
+    },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 120 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 140 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
+    {
+      title: 'Bug关单率',
+      key: 'bugCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+    {
+      title: '总关单率',
+      key: 'totalCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) => {
+        const totalCreated = record.reqCreated + record.bugCreated;
+        const totalCompleted = record.reqCompleted + record.bugCompleted;
+        const totalRejected = record.reqRejected + record.bugRejected;
+        const totalLongTerm = record.reqLongTerm + record.bugLongTerm;
+        const effectiveTotal = totalCreated - totalLongTerm;
+        if (effectiveTotal <= 0) return '0.00%';
+        const rate = (totalCompleted + totalRejected) / effectiveTotal;
+        return `${(rate * 100).toFixed(2)}%`;
+      },
+    },
+    { title: '超7天未采纳', dataIndex: 'over7NotAdopted', key: 'over7NotAdopted', width: 120 },
+    {
+      title: '超30天未闭环',
+      key: 'over30NotClosed',
+      width: 130,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        (record.over30NotClosedReq ?? 0) + (record.over30NotClosedBug ?? 0),
+    },
+  ];
+
   // 需求主Tab（包含需求和Bug两个子Tab）
   const demandTab = (
+    <>
     <Tabs defaultActiveKey="requirement" items={[
       { key: 'requirement', label: '需求', children: requirementTabContent },
       { key: 'bug', label: 'Bug', children: bugTabContent },
@@ -1349,12 +1482,38 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
               dataSource={mergedMonthlyRows}
               pagination={false}
               size="small"
+              bordered
+              scroll={{ x: 'max-content' }}
               columns={mergedMonthlyColumns}
             />
           </Card>
         )
       },
+      { 
+        key: 'agent', 
+        label: '按客服汇总', 
+        children: (
+          <Card extra={<Tag color="blue">已剔除长期演进</Tag>}>
+            <Table
+              rowKey="agentName"
+              dataSource={mergedAgentRows}
+              pagination={false}
+              size="small"
+              bordered
+              scroll={{ x: 'max-content' }}
+              columns={mergedAgentColumns}
+              loading={agentLoading}
+            />
+          </Card>
+        )
+      },
     ]} />
+      <ProductModuleChart
+        data={productModuleData}
+        loading={loading}
+        title="产品模块分布"
+      />
+    </>
   );
 
   const opportunityTab = (
@@ -1746,7 +1905,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           title="清空全部数据"
           description="将删除所有 Udesk 数据（会话、消息、评价等），此操作不可恢复！"
           onConfirm={async () => {
-            const resp = await clearUdescData();
+            const resp = await clearUdeskData();
             message.success(`已清空 ${resp.sessions} 会话, ${resp.messages} 消息, ${resp.votes} 评价`);
             const [progress, summary] = await Promise.all([fetchSyncProgress(), fetchSyncSummary()]);
             setSyncProgress(progress);
@@ -1846,7 +2005,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Card title="历史同步记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={syncRuns.filter((item) => item.source === 'udesc')}
+          dataSource={syncRuns.filter((item) => item.source === 'udesk')}
           pagination={false}
           size="small"
           columns={[
@@ -1872,7 +2031,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Card title="最近失败记录" style={{ marginTop: 16 }}>
         <Table
           rowKey="id"
-          dataSource={syncIssues.filter((item) => item.source === 'udesc').slice(0, 50)}
+          dataSource={syncIssues.filter((item) => item.source === 'udesk').slice(0, 50)}
           pagination={false}
           size="small"
           columns={[
@@ -1990,10 +2149,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     <Card title="人员管理">
       <Tabs
         activeKey={agentsTabKey}
-        onChange={(key) => setAgentsTabKey(key as 'udesc' | 'wecom')}
+        onChange={(key) => setAgentsTabKey(key as 'udesk' | 'wecom')}
         items={[
           {
-            key: 'udesc',
+            key: 'udesk',
             label: 'Udesk 客服人员',
             children: (
               <>
@@ -2004,7 +2163,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                       setEditingAgentId(null);
                       agentForm.resetFields();
                       agentForm.setFieldsValue({ enabled: true });
-                      void loadUdescAgentIds();
+                      void loadUdeskAgentIds();
                       setAgentModalOpen(true);
                     }}
                   >
@@ -2044,7 +2203,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                                 enabled: record.enabled,
                                 remark: record.remark,
                               });
-                              void loadUdescAgentIds();
+                              void loadUdeskAgentIds();
                               setAgentModalOpen(true);
                             }}
                           >
@@ -2226,7 +2385,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         {!loading && overview && activeMenuKey === 'satisfaction' && satisfactionTab}
         {!loading && demandOverview && activeMenuKey === 'demand' && demandTab}
         {activeMenuKey === 'opportunity' && opportunityTab}
-        {activeMenuKey === 'sync-udesc' && syncTab}
+        {activeMenuKey === 'sync-udesk' && syncTab}
         {activeMenuKey === 'sync-zouwu' && zouwuSyncTab}
         {activeMenuKey === 'agents' && agentsTab}
 
@@ -2252,7 +2411,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             <Form.Item name="agentId" label="人员ID" rules={[{ required: true, message: '请输入人员ID' }]}>
               <AutoComplete
                 disabled={Boolean(editingAgentId)}
-                options={udescAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
+                options={udeskAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
                 placeholder="优先选择 Udesk 人员ID"
                 filterOption={(inputValue, option) =>
                   `${option?.value ?? ''}${option?.label ?? ''}`.toLowerCase().includes(inputValue.toLowerCase())
@@ -2422,7 +2581,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             </Form.Item>
             <Form.Item name="agentId" label="负责人客服ID">
               <AutoComplete
-                options={udescAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
+                options={udeskAgentIds.map((id) => ({ value: id, label: getAgentLabel(id) }))}
                 placeholder="可关联客服ID"
               />
             </Form.Item>
