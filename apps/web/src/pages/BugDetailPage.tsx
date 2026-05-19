@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip } from 'antd';
-import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
-import type { ProductModuleDistribution } from '../types/kpi';
+import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip, Tabs, Table } from 'antd';
+import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../api/kpi';
+import type { ProductModuleDistribution, AgentOverview } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
 import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
@@ -41,6 +41,8 @@ interface MonthlyRow {
 export function BugDetailPage() {
   const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
   const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
+  const [agentOverview, setAgentOverview] = React.useState<AgentOverview | null>(null);
+  const [agentLoading, setAgentLoading] = React.useState(false);
   const [pageSize, setPageSize] = React.useState(20);
 
   // 加载产品模块分布数据（Bug = issueType=1）
@@ -52,6 +54,24 @@ export function BugDetailPage() {
       issueType: '1',
     }).then((data) => {
       if (!cancelled) setProductModuleData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange]);
+
+  // 加载客服 Bug 汇总数据
+  React.useEffect(() => {
+    let cancelled = false;
+    setAgentLoading(true);
+    fetchAgentOverview({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then((data) => {
+      if (!cancelled) {
+        setAgentOverview(data);
+        setAgentLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setAgentLoading(false);
     });
     return () => { cancelled = true; };
   }, [dateRange]);
@@ -289,17 +309,63 @@ export function BugDetailPage() {
       </Row>
 
       <Card 
-        title={<span style={{ fontWeight: 600 }}>月度数据详情</span>}
+        title={<span style={{ fontWeight: 600 }}>汇总数据</span>}
+        extra={<Tag color="blue">已剔除长期演进</Tag>}
         style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
       >
-        <ResizableTable<MonthlyRow>
-          rowKey="month"
-          dataSource={(demandOverview?.monthlyBug ?? []).slice().reverse()}
-          pagination={false}
-          size="middle"
-          columns={monthlyColumns}
-          loading={demandLoading}
-        />
+        <Tabs defaultActiveKey="monthly" items={[
+          {
+            key: 'monthly',
+            label: '按月汇总',
+            children: (
+              <ResizableTable<MonthlyRow>
+                rowKey="month"
+                dataSource={(demandOverview?.monthlyBug ?? []).slice().reverse()}
+                pagination={false}
+                size="middle"
+                columns={monthlyColumns}
+                loading={demandLoading}
+              />
+            ),
+          },
+          {
+            key: 'agent',
+            label: '按客服汇总',
+            children: (
+              <ResizableTable<{ agentName: string; created: number; completed: number; rejectedCount: number; longTermCount: number; completionRate: number; over30NotClosedBug: number }>
+                rowKey="agentName"
+                dataSource={(agentOverview?.rows ?? []).map(r => ({
+                  agentName: r.agentName,
+                  created: r.bugCreated,
+                  completed: r.bugCompleted,
+                  rejectedCount: r.bugRejected,
+                  longTermCount: r.bugLongTerm,
+                  completionRate: r.bugCompletionRate,
+                  over30NotClosedBug: r.over30NotClosedBug,
+                }))}
+                pagination={false}
+                size="middle"
+                columns={[
+                  { title: '客服名称', dataIndex: 'agentName', key: 'agentName', sorter: (a, b) => a.agentName.localeCompare(b.agentName), width: 100 },
+                  { title: 'Bug 总数', dataIndex: 'created', key: 'created', sorter: (a, b) => a.created - b.created, width: 100 },
+                  { title: '闭环数', dataIndex: 'completed', key: 'completed', sorter: (a, b) => a.completed - b.completed, width: 90 },
+                  { title: '已拒绝', dataIndex: 'rejectedCount', key: 'rejectedCount', sorter: (a, b) => a.rejectedCount - b.rejectedCount, width: 80 },
+                  { title: '长期演进', dataIndex: 'longTermCount', key: 'longTermCount', sorter: (a, b) => a.longTermCount - b.longTermCount, width: 100 },
+                  {
+                    title: '关单率',
+                    dataIndex: 'completionRate',
+                    key: 'completionRate',
+                    sorter: (a, b) => a.completionRate - b.completionRate,
+                    render: (value: number) => `${(value * 100).toFixed(2)}%`,
+                    width: 100,
+                  },
+                  { title: '超30天未闭环Bug', key: 'over30NotClosedBug', render: (_: unknown, record: { over30NotClosedBug?: number }) => record.over30NotClosedBug ?? 0, sorter: (a, b) => (a.over30NotClosedBug ?? 0) - (b.over30NotClosedBug ?? 0), width: 150 },
+                ]}
+                loading={agentLoading}
+              />
+            ),
+          },
+        ]} />
       </Card>
 
       <Card 

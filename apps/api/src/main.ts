@@ -4,6 +4,10 @@ import * as path from 'path';
 const envPath = path.join(__dirname, '../../../.env');
 dotenv.config({ path: envPath });
 
+// 加载 .env.local（本地私有覆盖，不会被源项目覆盖）
+const envLocalPath = path.join(__dirname, '../../../.env.local');
+dotenv.config({ path: envLocalPath, override: true });
+
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
