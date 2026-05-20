@@ -1126,7 +1126,6 @@ export class SyncService {
 
         const respSeconds = extractNumber(rawPayload.resp_seconds);
         const avgRespSeconds = extractNumber(rawPayload.avg_resp_seconds);
-        const sustainSeconds = extractNumber(rawPayload.sustain_seconds);
         const queueSeconds = extractNumber(rawPayload.queue_seconds);
         const agentMsgNum = extractNumber(rawPayload.agent_msg_num);
         const customerMsgNum = extractNumber(rawPayload.customer_msg_num);
@@ -1138,9 +1137,8 @@ export class SyncService {
         if (avgRespSeconds !== null && avgRespSeconds >= 0) {
           avgResponseTime = avgRespSeconds;
         }
-        if (sustainSeconds !== null && sustainSeconds > 0) {
-          resolutionTime = sustainSeconds;
-        }
+        // 注意：resolutionTime（平均对话时长）不使用上游 sustain_seconds，
+        // 而是统一用 endedAt - startedAt 计算，确保与"开始到结束间隔"定义一致
         // queue_seconds 可能是 "未排队" 字符串，此时 extractNumber 返回 null
         if (queueSeconds !== null && queueSeconds >= 0) {
           waitTime = queueSeconds;
