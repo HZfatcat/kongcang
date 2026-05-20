@@ -6,6 +6,7 @@ import type {
   KpiOverview,
   ProductModuleDistribution,
   SyncRunRecord,
+  AgentOverview,
 } from '../types/kpi';
 import dayjs from 'dayjs';
 
@@ -16,6 +17,11 @@ export async function fetchOverview(params: { startDate?: string; endDate?: stri
 
 export async function fetchDemandOverview(params: { startDate?: string; endDate?: string }) {
   const resp = await apiClient.get<DemandOverview>('/kpi/demand', { params });
+  return resp.data;
+}
+
+export async function fetchAgentOverview(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<AgentOverview>('/kpi/demand/agent', { params });
   return resp.data;
 }
 

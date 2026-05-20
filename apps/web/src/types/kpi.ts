@@ -81,6 +81,30 @@ export interface ConsultationFunnelOverview {
   periods: ConsultationFunnelPoint[];
 }
 
+/** 按客服汇总单行数据 */
+export interface AgentCompletionRow {
+  agentName: string;
+  reqCreated: number;
+  reqCompleted: number;
+  reqRejected: number;
+  reqLongTerm: number;
+  reqCompletionRate: number;
+  bugCreated: number;
+  bugCompleted: number;
+  bugRejected: number;
+  bugLongTerm: number;
+  bugCompletionRate: number;
+  over7NotAdopted: number;
+  over30NotClosedReq: number;
+  over30NotClosedBug: number;
+}
+
+/** 按客服汇总返回 */
+export interface AgentOverview {
+  dateRange: { startDate: string; endDate: string };
+  rows: AgentCompletionRow[];
+}
+
 export interface SyncRunRecord {
   id: string;
   source: string;

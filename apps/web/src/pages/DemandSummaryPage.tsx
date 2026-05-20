@@ -1,8 +1,8 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip } from 'antd';
+import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip, Table } from 'antd';
 import { Link } from 'react-router-dom';
-import { useKpi, fetchProductModuleDistribution } from '../api/kpi';
-import type { MonthlyCompletion, ProductModuleDistribution } from '../types/kpi';
+import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../api/kpi';
+import type { MonthlyCompletion, ProductModuleDistribution, AgentOverview } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
 import { ProductModuleChart } from '../components/ProductModuleChart';
 import dayjs from 'dayjs';
@@ -60,6 +60,85 @@ export function DemandSummaryPage() {
     });
   }, [dateRange]);
 
+  // ===== 按客服汇总 =====
+  const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+
+  useEffect(() => {
+    setAgentLoading(true);
+    fetchAgentOverview({
+      startDate: dateRange[0].format('YYYY-MM-DD'),
+      endDate: dateRange[1].format('YYYY-MM-DD'),
+    }).then(setAgentOverview).catch(err => {
+      console.error('Failed to load agent overview:', err);
+      setAgentOverview(null);
+    }).finally(() => setAgentLoading(false));
+  }, [dateRange]);
+
+  const mergedAgentRows = React.useMemo(() => {
+    return (agentOverview?.rows ?? []).map(r => ({
+      agentName: r.agentName,
+      reqCreated: r.reqCreated,
+      reqCompleted: r.reqCompleted,
+      reqRejected: r.reqRejected,
+      reqLongTerm: r.reqLongTerm,
+      reqCompletionRate: r.reqCompletionRate,
+      bugCreated: r.bugCreated,
+      bugCompleted: r.bugCompleted,
+      bugRejected: r.bugRejected,
+      bugLongTerm: r.bugLongTerm,
+      bugCompletionRate: r.bugCompletionRate,
+      over7NotAdopted: r.over7NotAdopted,
+      over30NotClosedReq: r.over30NotClosedReq,
+      over30NotClosedBug: r.over30NotClosedBug,
+    }));
+  }, [agentOverview]);
+
+  const mergedAgentColumns = [
+    { title: '客服名称', dataIndex: 'agentName', key: 'agentName', width: 120, fixed: 'left' as const },
+    { title: '需求识别', dataIndex: 'reqCreated', key: 'reqCreated', width: 120 },
+    { title: '需求闭环数', dataIndex: 'reqCompleted', key: 'reqCompleted', width: 140 },
+    { title: '需求已拒绝', dataIndex: 'reqRejected', key: 'reqRejected', width: 120 },
+    { title: '需求长期演进', dataIndex: 'reqLongTerm', key: 'reqLongTerm', width: 130 },
+    {
+      title: '需求关单率',
+      key: 'reqCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.reqCompletionRate * 100).toFixed(2)}%`,
+    },
+    { title: 'Bug识别', dataIndex: 'bugCreated', key: 'bugCreated', width: 120 },
+    { title: 'Bug闭环数', dataIndex: 'bugCompleted', key: 'bugCompleted', width: 140 },
+    { title: 'Bug已拒绝', dataIndex: 'bugRejected', key: 'bugRejected', width: 120 },
+    { title: 'Bug长期演进', dataIndex: 'bugLongTerm', key: 'bugLongTerm', width: 130 },
+    {
+      title: 'Bug关单率',
+      key: 'bugCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        `${(record.bugCompletionRate * 100).toFixed(2)}%`,
+    },
+    {
+      title: '总关单率',
+      key: 'overallCompletionRate',
+      width: 140,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) => {
+        const totalClosed = record.reqCompleted + record.reqRejected + record.bugCompleted + record.bugRejected;
+        const totalEffective = record.reqCreated + record.bugCreated - record.reqLongTerm - record.bugLongTerm;
+        const rate = totalEffective > 0 ? totalClosed / totalEffective : 0;
+        return `${(rate * 100).toFixed(2)}%`;
+      },
+    },
+    { title: '超7天未采纳', dataIndex: 'over7NotAdopted', key: 'over7NotAdopted', width: 120 },
+    {
+      title: '超30天未闭环',
+      key: 'over30NotClosed',
+      width: 150,
+      render: (_: unknown, record: typeof mergedAgentRows[number]) =>
+        (record.over30NotClosedReq ?? 0) + (record.over30NotClosedBug ?? 0),
+    },
+  ];
+
   // 按月汇总数据
   const monthlySummary: MonthlySummaryRow[] = React.useMemo(() => {
     const reqMonthly = demandOverview?.monthlyRequirement ?? [];
@@ -87,7 +166,7 @@ export function DemandSummaryPage() {
     });
     
     bugMonthly.forEach((m: MonthlyCompletion) => {
-      // Bug闭环率使用 completionRate 字段 - 与 BugDetailPage 一致
+      // Bug关单率使用 completionRate 字段 - 与 BugDetailPage 一致
       const existing = monthMap.get(m.month);
       if (existing) {
         existing.bugCreated = m.created;
@@ -165,7 +244,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.reqLongTerm - b.reqLongTerm,
     },
     {
-      title: '需求闭环率',
+      title: '需求关单率',
       dataIndex: 'reqRate',
       key: 'reqRate',
       width: 140,
@@ -205,7 +284,7 @@ export function DemandSummaryPage() {
       sorter: (a: MonthlySummaryRow, b: MonthlySummaryRow) => a.bugLongTerm - b.bugLongTerm,
     },
     {
-      title: 'Bug闭环率',
+      title: 'Bug关单率',
       dataIndex: 'bugRate',
       key: 'bugRate',
       width: 140,
@@ -381,7 +460,7 @@ export function DemandSummaryPage() {
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>需求闭环率</span>}
+              title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -480,7 +559,7 @@ export function DemandSummaryPage() {
               </Tooltip>
             </span>
             <Statistic
-              title={<span style={{ color: '#666' }}>Bug闭环率</span>}
+              title={<span style={{ color: '#666' }}>Bug关单率</span>}
               value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
@@ -501,6 +580,24 @@ export function DemandSummaryPage() {
           size="middle"
           loading={demandLoading}
           scroll={{ x: 1100 }}
+        />
+      </Card>
+
+      {/* 按客服汇总 */}
+      <Card
+        title={<span style={{ fontWeight: 600 }}>按客服汇总</span>}
+        extra={<Tag color="blue">已剔除长期演进</Tag>}
+        style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+      >
+        <Table
+          rowKey="agentName"
+          dataSource={mergedAgentRows}
+          pagination={false}
+          size="small"
+          bordered
+          scroll={{ x: 'max-content' }}
+          columns={mergedAgentColumns}
+          loading={agentLoading}
         />
       </Card>
 

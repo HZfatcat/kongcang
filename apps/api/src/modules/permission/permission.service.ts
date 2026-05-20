@@ -482,7 +482,7 @@ export class PermissionService implements OnModuleInit {
       { menuName: '评价分析', path: '/udesc/votes', component: 'VotesPage', parentPath: '/udesc', sortOrder: 31 },
       { menuName: '会话指标', path: '/udesc/metrics', component: 'MetricsPage', parentPath: '/udesc', sortOrder: 32 },
       { menuName: '咨询详情', path: '/udesc/sessions', component: 'SessionDetailPage', parentPath: '/udesc', sortOrder: 33 },
-      { menuName: '需求结单率', path: '/demand', component: 'demand', icon: 'CheckCircleOutlined', sortOrder: 4, isParent: true },
+      { menuName: '需求关单率', path: '/demand', component: 'demand', icon: 'CheckCircleOutlined', sortOrder: 4, isParent: true },
       { menuName: '汇总 Dashboard', path: '/demand', component: 'DemandSummaryPage', parentPath: '/demand', sortOrder: 41 },
       { menuName: '需求详情', path: '/demand/requirements', component: 'RequirementDetailPage', parentPath: '/demand', sortOrder: 42 },
       { menuName: 'Bug 详情', path: '/demand/bugs', component: 'BugDetailPage', parentPath: '/demand', sortOrder: 43 },
