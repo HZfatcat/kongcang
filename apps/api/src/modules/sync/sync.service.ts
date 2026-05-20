@@ -1044,13 +1044,20 @@ export class SyncService {
         }
         // 客户有消息但客服未回复，firstResponseTime 保持 null
 
-        // 平均响应时间：每条客户消息后的第一条人工客服回复的间隔平均值
+        // 平均响应时间：仅统计客服接入后的客户消息配对（排除留言）
         const customerMsgs = allMsgs.filter(m => isCustomerMsg(m));
         const humanAgentMsgs = allMsgs.filter(m => isHumanAgentMsg(m));
         const responseTimes: number[] = [];
+        // 找到首次客服回复时间（接入时间）
+        let firstAgentReplyTime = Infinity;
+        if (humanAgentMsgs.length > 0) {
+          firstAgentReplyTime = humanAgentMsgs[0].sentAt.getTime();
+        }
         let agentIdx = 0;
         for (let ci = 0; ci < customerMsgs.length && agentIdx < humanAgentMsgs.length; ci++) {
           const custTime = customerMsgs[ci].sentAt.getTime();
+          // 跳过客服接入前的客户消息（留言等），不计入平均响应
+          if (custTime < firstAgentReplyTime) continue;
           // 跳过当前客户消息之前的客服回复（已被之前客户消息配对）
           while (agentIdx < humanAgentMsgs.length && humanAgentMsgs[agentIdx].sentAt.getTime() <= custTime) {
             agentIdx++;
@@ -1058,7 +1065,7 @@ export class SyncService {
           if (agentIdx < humanAgentMsgs.length) {
             const diff = humanAgentMsgs[agentIdx].sentAt.getTime() - custTime;
             if (diff > 0) {
-              const capped = Math.min(Math.floor(diff / 1000), 3600); // 上限1小时，排除留言过夜等异常
+              const capped = Math.min(Math.floor(diff / 1000), 3600); // 上限1小时，排除异常值
               responseTimes.push(capped);
             } else {
               responseTimes.push(0); // 客服回复早于客户消息，视为即时

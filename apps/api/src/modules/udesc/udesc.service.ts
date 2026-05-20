@@ -945,12 +945,19 @@ export class UdescService {
           // 客户有消息但客服未回复，firstResponseTime 保持 null（不纳入平均首次响应时长统计）
         }
 
-        // 计算平均响应时间
+        // 计算平均响应时间（仅统计客服接入后的消息配对，排除留言时间）
         let avgResponseTime = 0;
         const responseTimes: number[] = [];
+        // 找到首次客服回复时间（接入时间），仅接入后的客户消息计入平均响应
+        let firstAgentReplyTime = Infinity;
+        if (agentMsgs.length > 0) {
+          firstAgentReplyTime = new Date(agentMsgs[0].sentAt).getTime();
+        }
         let agentIdx = 0;
         for (let ci = 0; ci < customerMsgs.length && agentIdx < agentMsgs.length; ci++) {
           const custTime = new Date(customerMsgs[ci].sentAt).getTime();
+          // 跳过客服接入前的客户消息（留言等），不计入平均响应
+          if (custTime < firstAgentReplyTime) continue;
           // 跳过当前客户消息之前的客服回复（已被之前客户消息配对）
           while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() <= custTime) {
             agentIdx++;
@@ -958,7 +965,7 @@ export class UdescService {
           if (agentIdx < agentMsgs.length) {
             const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
             if (diff > 0) {
-              responseTimes.push(Math.min(Math.round(diff / 1000), 3600)); // 上限1小时，排除留言过夜等异常
+              responseTimes.push(Math.min(Math.round(diff / 1000), 3600)); // 上限1小时，排除异常值
             } else {
               responseTimes.push(0); // 客服回复早于客户消息，视为即时
             }
@@ -1177,17 +1184,23 @@ export class UdescService {
           }
         }
 
-        // 平均响应时间（双指针配对）
+        // 平均响应时间（双指针配对，仅统计接入后的客户消息，排除留言）
+        let firstAgentReplyTime = Infinity;
+        if (agentMsgs.length > 0) {
+          firstAgentReplyTime = new Date(agentMsgs[0].sentAt).getTime();
+        }
         let agentIdx = 0;
         for (let ci = 0; ci < customerMsgs.length && agentIdx < agentMsgs.length; ci++) {
           const custTime = new Date(customerMsgs[ci].sentAt).getTime();
+          // 跳过客服接入前的客户消息（留言等），不计入平均响应
+          if (custTime < firstAgentReplyTime) continue;
           while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() <= custTime) {
             agentIdx++;
           }
           if (agentIdx < agentMsgs.length) {
             const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
             if (diff > 0) {
-              responseTimes.push(Math.min(Math.round(diff / 1000), 3600)); // 上限1小时，排除留言过夜等异常
+              responseTimes.push(Math.min(Math.round(diff / 1000), 3600)); // 上限1小时，排除异常值
             }
             agentIdx++;
           }
@@ -1350,10 +1363,16 @@ export class UdescService {
           }
         }
 
-        // 平均响应时间（双指针配对）
+        // 平均响应时间（双指针配对，仅统计接入后的客户消息，排除留言）
+        let firstAgentReplyTime = Infinity;
+        if (agentMsgs.length > 0) {
+          firstAgentReplyTime = new Date(agentMsgs[0].sentAt).getTime();
+        }
         let agentIdx = 0;
         for (let ci = 0; ci < customerMsgs.length && agentIdx < agentMsgs.length; ci++) {
           const custTime = new Date(customerMsgs[ci].sentAt).getTime();
+          // 跳过客服接入前的客户消息（留言等），不计入平均响应
+          if (custTime < firstAgentReplyTime) continue;
           while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() <= custTime) {
             agentIdx++;
           }

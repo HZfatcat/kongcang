@@ -139,9 +139,11 @@ export function MetricsPage() {
 
   const formatTime = (seconds: number | null) => {
     if (seconds === null || seconds === undefined) return '-';
-    if (seconds < 60) return `${Math.round(seconds)}秒`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`;
-    return `${(seconds / 3600).toFixed(1)}小时`;
+    const abs = Math.abs(seconds);
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const s = Math.round(abs % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   const columns: ColumnsType<UdescSessionMetrics> = [
