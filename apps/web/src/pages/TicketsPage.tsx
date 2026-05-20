@@ -136,8 +136,8 @@ export function TicketsPage() {
     setDailyLoading(true);
     try {
       const resp = await fetchUdescTicketDailyStats({
-        startDate: apiRange.startDateIso,
-        endDate: apiRange.endDateIso,
+        startDate: range[0].format('YYYY-MM-DD'),
+        endDate: range[1].format('YYYY-MM-DD'),
       });
       setDailyStats(resp);
     } catch {

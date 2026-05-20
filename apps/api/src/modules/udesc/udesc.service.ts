@@ -1642,7 +1642,11 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
   }) {
-    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
+
+    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
+    const end = new Date(rawEnd);
+    end.setUTCHours(23, 59, 59, 999);
 
     // 生成日期范围
     const days: string[] = [];
