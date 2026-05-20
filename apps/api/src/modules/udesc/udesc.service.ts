@@ -942,10 +942,7 @@ export class UdescService {
               }
             }
           }
-          // 客户有消息但客服未回复，首次响应时间设为 100 小时
-          if (agentMsgs.length === 0) {
-            firstResponseTime = 100 * 60 * 60; // 360000 秒 = 100 小时
-          }
+          // 客户有消息但客服未回复，firstResponseTime 保持 null（不纳入平均首次响应时长统计）
         }
 
         // 计算平均响应时间
@@ -1113,6 +1110,12 @@ export class UdescService {
         waitTime: true,
         resolutionTime: true,
         messageCount: true,
+        session: {
+          select: {
+            startedAt: true,
+            endedAt: true,
+          },
+        },
       },
     });
 
@@ -1124,6 +1127,7 @@ export class UdescService {
         totalSessions: 0,
         avgFirstResponseTime: null,
         avgResponseTime: null,
+        avgSessionDuration: null,
         avgWaitTime: null,
         avgResolutionTime: null,
         totalMessages: 0,
@@ -1133,10 +1137,19 @@ export class UdescService {
 
     // 从 metrics 聚合
     const firstResponseTimes = metrics.filter(m => m.firstResponseTime != null).map(m => m.firstResponseTime!);
-    const responseTimes = metrics.filter(m => m.avgResponseTime != null).map(m => m.avgResponseTime!);
+    const responseTimes = metrics.filter(m => m.avgResponseTime != null && m.avgResponseTime > 0).map(m => m.avgResponseTime!);
     const waitTimes = metrics.filter(m => m.waitTime != null).map(m => m.waitTime!);
     const resolutionTimes = metrics.filter(m => m.resolutionTime != null).map(m => m.resolutionTime!);
     const totalMessages = metrics.reduce((sum, m) => sum + (m.messageCount || 0), 0);
+
+    // 计算平均对话时长：结束时间 - 开始时间
+    const sessionDurations = metrics
+      .filter(m => m.session?.endedAt)
+      .map(m => {
+        const startedAt = m.session!.startedAt instanceof Date ? m.session!.startedAt : new Date(m.session!.startedAt);
+        const endedAt = m.session!.endedAt instanceof Date ? m.session!.endedAt : new Date(m.session!.endedAt!);
+        return Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000);
+      });
 
     const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
 
@@ -1145,6 +1158,7 @@ export class UdescService {
       totalSessions: metrics.length,
       avgFirstResponseTime: avg(firstResponseTimes),
       avgResponseTime: avg(responseTimes),
+      avgSessionDuration: avg(sessionDurations),
       avgWaitTime: avg(waitTimes),
       avgResolutionTime: avg(resolutionTimes),
       totalMessages,
@@ -1213,7 +1227,7 @@ export class UdescService {
       if (m.firstResponseTime != null) {
         stat.firstResponseTimes.push(m.firstResponseTime);
       }
-      if (m.avgResponseTime != null) {
+      if (m.avgResponseTime != null && m.avgResponseTime > 0) {
         // avgResponseTime 是每个会话内的平均响应时间，每个会话贡献一次
         stat.responseTimes.push(m.avgResponseTime);
       }

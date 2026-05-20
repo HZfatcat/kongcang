@@ -1031,21 +1031,18 @@ export class SyncService {
         // 人工客服消息 = 客服消息 - 自动消息
         const isHumanAgentMsg = (m: typeof allMsgs[number]) => isAgentMsg(m) && !isAutoMsg(m);
 
-        // 首次响应时间：客服首次人工回复 - 客户首次发消息时间
-        // 注意：不使用 session.startedAt，因为会话创建时间可能滞后于客户首次发消息时间
+        // 首次响应时间：客服首次人工回复 - 会话开始时间
+        // 使用 session.startedAt 作为基准，排除留言未接入前的等待时间
         const firstHumanAgentMsg = allMsgs.find(m => isHumanAgentMsg(m));
-        const firstCustomerMsg = allMsgs.find(m => isCustomerMsg(m));
-        if (firstHumanAgentMsg && firstCustomerMsg) {
-          const diffMs = firstHumanAgentMsg.sentAt.getTime() - firstCustomerMsg.sentAt.getTime();
+        if (firstHumanAgentMsg) {
+          const diffMs = firstHumanAgentMsg.sentAt.getTime() - session.startedAt.getTime();
           if (diffMs > 0) {
             firstResponseTime = Math.floor(diffMs / 1000);
           } else {
-            firstResponseTime = 0; // 客服回复早于客户消息，视为即时
+            firstResponseTime = 0; // 客服回复早于会话创建，视为即时
           }
-        } else if (firstHumanAgentMsg && !firstCustomerMsg) {
-          // 只有客服消息没有客户消息（客服主动发起），视为即时
-          firstResponseTime = 0;
         }
+        // 客户有消息但客服未回复，firstResponseTime 保持 null
 
         // 平均响应时间：每条客户消息后的第一条人工客服回复的间隔平均值
         const customerMsgs = allMsgs.filter(m => isCustomerMsg(m));
