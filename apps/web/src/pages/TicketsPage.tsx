@@ -136,8 +136,8 @@ export function TicketsPage() {
     setDailyLoading(true);
     try {
       const resp = await fetchUdescTicketDailyStats({
-        startDate: apiRange.startDateIso,
-        endDate: apiRange.endDateIso,
+        startDate: range[0].format('YYYY-MM-DD'),
+        endDate: range[1].format('YYYY-MM-DD'),
       });
       setDailyStats(resp);
     } catch {
@@ -375,7 +375,7 @@ export function TicketsPage() {
           </Col>
           <Col span={6}>
             <Card size="small">
-              <Statistic title="已解决" value={(summary?.byStatus['已解决'] ?? 0) + (summary?.byStatus['已关闭'] ?? 0)} />
+<Statistic title="已解决" value={summary?.byStatus['已解决'] ?? 0} />
             </Card>
           </Col>
           <Col span={6}>
@@ -385,7 +385,7 @@ export function TicketsPage() {
                 value={
                   summary?.total
                     ? (
-                        ((summary.byStatus['已解决'] ?? 0) + (summary.byStatus['已关闭'] ?? 0)) /
+                        (summary.byStatus['已解决'] ?? 0) /
                         summary.total *
                         100
                       ).toFixed(1)

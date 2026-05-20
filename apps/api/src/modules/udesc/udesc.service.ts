@@ -1571,10 +1571,11 @@ export class UdescService {
       }),
     ]);
 
-    // 计算平均解决时间
+    // 计算平均解决时间（仅统计已解决状态的工单）
     const resolvedTickets = await this.prisma.udescTicket.findMany({
       where: {
         ...where,
+        status: '已解决',
         createdAt: { not: null },
         resolvedAt: { not: null },
       },
@@ -1641,7 +1642,11 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
   }) {
-    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
+
+    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
+    const end = new Date(rawEnd);
+    end.setUTCHours(23, 59, 59, 999);
 
     // 生成日期范围
     const days: string[] = [];
@@ -1665,6 +1670,7 @@ export class UdescService {
       SELECT DATE("resolvedAt") as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+AND "status" = '已解决'
       GROUP BY DATE("resolvedAt")
       ORDER BY date
     `;
