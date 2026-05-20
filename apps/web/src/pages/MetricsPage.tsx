@@ -249,7 +249,7 @@ export function MetricsPage() {
               { title: '客服', dataIndex: 'agentName', width: 80, ellipsis: true },
               { title: '会话数', dataIndex: 'sessionCount', width: 70, sorter: (a, b) => a.sessionCount - b.sessionCount },
               { title: '平均首次响应', dataIndex: 'avgFirstResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
-              { title: '平均响应', dataIndex: 'avgResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
+              { title: '平均响应', dataIndex: 'avgResponseTime', width: 90, render: (v: number | null) => formatSeconds(v) },
               { title: '平均对话时长', dataIndex: 'avgResolutionTime', width: 100, render: (v: number | null) => formatTime(v) },
               { title: '平均消息数', dataIndex: 'avgMessagesPerSession', width: 90 },
             ]}
