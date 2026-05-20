@@ -959,7 +959,7 @@ export class UdescService {
           // 跳过客服接入前的客户消息（留言等），不计入平均响应
           if (custTime < firstAgentReplyTime) continue;
           // 跳过当前客户消息之前的客服回复（已被之前客户消息配对）
-          while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() <= custTime) {
+          while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() < custTime) {
             agentIdx++;
           }
           if (agentIdx < agentMsgs.length) {
@@ -1194,13 +1194,15 @@ export class UdescService {
           const custTime = new Date(customerMsgs[ci].sentAt).getTime();
           // 跳过客服接入前的客户消息（留言等），不计入平均响应
           if (custTime < firstAgentReplyTime) continue;
-          while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() <= custTime) {
+          while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() < custTime) {
             agentIdx++;
           }
           if (agentIdx < agentMsgs.length) {
             const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
             if (diff > 0) {
               responseTimes.push(Math.min(Math.round(diff / 1000), 3600)); // 上限1小时，排除异常值
+            } else {
+              responseTimes.push(0); // 即时回复
             }
             agentIdx++;
           }
@@ -1373,13 +1375,15 @@ export class UdescService {
           const custTime = new Date(customerMsgs[ci].sentAt).getTime();
           // 跳过客服接入前的客户消息（留言等），不计入平均响应
           if (custTime < firstAgentReplyTime) continue;
-          while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() <= custTime) {
+          while (agentIdx < agentMsgs.length && new Date(agentMsgs[agentIdx].sentAt).getTime() < custTime) {
             agentIdx++;
           }
           if (agentIdx < agentMsgs.length) {
             const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
             if (diff > 0) {
               stat.responseTimes.push(Math.min(Math.round(diff / 1000), 3600));
+            } else {
+              stat.responseTimes.push(0);
             }
             agentIdx++;
           }

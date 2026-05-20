@@ -1059,7 +1059,7 @@ export class SyncService {
           // 跳过客服接入前的客户消息（留言等），不计入平均响应
           if (custTime < firstAgentReplyTime) continue;
           // 跳过当前客户消息之前的客服回复（已被之前客户消息配对）
-          while (agentIdx < humanAgentMsgs.length && humanAgentMsgs[agentIdx].sentAt.getTime() <= custTime) {
+          while (agentIdx < humanAgentMsgs.length && humanAgentMsgs[agentIdx].sentAt.getTime() < custTime) {
             agentIdx++;
           }
           if (agentIdx < humanAgentMsgs.length) {
