@@ -29,6 +29,15 @@ export function UsersPage() {
   const [activeTab, setActiveTab] = React.useState<'agents' | 'employees'>('agents');
   const [pageSize, setPageSize] = React.useState(20);
 
+  const formatTime = (seconds: number | null) => {
+    if (seconds === null || seconds === undefined) return '-';
+    const abs = Math.abs(seconds);
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const s = Math.round(abs % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
   // ========== 本地客服人员状态 ==========
   const [localAgents, setLocalAgents] = useState<AgentProfile[]>([]);
   const [localAgentsLoading, setLocalAgentsLoading] = useState(false);
@@ -549,13 +558,13 @@ export function UsersPage() {
                 <Col span={4}>
                   <Statistic
                     title="平均首次响应"
-                    value={perfData.avgFirstResponseTime ? `${Math.round(perfData.avgFirstResponseTime)}秒` : '-'}
+                    value={perfData.avgFirstResponseTime != null ? formatTime(perfData.avgFirstResponseTime) : '-'}
                   />
                 </Col>
                 <Col span={4}>
                   <Statistic
                     title="平均解决时间"
-                    value={perfData.avgResolutionTime ? `${Math.round(perfData.avgResolutionTime)}秒` : '-'}
+                    value={perfData.avgResolutionTime != null ? formatTime(perfData.avgResolutionTime) : '-'}
                   />
                 </Col>
                 <Col span={4}>

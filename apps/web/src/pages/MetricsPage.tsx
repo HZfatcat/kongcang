@@ -139,9 +139,16 @@ export function MetricsPage() {
 
   const formatTime = (seconds: number | null) => {
     if (seconds === null || seconds === undefined) return '-';
-    if (seconds < 60) return `${Math.round(seconds)}秒`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`;
-    return `${(seconds / 3600).toFixed(1)}小时`;
+    const abs = Math.abs(seconds);
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const s = Math.round(abs % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const formatSeconds = (v: number | null) => {
+    if (v === null || v === undefined) return '-';
+    return `${Math.round(v)}s`;
   };
 
   const columns: ColumnsType<UdescSessionMetrics> = [
@@ -171,28 +178,21 @@ export function MetricsPage() {
     {
       title: '首次响应',
       dataIndex: 'firstResponseTime',
-      width: 90,
+      width: 80,
       sorter: true,
-      render: (v: number | null) => formatTime(v),
+      render: (v: number | null) => formatSeconds(v),
     },
     {
       title: '平均响应',
       dataIndex: 'avgResponseTime',
-      width: 90,
-      sorter: true,
-      render: (v: number | null) => formatTime(v),
-    },
-    {
-      title: '等待',
-      dataIndex: 'waitTime',
       width: 80,
       sorter: true,
-      render: (v: number | null) => formatTime(v),
+      render: (v: number | null) => formatSeconds(v),
     },
     {
-      title: '解决',
+      title: '对话时长',
       dataIndex: 'resolutionTime',
-      width: 80,
+      width: 100,
       sorter: true,
       render: (v: number | null) => formatTime(v),
     },
@@ -248,11 +248,10 @@ export function MetricsPage() {
             columns={[
               { title: '客服', dataIndex: 'agentName', width: 80, ellipsis: true },
               { title: '会话数', dataIndex: 'sessionCount', width: 70, sorter: (a, b) => a.sessionCount - b.sessionCount },
-              { title: '首次响应', dataIndex: 'avgFirstResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
+              { title: '平均首次响应', dataIndex: 'avgFirstResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
               { title: '平均响应', dataIndex: 'avgResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
-              { title: '等待', dataIndex: 'avgWaitTime', width: 80, render: (v: number | null) => formatTime(v) },
-              { title: '解决', dataIndex: 'avgResolutionTime', width: 80, render: (v: number | null) => formatTime(v) },
-              { title: '消息/会话', dataIndex: 'avgMessagesPerSession', width: 90 },
+              { title: '平均对话时长', dataIndex: 'avgResolutionTime', width: 100, render: (v: number | null) => formatTime(v) },
+              { title: '平均消息数', dataIndex: 'avgMessagesPerSession', width: 90 },
             ]}
             scroll={{ x: 580 }}
           />
