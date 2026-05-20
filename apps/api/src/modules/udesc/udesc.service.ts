@@ -721,6 +721,7 @@ export class UdescService {
             select: {
               agentId: true,
               startedAt: true,
+              rawPayload: true,
             },
           },
         },
@@ -739,7 +740,7 @@ export class UdescService {
       // null 评分记录，从 rawPayload 推断（全部记录，不分页）
       this.prisma.udescSessionVote.findMany({
         where: { ...where, rating: null },
-        select: { id: true, rawPayload: true },
+        select: { id: true, sessionId: true, rawPayload: true },
       }),
       this.prisma.udescSession.count({
         where: { startedAt: { gte: start, lte: end } },
@@ -795,11 +796,58 @@ export class UdescService {
       }
     }
 
-    // 3. 处理分页记录中的评分（当前页展示，含 rawPayload 推断）
+    // 2.5 对仍为 null 的评分记录，使用会话级别的 resolved_state_name 再次兜底推断
+    const stillNullIds = nullRatingVotes
+      .map((v, i) => ({ vote: v, idx: i }))
+      .filter(({ idx }) => {
+        // 检查上一步是否推断成功：如果 nullRatingVotes[idx] 对应的 rating 在上一步中没有被增加，则仍为 null
+        // 简化处理：收集所有未推断成功的 sessionId
+        return true; // 全部重新从 session 数据推断
+      })
+      .map(({ vote }) => vote.sessionId)
+      .filter(Boolean) as string[];
+
+    if (stillNullIds.length > 0) {
+      const sessionPayloads = await this.prisma.udescSession.findMany({
+        where: { id: { in: stillNullIds } },
+        select: { id: true, rawPayload: true },
+      });
+      const sessionPayloadMap = new Map(sessionPayloads.map((s) => [s.id, s.rawPayload]));
+      for (const vote of nullRatingVotes) {
+        if (vote.sessionId) {
+          const sessionRp = sessionPayloadMap.get(vote.sessionId);
+          if (sessionRp) {
+            const rsn = (sessionRp as Record<string, unknown>)?.resolved_state_name;
+            if (rsn === '已解决') {
+              ratingDistribution[5] = (ratingDistribution[5] ?? 0) + 1;
+              sumRating += 5;
+              countRated++;
+            } else if (rsn === '未解决') {
+              ratingDistribution[1] = (ratingDistribution[1] ?? 0) + 1;
+              sumRating += 1;
+              countRated++;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. 处理分页记录中的评分（当前页展示，含 rawPayload 推断 + 会话级别兜底）
     const records = rows.map((vote) => {
       let effectiveRating = vote.rating;
+      // 尝试从投票 rawPayload 推断
       if (effectiveRating === null && vote.rawPayload) {
         effectiveRating = this.inferRatingFromRawPayload(vote.rawPayload as Record<string, unknown>) ?? null;
+      }
+      // 若仍为 null，使用会话级别的 resolved_state_name 兜底
+      if (effectiveRating === null && vote.session.rawPayload) {
+        const sessionRp = vote.session.rawPayload as Record<string, unknown>;
+        const rsn = sessionRp.resolved_state_name;
+        if (rsn === '已解决') {
+          effectiveRating = 5;
+        } else if (rsn === '未解决') {
+          effectiveRating = 1;
+        }
       }
       return {
         id: vote.id,
@@ -867,11 +915,15 @@ export class UdescService {
       );
     }
 
-    // 优先级3：resolved_state（历史数据兜底）
-    const resolvedState = typeof rawPayload.resolved_state === 'string' ? rawPayload.resolved_state : undefined;
-    if (resolvedState === '0') return 5;  // 已解决 → 满意
-    if (resolvedState === '1') return 1;  // 未解决 → 不满意
+    // 优先级3：通过 survey_option_id 映射（客户满意度评价选项）
+    const surveyOptionId = toNumber(rawPayload.survey_option_id);
+    if (surveyOptionId !== undefined) {
+      if (surveyOptionId === 20979) return 5;  // 满意
+      if (surveyOptionId === 20981) return 1;  // 不满意
+    }
 
+    // 注意：resolved_state 表示"是否已解决"，不等于"满意度"，
+    // 评分应仅从显式评分字段（rating/score/satisfaction_level等）或 survey_option_id 提取，不由 resolved_state 推断
     return undefined;
   }
 
