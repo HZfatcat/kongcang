@@ -368,17 +368,17 @@ export function TicketsPage() {
       {/* 汇总指标 */}
       <Spin spinning={summaryLoading}>
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
               <Statistic title="总工单数" value={summary?.total ?? 0} />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
 <Statistic title="已解决" value={summary?.byStatus['已解决'] ?? 0} />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
               <Statistic
                 title="解决率"
@@ -395,17 +395,19 @@ export function TicketsPage() {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <Card size="small">
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>状态分布</div>
-              <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                {summary?.byStatus && Object.entries(summary.byStatus).slice(0, 3).map(([status, count]) => (
-                  <div key={status} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <Tag color={statusColorMap[status] || 'default'} style={{ margin: 0 }}>{status}</Tag>
-                    <span>{count}</span>
-                  </div>
-                ))}
-              </Space>
+              <Statistic title="开启" value={summary?.byStatus['开启'] ?? summary?.byStatus['新工单'] ?? 0} />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small">
+              <Statistic title="解决中" value={summary?.byStatus['解决中'] ?? summary?.byStatus['受理中'] ?? 0} />
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small">
+              <Statistic title="已关闭" value={summary?.byStatus['已关闭'] ?? 0} />
             </Card>
           </Col>
         </Row>
