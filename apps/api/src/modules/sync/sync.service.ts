@@ -1113,7 +1113,7 @@ export class SyncService {
       //   firstResponseTime = 100 * 60 * 60;
       // }
 
-      // 解决时间和排队时间从 rawPayload 提取（这些字段相对可靠且不易有单位问题）
+      // 从 rawPayload 提取上游已计算好的指标（上游数据最准确）
       if (rawPayload) {
         const extractNumber = (value: unknown): number | null => {
           if (typeof value === 'number') return value;
@@ -1124,15 +1124,33 @@ export class SyncService {
           return null;
         };
 
+        const respSeconds = extractNumber(rawPayload.resp_seconds);
+        const avgRespSeconds = extractNumber(rawPayload.avg_resp_seconds);
         const sustainSeconds = extractNumber(rawPayload.sustain_seconds);
         const queueSeconds = extractNumber(rawPayload.queue_seconds);
+        const agentMsgNum = extractNumber(rawPayload.agent_msg_num);
+        const customerMsgNum = extractNumber(rawPayload.customer_msg_num);
 
+        // 优先使用上游已算好的值，回退到本地计算
+        if (respSeconds !== null && respSeconds >= 0) {
+          firstResponseTime = respSeconds;
+        }
+        if (avgRespSeconds !== null && avgRespSeconds >= 0) {
+          avgResponseTime = avgRespSeconds;
+        }
         if (sustainSeconds !== null && sustainSeconds > 0) {
           resolutionTime = sustainSeconds;
         }
         // queue_seconds 可能是 "未排队" 字符串，此时 extractNumber 返回 null
         if (queueSeconds !== null && queueSeconds >= 0) {
           waitTime = queueSeconds;
+        }
+        // 使用上游消息计数（已排除系统/自动消息）
+        if (agentMsgNum !== null && agentMsgNum >= 0) {
+          agentMessageCount = agentMsgNum;
+        }
+        if (customerMsgNum !== null && customerMsgNum >= 0) {
+          customerMessageCount = customerMsgNum;
         }
       }
       // 如果 rawPayload 没有解决时间，从会话时间计算
