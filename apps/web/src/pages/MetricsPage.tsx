@@ -185,13 +185,6 @@ export function MetricsPage() {
       render: (v: number | null) => formatTime(v),
     },
     {
-      title: '等待',
-      dataIndex: 'waitTime',
-      width: 80,
-      sorter: true,
-      render: (v: number | null) => formatTime(v),
-    },
-    {
       title: '解决',
       dataIndex: 'resolutionTime',
       width: 80,
@@ -252,7 +245,6 @@ export function MetricsPage() {
               { title: '会话数', dataIndex: 'sessionCount', width: 70, sorter: (a, b) => a.sessionCount - b.sessionCount },
               { title: '首次响应', dataIndex: 'avgFirstResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
               { title: '平均响应', dataIndex: 'avgResponseTime', width: 90, render: (v: number | null) => formatTime(v) },
-              { title: '等待', dataIndex: 'avgWaitTime', width: 80, render: (v: number | null) => formatTime(v) },
               { title: '解决', dataIndex: 'avgResolutionTime', width: 80, render: (v: number | null) => formatTime(v) },
               { title: '消息/会话', dataIndex: 'avgMessagesPerSession', width: 90 },
             ]}
