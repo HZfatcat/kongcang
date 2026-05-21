@@ -5,6 +5,7 @@ import {
   DatePicker,
   Tabs,
   Spin,
+  Skeleton,
   Space,
   Typography,
   message,
@@ -17,6 +18,7 @@ import {
   Input,
   Select,
   Alert,
+  Modal,
 } from 'antd';
 import {
   EditOutlined,
@@ -325,6 +327,10 @@ export function WeeklyReportPage() {
   const [personalSections, setPersonalSections] = useState<Record<string, string>>({ otherWork: '', nextPlan: '' });
   const [personalEditing, setPersonalEditing] = useState<Record<string, boolean>>({});
 
+  // 邮件预览
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewContent, setPreviewContent] = useState({ subject: '', body: '' });
+
   // 当前登录用户
   const loginUserStr = useMemo(() => {
     try {
@@ -333,6 +339,42 @@ export function WeeklyReportPage() {
     } catch { /* ignore */ }
     return null;
   }, []);
+
+  // localStorage 草稿键名
+  const draftKey = useMemo(() => {
+    const tab = reportTab;
+    const agent = reportTab === 'personal' ? selectedAgentId : 'team';
+    return `weekly_report_draft_${tab}_${agent}`;
+  }, [reportTab, selectedAgentId]);
+
+  // 加载草稿
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.otherWork !== undefined || parsed.nextPlan !== undefined) {
+          if (reportTab === 'team') {
+            setTeamSections((prev) => ({ ...prev, ...parsed }));
+          } else {
+            setPersonalSections((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }, [draftKey]);
+
+  // 自动保存草稿（防抖 1s）
+  useEffect(() => {
+    if (!teamSections.otherWork && !teamSections.nextPlan && !personalSections.otherWork && !personalSections.nextPlan) return;
+    const timer = setTimeout(() => {
+      try {
+        const sections = reportTab === 'team' ? teamSections : personalSections;
+        localStorage.setItem(draftKey, JSON.stringify(sections));
+      } catch { /* ignore */ }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [teamSections, personalSections, draftKey, reportTab]);
 
   // 加载客服列表
   useEffect(() => {
@@ -348,7 +390,7 @@ export function WeeklyReportPage() {
   const loadTeamData = useCallback(async () => {
     const start = formatDate(dateRange[0]);
     const end = formatDate(dateRange[1]);
-    const annualStart = '2026-01-01';
+    const annualStart = `${new Date().getFullYear()}-01-01`;
     try {
       const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary] = await Promise.all([
         fetchReportData(start, end),
@@ -408,7 +450,7 @@ export function WeeklyReportPage() {
   const teamMetrics = useMemo((): WeeklyMetrics => {
     const s = kpiOverview;
     const d = demandOverview;
-    // 年度累计数据（2026-01-01 至周期结束）
+    // 年度累计数据（当年 1 月 1 日至周期结束）
     const ad = annualDemandOverview;
     const f = funnel;
     const u = udeskOverview;
@@ -440,7 +482,7 @@ export function WeeklyReportPage() {
     const annualBugCloseRateClamped = clampRate(annualBugCloseRate);
     const annualTotalCloseRateClamped = clampRate(annualTotalCloseRate);
 
-    // 月度累计历史：使用年度数据（2026-01-01 起），按累计口径计算
+    // 月度累计历史：使用年度数据（当年 1 月 1 日起），按累计口径计算
     const demandCloseMonthly = computeCumulativeMonthly(ad?.monthlyRequirement);
     const bugCloseMonthly = computeCumulativeMonthly(ad?.monthlyBug);
     const totalCloseMonthly = computeCumulativeMonthly(ad?.monthlyRequirement);
@@ -548,7 +590,7 @@ export function WeeklyReportPage() {
     };
   }, [agentPerformance, agentMetricsSummary, teamMetrics]);
 
-  // === 一键发送 ===
+  // === 一键发送（预览模式）===
   const handleSendEmail = useCallback(
     (type: 'personal' | 'team') => {
       const metrics = type === 'team' ? teamMetrics : personalMetrics;
@@ -620,18 +662,24 @@ export function WeeklyReportPage() {
       body += `## 五、下周工作计划\n\n`;
       body += `${sections.nextPlan || '（暂无内容）'}\n\n`;
 
-      const subject = encodeURIComponent(
-        `GitCode 客服${tabLabel}（${formatDate(dateRange[0])} ~ ${formatDate(dateRange[1])}）${agentName ? ' - ' + agentName : ''}`,
-      );
-      const encodedBody = encodeURIComponent(body);
-      window.open(
-        `https://mail.weixin.qq.com/cgi-bin/readtemplate?t=send&subject=${subject}&body=${encodedBody}`,
-        '_blank',
-      );
-      message.success('已打开企微邮箱，请确认后手动发送');
+      const subject = `GitCode 客服${tabLabel}（${formatDate(dateRange[0])} ~ ${formatDate(dateRange[1])}）${agentName ? ' - ' + agentName : ''}`;
+      setPreviewContent({ subject, body });
+      setPreviewModalVisible(true);
     },
     [dateRange, teamMetrics, personalMetrics, teamSections, personalSections, selectedAgentId, agents],
   );
+
+  // 确认发送邮件
+  const handleConfirmSend = useCallback(() => {
+    const encodedSubject = encodeURIComponent(previewContent.subject);
+    const encodedBody = encodeURIComponent(previewContent.body);
+    window.open(
+      `https://mail.weixin.qq.com/cgi-bin/readtemplate?t=send&subject=${encodedSubject}&body=${encodedBody}`,
+      '_blank',
+    );
+    setPreviewModalVisible(false);
+    message.success('已打开企微邮箱，请确认后手动发送');
+  }, [previewContent]);
 
   // === UI 渲染函数 ===
 
@@ -960,9 +1008,28 @@ export function WeeklyReportPage() {
       </Card>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 80 }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 16, color: '#999' }}>正在拉取周报数据...</div>
+        <div style={{ padding: 16 }}>
+          {/* 骨架屏：信息栏 */}
+          <Skeleton active paragraph={{ rows: 1 }} style={{ marginBottom: 16 }} />
+          {/* 骨架屏：闭环质量卡片 */}
+          <Card size="small" style={{ marginBottom: 12 }}>
+            <Skeleton active paragraph={{ rows: 4 }} />
+          </Card>
+          {/* 骨架屏：体验指标卡片 */}
+          <Card size="small" style={{ marginBottom: 12 }}>
+            <Skeleton active paragraph={{ rows: 4 }} />
+          </Card>
+          {/* 骨架屏：业务承接卡片 */}
+          <Card size="small" style={{ marginBottom: 12 }}>
+            <Skeleton active paragraph={{ rows: 10 }} />
+          </Card>
+          {/* 骨架屏：编辑模块 */}
+          <Skeleton active paragraph={{ rows: 4 }} style={{ marginBottom: 12 }} />
+          <Skeleton active paragraph={{ rows: 4 }} style={{ marginBottom: 12 }} />
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <Spin style={{ marginRight: 8 }} />
+            <span style={{ color: '#999', fontSize: 13 }}>正在拉取周报数据...</span>
+          </div>
         </div>
       ) : (
         <>
@@ -1074,6 +1141,43 @@ export function WeeklyReportPage() {
               点击「一键发送」将打开企微邮箱页面，周报内容已自动填充为邮件正文，请确认后手动发送
             </div>
           </div>
+
+          {/* 邮件预览弹窗 */}
+          <Modal
+            title="📧 邮件预览"
+            open={previewModalVisible}
+            onCancel={() => setPreviewModalVisible(false)}
+            width={720}
+            footer={
+              <Space>
+                <Button onClick={() => setPreviewModalVisible(false)}>取消</Button>
+                <Button type="primary" icon={<SendOutlined />} onClick={handleConfirmSend}>
+                  确认发送到企微邮箱
+                </Button>
+              </Space>
+            }
+          >
+            <div style={{ marginBottom: 12 }}>
+              <Text strong>主题：</Text>
+              <Text>{previewContent.subject}</Text>
+            </div>
+            <div
+              style={{
+                border: '1px solid #e8e8e8',
+                borderRadius: 6,
+                padding: 16,
+                maxHeight: 400,
+                overflow: 'auto',
+                fontFamily: 'monospace',
+                fontSize: 13,
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.6,
+                backgroundColor: '#fafafa',
+              }}
+            >
+              {previewContent.body}
+            </div>
+          </Modal>
         </>
       )}
     </div>
