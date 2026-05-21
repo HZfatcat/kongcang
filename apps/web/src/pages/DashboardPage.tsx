@@ -753,7 +753,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         </Col>
         <Col span={3}>
           <Card style={{ height: 120 }}>
-            <Statistic title="已评分咨询" value={overview?.ratedCount ?? 0} />
+            <Statistic title="总评价数" value={overview?.ratedCount ?? 0} />
           </Card>
         </Col>
         <Col span={3}>
@@ -914,7 +914,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                     {record.messages.length === 0 && <Typography.Text type="secondary">无本地消息明细</Typography.Text>}
                     {record.messages.map((msg) => (
                       <div key={msg.id} style={{ marginBottom: 8 }}>
-                        <Tag color={msg.senderType === '系统' ? 'orange' : 'blue'}>{msg.senderType ?? 'unknown'}</Tag>
+                        <Tag color={msg.senderType === '系统' ? 'orange' : msg.senderType === '客服' ? 'blue' : 'green'}>
+                          {msg.senderType === '系统' ? '系统'
+                            : msg.senderType === '客服' ? '客服'
+                            : msg.senderType === '客户' ? '客户'
+                            : '未知'}
+                        </Tag>
                         <Typography.Text type="secondary">
                           {dayjs(msg.sentAt).format('YYYY-MM-DD HH:mm:ss')}
                         </Typography.Text>

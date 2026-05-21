@@ -1638,11 +1638,12 @@ export class SyncService {
     }
 
     // 3. 修复系统消息的 senderType 字段
-    // 根据消息内容检测系统消息，将 senderType 修正为 'system'
+    // 仅修复 senderType 为 NULL 或空字符串的消息（未被 API 正确标记的消息）
+    // 注意：不再将已标记为 'agent'/'customer' 的消息改为 'system'，避免误伤客服欢迎语等
     fixedSystemSenderTypes = await this.prisma.$executeRaw`
       UPDATE "UdescSessionMessage" m
       SET "senderType" = 'system', "syncedAt" = NOW()
-      WHERE "senderType" IN ('agent', 'customer')
+      WHERE ("senderType" IS NULL OR "senderType" = '')
         AND (
           m."content"::text LIKE '%"push_type":"sys_welcome_msg"%'
           OR m."content"::text LIKE '%"auto":true%'
