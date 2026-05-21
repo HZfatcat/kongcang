@@ -197,7 +197,14 @@ export class UdescClient {
         this.toNumber(nested.rating ?? nested.score ?? nested.vote_score ?? nested.satisfaction_level),
       );
     }
-    // 只取满意度分值，不取解决率评价（resolved_state 反映的是"是否解决"而非"是否满意"）
+    // 优先级3：通过 survey_option_id 映射（客户满意度评价选项）
+    const surveyOptionId = this.toNumber(item.survey_option_id);
+    if (surveyOptionId !== undefined) {
+      if (surveyOptionId === 20979) return 5;  // 满意
+      if (surveyOptionId === 20981) return 1;  // 不满意
+    }
+    // 注意：resolved_state 表示"是否已解决"，不等于"满意度"，
+    // 评分应仅从显式评分字段（rating/score/satisfaction_level等）或 survey_option_id 提取
     return undefined;
   }
 
