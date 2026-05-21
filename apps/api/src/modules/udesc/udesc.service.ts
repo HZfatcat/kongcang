@@ -14,20 +14,18 @@ function toLocalISOString(date: Date): string {
 /**
  * 判断消息是否为系统自动消息（不包含在消息数统计中）
  * 匹配内容包含系统提示、超时、会话关闭、满意度调查等
+ * 注意：仅用于内容检测，不覆盖 API 已正确标记的发送者类型
  */
 function isSystemMessage(content: string | object | null | undefined): boolean {
   if (!content) return false;
   const text = typeof content === 'string' ? content : JSON.stringify(content);
   const patterns = [
     /"push_type"/,
-    /"auto":true/,
-    /"no_need_save":true/,
     /"is_welcome":true/,
     /"type":"survey"/,
     /"type":"start_session"/,
     /满意度调查/,
     /系统将暂时关闭/,
-    /接入人工服务/,
     /有新的咨询进来了/,
     /长时间未响应/,
     /超时未回复/,
@@ -39,19 +37,67 @@ function isSystemMessage(content: string | object | null | undefined): boolean {
     /会话已关闭/,
     /客服已离线/,
     /客服已上线/,
+    /"type":"lock"/,
+    /锁定会话/,
+    /解锁对话/,
+    /"auto":true/,
+    /"is_receive":false/,
   ];
   return patterns.some(p => p.test(text));
 }
 
-function countNonSystemMessages(messages: any[]): number {
-  return messages.filter(m => !isSystemMessage(m.content)).length;
+/**
+ * 判断消息发送者是否为客服或客户（基于 senderType 字段及 rawPayload）
+ * 同时支持英文('agent','customer')和中文('客服','客户')值
+ */
+function isAgentSenderType(senderType: string | null | undefined): boolean {
+  return senderType === 'agent' || senderType === '客服' || senderType === 'AGENT';
+}
+
+function isCustomerSenderType(senderType: string | null | undefined): boolean {
+  return senderType === 'customer' || senderType === '客户' || senderType === 'CUSTOMER';
+}
+
+function isSystemSenderType(senderType: string | null | undefined): boolean {
+  return senderType === 'system' || senderType === '系统' || senderType === 'SYSTEM';
 }
 
 /**
- * 规范化消息 senderType：系统消息统一显示为 "系统"
+ * 计算非系统消息数量（客服消息 + 客户消息）
+ * - 内容优先检测：匹配系统消息模式则排除（覆盖 UDesk 误标记的 senderType）
+ * - 其次信任 senderType/rawPayload 判断
+ */
+function countNonSystemMessages(messages: any[]): number {
+  return messages.filter(m => {
+    // 内容优先检测：系统消息直接排除
+    if (isSystemMessage(m.content)) return false;
+    // 有明确发送者类型的消息，计入
+    if (isAgentSenderType(m.senderType) || isCustomerSenderType(m.senderType)) return true;
+    // 从 rawPayload 兜底判断
+    const raw = m.rawPayload as Record<string, unknown> | undefined;
+    if (raw?.sender === 'agent' || raw?.sender === 'customer') return true;
+    return false;
+  }).length;
+}
+
+/**
+ * 规范化消息 senderType：统一输出为前端可识别的中文值
+ * - 内容优先检测：若匹配系统消息模式则直接返回'系统'（覆盖 UDesk 误标记的 senderType）
+ * - 其次信任 API 返回的 'agent'/'customer'/'客服'/'客户' 等明确值
+ * - 最后从 rawPayload.sender 兜底判断
  */
 function normalizeSenderType(msg: any): string {
-  return isSystemMessage(msg.content) ? '系统' : msg.senderType;
+  const st = msg.senderType;
+  // 内容优先检测：匹配系统消息模式则直接返回'系统'（即使 senderType 被误标记为 agent/customer）
+  if (isSystemMessage(msg.content)) return '系统';
+  // API 已明确标记为客服或客户，信任原始数据
+  if (isAgentSenderType(st)) return '客服';
+  if (isCustomerSenderType(st)) return '客户';
+  // 尝试从 rawPayload 判断
+  const raw = msg.rawPayload as Record<string, unknown> | undefined;
+  if (raw?.sender === 'agent') return '客服';
+  if (raw?.sender === 'customer') return '客户';
+  return st || '';
 }
 
 @Injectable()
@@ -95,11 +141,12 @@ export class UdescService {
     const [totalSessions, totalMessages, agentCount, ratedCount, avgRating, topAgents, voteTagStats, customerCount, returnVisitCount] =
       await Promise.all([
       this.prisma.udescSession.count({ where }),
-      this.prisma.udescSessionMessage.count({
+      this.prisma.udescSessionMessage.findMany({
         where: {
           session: where,
         },
-      }),
+        select: { content: true, senderType: true, rawPayload: true },
+      }).then(messages => countNonSystemMessages(messages)),
       this.prisma.udescSession
         .findMany({
           where: {
@@ -157,7 +204,7 @@ export class UdescService {
       avgMessagesPerSession: totalSessions > 0 ? Number((totalMessages / totalSessions).toFixed(2)) : 0,
       agentCount,
       ratedCount,
-      avgRating: avgRating._avg.rating ?? 0,
+      avgRating: avgRating._avg.rating ?? null,
       topAgents: topAgents.map((item) => ({
         agentId: item.agentId ?? 'unknown',
         sessions: item._count.id,
@@ -359,22 +406,30 @@ export class UdescService {
       ORDER BY day ASC
     `;
 
-    const messageRows = await this.prisma.$queryRaw<
+    // 获取所有消息数据（含 content），在代码中排除系统消息后按天/客服聚合
+    const allMessages = await this.prisma.$queryRaw<
       Array<{
         day: Date;
         agentId: string | null;
-        messageCount: bigint;
+        id: bigint;
+        content: string | null;
+        senderType: string | null;
+        rawPayload: unknown;
+        sentAt: Date;
       }>
     >`
       SELECT
         DATE_TRUNC('day', s."startedAt") AS day,
         s."agentId" AS "agentId",
-        COUNT(m."id")::bigint AS "messageCount"
+        m."id" AS "id",
+        m."content" AS "content",
+        m."senderType" AS "senderType",
+        m."rawPayload" AS "rawPayload",
+        m."sentAt" AS "sentAt"
       FROM "UdescSession" s
       LEFT JOIN "UdescSessionMessage" m ON m."sessionId" = s."id"
       WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
-      GROUP BY DATE_TRUNC('day', s."startedAt"), s."agentId"
-      ORDER BY day ASC
+      ORDER BY s."agentId", day ASC
     `;
 
     const sessionMap = new Map<string, number>();
@@ -391,11 +446,21 @@ export class UdescService {
       agentSet.add(agentId);
     }
 
-    for (const row of messageRows) {
+    for (const row of allMessages) {
+      // 排除系统消息
+      if (!row.id) continue; // LEFT JOIN 产生的 NULL 行
+      if (isSystemMessage(row.content)) continue;
+      if (isAgentSenderType(row.senderType) || isCustomerSenderType(row.senderType)) {
+        // 正常计数
+      } else {
+        const raw = row.rawPayload as Record<string, unknown> | undefined;
+        if (raw?.sender !== 'agent' && raw?.sender !== 'customer') continue;
+      }
+
       const day = new Date(row.day).toISOString().slice(0, 10);
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
-      messageMap.set(key, Number(row.messageCount));
+      messageMap.set(key, (messageMap.get(key) ?? 0) + 1);
       daySet.add(day);
       agentSet.add(agentId);
     }
@@ -917,13 +982,13 @@ export class UdescService {
         const messages = s.messages;
         const agentMsgs = messages.filter((m) =>
           !isSystemMessage(m.content) && (
-            m.senderType === 'agent' ||
+            isAgentSenderType(m.senderType) ||
             (m.rawPayload as Record<string, unknown>)?.sender === 'agent'
           )
         );
         const customerMsgs = messages.filter((m) =>
           !isSystemMessage(m.content) && (
-            m.senderType === 'customer' ||
+            isCustomerSenderType(m.senderType) ||
             (m.rawPayload as Record<string, unknown>)?.sender === 'customer'
           )
         );
@@ -1160,13 +1225,13 @@ export class UdescService {
         const messages = s.messages;
         const agentMsgs = messages.filter((m) =>
           !isSystemMessage(m.content) && (
-            m.senderType === 'agent' ||
+            isAgentSenderType(m.senderType) ||
             (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent'
           )
         );
         const customerMsgs = messages.filter((m) =>
           !isSystemMessage(m.content) && (
-            m.senderType === 'customer' ||
+            isCustomerSenderType(m.senderType) ||
             (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer'
           )
         );
@@ -1329,13 +1394,13 @@ export class UdescService {
         const messages = s.messages;
         const agentMsgs = messages.filter((m) =>
           !isSystemMessage(m.content) && (
-            m.senderType === 'agent' ||
+            isAgentSenderType(m.senderType) ||
             (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent'
           )
         );
         const customerMsgs = messages.filter((m) =>
           !isSystemMessage(m.content) && (
-            m.senderType === 'customer' ||
+            isCustomerSenderType(m.senderType) ||
             (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer'
           )
         );
