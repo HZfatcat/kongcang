@@ -3,12 +3,12 @@ import { PrismaService } from '../../common/prisma.service';
 import { SyncController } from './sync.controller';
 import { SyncScheduler } from './sync.scheduler';
 import { SyncService } from './sync.service';
-import { UdeskClient } from './udesk.client';
+import { UdescClient } from './udesc.client';
 import { ZouwuClient } from './zouwu.client';
 
 @Module({
   controllers: [SyncController],
-  providers: [SyncService, SyncScheduler, UdeskClient, ZouwuClient, PrismaService],
-  exports: [SyncService, UdeskClient],
+  providers: [SyncService, SyncScheduler, UdescClient, ZouwuClient, PrismaService],
+  exports: [SyncService, UdescClient],
 })
 export class SyncModule {}

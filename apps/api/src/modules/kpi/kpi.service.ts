@@ -25,7 +25,7 @@ export class KpiService {
   async getOverview(startDate?: string, endDate?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
 
-    const sessions = await this.prisma.udeskSession.findMany({
+    const sessions = await this.prisma.udescSession.findMany({
       where: {
         startedAt: {
           gte: start,

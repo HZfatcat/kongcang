@@ -12,7 +12,7 @@ export class SyncScheduler {
   async handleCron() {
     this.logger.log('check scheduled udesk sync');
     try {
-      const result = await this.syncService.triggerScheduledUdeskSync();
+      const result = await this.syncService.triggerScheduledUdescSync();
       if (result.accepted) {
         this.logger.log('scheduled udesk sync triggered');
       }

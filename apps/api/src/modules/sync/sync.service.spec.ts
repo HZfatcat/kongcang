@@ -121,16 +121,16 @@ describe('SyncService', () => {
     });
   });
 
-  describe('getUdeskProgress', () => {
+  describe('getUdescProgress', () => {
     it('should return progress data with isRunning flag', () => {
-      const result = service.getUdeskProgress();
+      const result = service.getUdescProgress();
 
       expect(result).toHaveProperty('isRunning');
       expect(typeof result.isRunning).toBe('boolean');
     });
 
     it('should return progress with all required fields', () => {
-      const result = service.getUdeskProgress();
+      const result = service.getUdescProgress();
 
       expect(result).toHaveProperty('source');
       expect(result).toHaveProperty('totalWindows');
@@ -140,9 +140,9 @@ describe('SyncService', () => {
     });
   });
 
-  describe('triggerUdeskSync', () => {
+  describe('triggerUdescSync', () => {
     it('should return sync trigger response', () => {
-      const result = service.triggerUdeskSync();
+      const result = service.triggerUdescSync();
 
       expect(result).toHaveProperty('accepted');
       expect(result).toHaveProperty('progress');

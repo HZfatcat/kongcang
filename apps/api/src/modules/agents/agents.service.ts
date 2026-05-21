@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { UpsertAgentDto } from './agents.dto';
-import { UdeskClient } from '../sync/udesk.client';
+import { UdescClient } from '../sync/udesc.client';
 
 @Injectable()
 export class AgentsService {
@@ -9,7 +9,7 @@ export class AgentsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly udeskClient: UdeskClient,
+    private readonly udescClient: UdescClient,
   ) {}
 
   async list() {
@@ -19,7 +19,7 @@ export class AgentsService {
 
     // 如果 agentProfile 表为空，从 synced session 中提取客服数据作为降级
     if (profiles.length === 0) {
-      const rows = await this.prisma.udeskSession.findMany({
+      const rows = await this.prisma.udescSession.findMany({
         where: { agentId: { not: null } },
         select: { agentId: true },
         distinct: ['agentId'],
@@ -31,7 +31,7 @@ export class AgentsService {
       // 从 udeskAgent 表中获取客服姓名（如果有的话）
       const agentNames = new Map<string, string>();
       if (agentIds.length > 0) {
-        const agents = await this.prisma.udeskAgent.findMany({
+        const agents = await this.prisma.udescAgent.findMany({
           where: { id: { in: agentIds }, name: { not: null } },
           select: { id: true, name: true },
         });
@@ -46,7 +46,7 @@ export class AgentsService {
             let cursor: string | undefined = undefined;
             let hasMore = true;
             while (hasMore) {
-              const resp = await this.udeskClient.fetchAgents({
+              const resp = await this.udescClient.fetchAgents({
                 cursor,
                 pageSize: 100,
               });
@@ -54,7 +54,7 @@ export class AgentsService {
                 if (agent.id && agent.name) {
                   agentNames.set(agent.id, agent.name);
                   // 缓存到 udeskAgent 表
-                  await this.prisma.udeskAgent.upsert({
+                  await this.prisma.udescAgent.upsert({
                     where: { id: agent.id },
                     create: {
                       id: agent.id,
@@ -109,7 +109,7 @@ export class AgentsService {
   }
 
   async listUdeskAgentIds() {
-    const rows = await this.prisma.udeskSession.findMany({
+    const rows = await this.prisma.udescSession.findMany({
       where: {
         agentId: { not: null },
       },

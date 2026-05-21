@@ -35,7 +35,7 @@ export class SyncUdeskProcessor {
     
     // 定期报告进度
     const progressInterval = setInterval(() => {
-      const progress = this.syncService.getUdeskProgress();
+      const progress = this.syncService.getUdescProgress();
       job.progress(progress);
       this.wsGateway.broadcastSyncProgress({
         ...progress,
@@ -44,7 +44,7 @@ export class SyncUdeskProcessor {
     }, 2000);
 
     try {
-      await this.syncService.syncUdesk();
+      await this.syncService.syncUdesc();
       clearInterval(progressInterval);
       return { success: true, runId: job.data.runId };
     } catch (error) {
