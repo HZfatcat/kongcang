@@ -774,44 +774,43 @@ export class KpiService {
   private truncateDate(date: Date, granularity: 'day' | 'week' | 'month') {
     const d = new Date(date);
     if (granularity === 'month') {
-      d.setDate(1);
-      d.setHours(0, 0, 0, 0);
+      d.setUTCDate(1);
+      d.setUTCHours(0, 0, 0, 0);
       return d;
     }
     if (granularity === 'week') {
-      const day = d.getDay();
+      const day = d.getUTCDay();
       const diff = day === 0 ? -6 : 1 - day;
-      d.setDate(d.getDate() + diff);
-      d.setHours(0, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() + diff);
+      d.setUTCHours(0, 0, 0, 0);
       return d;
     }
-    d.setHours(0, 0, 0, 0);
+    d.setUTCHours(0, 0, 0, 0);
     return d;
   }
 
   private addStep(date: Date, granularity: 'day' | 'week' | 'month') {
     const d = new Date(date);
     if (granularity === 'month') {
-      d.setMonth(d.getMonth() + 1);
+      d.setUTCMonth(d.getUTCMonth() + 1);
       return d;
     }
     if (granularity === 'week') {
-      d.setDate(d.getDate() + 7);
+      d.setUTCDate(d.getUTCDate() + 7);
       return d;
     }
-    d.setDate(d.getDate() + 1);
+    d.setUTCDate(d.getUTCDate() + 1);
     return d;
   }
 
   private formatLabel(date: Date, granularity: 'day' | 'week' | 'month') {
-    const pad = (n: number) => n.toString().padStart(2, '0');
     if (granularity === 'month') {
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+      return date.toISOString().slice(0, 7);
     }
     if (granularity === 'week') {
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}(周)`;
+      return `${date.toISOString().slice(0, 10)}(周)`;
     }
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    return date.toISOString().slice(0, 10);
   }
 
   async getConsultationFunnel(
@@ -820,101 +819,90 @@ export class KpiService {
     granularity: 'day' | 'week' | 'month' = 'day',
   ) {
     const { start, end } = this.resolveRange(startDate, endDate);
-    console.log('[funnel-debug] resolveRange:', { startDate, endDate, start: start.toISOString(), end: end.toISOString() });
+    const unitLiteral = Prisma.raw(`'${granularity}'`);
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        bucket: Date;
+        consultation_count: bigint;
+        issue_consult_count: bigint;
+        feedback_count: bigint;
+        requirement_identified_count: bigint;
+        requirement_completed_count: bigint;
+        release_count: bigint;
+      }>
+    >`
+      WITH issue_sessions AS (
+        SELECT DISTINCT m."sessionId"
+        FROM "UdescSessionMessage" m
+        WHERE m."content" ILIKE '%问题%'
+          OR m."content" ILIKE '%报错%'
+          OR m."content" ILIKE '%异常%'
+          OR m."content" ILIKE '%故障%'
+          OR m."content" ILIKE '%失败%'
+          OR m."content" ILIKE '%bug%'
+      ),
+      requirement_agg AS (
+        SELECT
+          r."sourceSessionId",
+          TRUE AS has_requirement,
+          BOOL_OR(r."status" IN ('DONE', 'CLOSED')) AS is_completed,
+          BOOL_OR(r."status" = 'CLOSED') AS is_released
+        FROM "ZouwuRequirement" r
+        WHERE r."sourceSessionId" IS NOT NULL
+        GROUP BY r."sourceSessionId"
+      ),
+      session_base AS (
+        SELECT
+          s."id",
+          DATE_TRUNC(${unitLiteral}, s."startedAt") AS bucket,
+          s."rating" IS NOT NULL AS has_feedback,
+          i."sessionId" IS NOT NULL AS is_issue,
+          COALESCE(ra.has_requirement, FALSE) AS has_requirement,
+          COALESCE(ra.is_completed, FALSE) AS is_completed,
+          COALESCE(ra.is_released, FALSE) AS is_released
+        FROM "UdescSession" s
+        LEFT JOIN issue_sessions i ON i."sessionId" = s."id"
+        LEFT JOIN requirement_agg ra ON ra."sourceSessionId" = s."id"
+        WHERE s."startedAt" >= ${start}
+          AND s."startedAt" <= ${end}
+      )
+      SELECT
+        sb.bucket,
+        COUNT(*)::bigint AS consultation_count,
+        COUNT(*) FILTER (WHERE sb.is_issue)::bigint AS issue_consult_count,
+        COUNT(*) FILTER (WHERE sb.is_issue AND sb.has_feedback)::bigint AS feedback_count,
+        COUNT(*) FILTER (WHERE sb.is_issue AND sb.has_requirement)::bigint AS requirement_identified_count,
+        COUNT(*) FILTER (
+          WHERE sb.is_issue
+            AND sb.has_requirement
+            AND sb.is_completed
+        )::bigint AS requirement_completed_count,
+        COUNT(*) FILTER (
+          WHERE sb.is_issue
+            AND sb.has_requirement
+            AND sb.is_completed
+            AND sb.is_released
+        )::bigint AS release_count
+      FROM session_base sb
+      GROUP BY sb.bucket
+      ORDER BY sb.bucket ASC
+    `;
 
-    // 使用 Prisma ORM 查询 UdescSession 统计数据
-    const sessions = await this.prisma.udescSession.findMany({
-      where: {
-        startedAt: { gte: start, lte: end },
-      },
-      select: {
-        id: true,
-        startedAt: true,
-        rating: true,
-        messages: {
-          select: { content: true },
-          where: {
-            OR: [
-              { content: { contains: '问题' } },
-              { content: { contains: '报错' } },
-              { content: { contains: '异常' } },
-              { content: { contains: '故障' } },
-              { content: { contains: '失败' } },
-              { content: { contains: 'bug' } },
-            ],
-          },
-          take: 1,
-        },
-      },
-    });
-    console.log('[funnel-debug] sessions count:', sessions.length);
-
-    // 2. 查询关联的需求数据
-    const requirements = await this.prisma.zouwuRequirement.findMany({
-      where: {
-        sourceSessionId: { not: null },
-        createdAtSource: { gte: start, lte: end },
-      },
-      select: {
-        sourceSessionId: true,
-        status: true,
-      },
-    });
-    // 按 sessionId 聚合需求状态
-    const reqMap = new Map<string, { hasRequirement: boolean; isCompleted: boolean; isReleased: boolean }>();
-    for (const req of requirements) {
-      if (!req.sourceSessionId) continue;
-      const existing = reqMap.get(req.sourceSessionId) ?? { hasRequirement: false, isCompleted: false, isReleased: false };
-      existing.hasRequirement = true;
-      if (req.status === 'DONE' || req.status === 'CLOSED') existing.isCompleted = true;
-      if (req.status === 'CLOSED') existing.isReleased = true;
-      reqMap.set(req.sourceSessionId, existing);
-    }
-
-    // 分组聚合（按日/周/月）
-    const periodMap = new Map<string, {
-      consultationCount: number;
-      issueConsultCount: number;
-      feedbackCount: number;
-      requirementIdentifiedCount: number;
-      requirementCompletedCount: number;
-      releaseCount: number;
-    }>();
-
-    for (const session of sessions) {
-      const truncated = this.truncateDate(session.startedAt, granularity);
-      const key = truncated.toISOString();
-      const isIssue = session.messages.length > 0;
-      const hasFeedback = session.rating !== null;
-      const reqInfo = reqMap.get(session.id);
-
-      if (!periodMap.has(key)) {
-        periodMap.set(key, {
-          consultationCount: 0,
-          issueConsultCount: 0,
-          feedbackCount: 0,
-          requirementIdentifiedCount: 0,
-          requirementCompletedCount: 0,
-          releaseCount: 0,
-        });
+    const buildMap = (getter: (row: (typeof rows)[number]) => bigint) => {
+      const map = new Map<string, number>();
+      for (const row of rows) {
+        map.set(new Date(row.bucket).toISOString(), Number(getter(row)));
       }
-      const entry = periodMap.get(key)!;
-      entry.consultationCount++;
-      if (isIssue) {
-        entry.issueConsultCount++;
-        if (hasFeedback) {
-          entry.feedbackCount++;
-        }
-        // 需求相关统计（仅对有问题的会话）
-        if (reqInfo?.hasRequirement) {
-          entry.requirementIdentifiedCount++;
-          if (reqInfo.isCompleted) entry.requirementCompletedCount++;
-          if (reqInfo.isReleased) entry.releaseCount++;
-        }
-      }
-    }
+      return map;
+    };
 
-    // 构建 periods 数组
+    const consultationMap = buildMap((row) => row.consultation_count);
+    const issueConsultMap = buildMap((row) => row.issue_consult_count);
+    const feedbackMap = buildMap((row) => row.feedback_count);
+    const requirementIdentifiedMap = buildMap((row) => row.requirement_identified_count);
+    const requirementCompletedMap = buildMap((row) => row.requirement_completed_count);
+    const releaseMap = buildMap((row) => row.release_count);
+
     const periods: Array<{
       periodStart: string;
       periodLabel: string;
@@ -929,16 +917,15 @@ export class KpiService {
     let cursor = this.truncateDate(start, granularity);
     while (cursor <= end) {
       const key = cursor.toISOString();
-      const existing = periodMap.get(key);
       periods.push({
         periodStart: key,
         periodLabel: this.formatLabel(cursor, granularity),
-        consultationCount: existing?.consultationCount ?? 0,
-        issueConsultCount: existing?.issueConsultCount ?? 0,
-        feedbackCount: existing?.feedbackCount ?? 0,
-        requirementIdentifiedCount: existing?.requirementIdentifiedCount ?? 0,
-        requirementCompletedCount: existing?.requirementCompletedCount ?? 0,
-        releaseCount: existing?.releaseCount ?? 0,
+        consultationCount: consultationMap.get(key) ?? 0,
+        issueConsultCount: issueConsultMap.get(key) ?? 0,
+        feedbackCount: feedbackMap.get(key) ?? 0,
+        requirementIdentifiedCount: requirementIdentifiedMap.get(key) ?? 0,
+        requirementCompletedCount: requirementCompletedMap.get(key) ?? 0,
+        releaseCount: releaseMap.get(key) ?? 0,
       });
       cursor = this.addStep(cursor, granularity);
     }
