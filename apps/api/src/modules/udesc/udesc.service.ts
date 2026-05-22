@@ -11,6 +11,11 @@ function toLocalISOString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
+function toLocalDateStr(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 /**
  * 判断消息是否为系统自动消息（不包含在消息数统计中）
  * 匹配内容包含系统提示、超时、会话关闭、满意度调查等
@@ -431,17 +436,18 @@ export class UdescService {
       ORDER BY s."agentId", day ASC
     `;
 
+    // 使用本地时间（北京时间）提取日期字符串，例如 "2026-04-11"
+    // toLocalDateStr 已在模块级别定义
+
     const sessionMap = new Map<string, number>();
     const messageMap = new Map<string, number>();
-    const daySet = new Set<string>();
     const agentSet = new Set<string>();
 
     for (const row of sessionRows) {
-      const day = new Date(row.day).toISOString().slice(0, 10);
+      const day = toLocalDateStr(new Date(row.day));
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
       sessionMap.set(key, Number(row.sessionCount));
-      daySet.add(day);
       agentSet.add(agentId);
     }
 
@@ -456,15 +462,21 @@ export class UdescService {
         if (raw?.sender !== 'agent' && raw?.sender !== 'customer') continue;
       }
 
-      const day = new Date(row.day).toISOString().slice(0, 10);
+      const day = toLocalDateStr(new Date(row.day));
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
       messageMap.set(key, (messageMap.get(key) ?? 0) + 1);
-      daySet.add(day);
       agentSet.add(agentId);
     }
 
-    const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
+    // 生成从 start 到 end 的完整本地日期列表（即使某天无数据也保留，填充 0）
+    const days: string[] = [];
+    const current = new Date(start);
+    while (current <= end) {
+      days.push(toLocalDateStr(current));
+      current.setDate(current.getDate() + 1);
+    }
+
     const agents = Array.from(agentSet).sort((a, b) => a.localeCompare(b));
 
     return {
@@ -479,7 +491,16 @@ export class UdescService {
   }
 
   async getDailyRatingStats(startDate?: string, endDate?: string) {
-    const { start, end } = this.resolveRange(startDate, endDate);
+    // 使用与 getDailyAgentStats 相同的本地时区日期处理
+    const rawStart = startDate ? new Date(startDate) : new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
+    const rawEnd = endDate ? new Date(endDate) : new Date();
+    // 将开始日期设置为当天 00:00:00 本地时间
+    const startLocal = new Date(rawStart.getFullYear(), rawStart.getMonth(), rawStart.getDate());
+    // 将结束日期设置为当天 23:59:59.999 本地时间
+    const endLocal = new Date(rawEnd.getFullYear(), rawEnd.getMonth(), rawEnd.getDate(), 23, 59, 59, 999);
+    // 数据库查询使用对应的 UTC 时间
+    const start = new Date(startLocal.toISOString());
+    const end = new Date(endLocal.toISOString());
 
     const ratingRows = await this.prisma.$queryRaw<
       Array<{
@@ -506,7 +527,8 @@ export class UdescService {
     const agentSet = new Set<string>();
 
     for (const row of ratingRows) {
-      const day = new Date(row.day).toISOString().slice(0, 10);
+      // 使用本地时区日期（与 getDailyAgentStats 一致）
+      const day = toLocalDateStr(row.day);
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
       const avg = row.avgRating ?? 0;
@@ -516,13 +538,21 @@ export class UdescService {
       agentSet.add(agentId);
     }
 
-    const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
+    // 生成查询范围内的完整日期列表（本地时区）
+    const days: string[] = [];
+    const cursor = new Date(startLocal);
+    const endOfRange = new Date(endLocal);
+    while (cursor <= endOfRange) {
+      days.push(toLocalDateStr(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
     const agents = Array.from(agentSet).sort((a, b) => a.localeCompare(b));
 
     // 计算整体平均评分（按天）
     const overallMap = new Map<string, { sum: number; count: number }>();
     for (const row of ratingRows) {
-      const day = new Date(row.day).toISOString().slice(0, 10);
+      const day = toLocalDateStr(row.day);
       const avg = row.avgRating ?? 0;
       const cnt = Number(row.ratingCount);
       const prev = overallMap.get(day) ?? { sum: 0, count: 0 };
