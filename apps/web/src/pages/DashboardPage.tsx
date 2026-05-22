@@ -712,7 +712,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           type: 'funnel',
           left: '10%',
           width: '80%',
-          sort: 'descending',
+          sort: 'none',
           label: { show: true, position: 'inside' },
           data: [
             { name: '咨询量', value: latestFunnelPeriod.consultationCount },
