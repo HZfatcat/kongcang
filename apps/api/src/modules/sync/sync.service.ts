@@ -999,7 +999,7 @@ export class SyncService {
       const actualAgentMsgCount = actualMessages.find(m => m.senderType === 'agent')?._count ?? 0;
       const actualCustomerMsgCount = actualMessages.find(m => m.senderType === 'customer')?._count ?? 0;
 
-      // 从 Udesk 原始数据提取指标
+      // 从 Udesk 原始数据提取指标（优先使用，但需做合理性校验）
       let firstResponseTime: number | null = null;
       let avgResponseTime: number | null = null;
       let waitTime: number | null = null;
@@ -1008,7 +1008,112 @@ export class SyncService {
       let agentMessageCount = actualAgentMsgCount;
       let customerMessageCount = actualCustomerMsgCount;
 
-      // 从 rawPayload 提取
+      // 从本地消息记录计算首次响应时间和平均响应时间（比 rawPayload 更可靠）
+      if (actualCustomerMsgCount > 0 && actualAgentMsgCount > 0) {
+        const allMsgs = await this.prisma.udescSessionMessage.findMany({
+          where: { sessionId: session.id },
+          orderBy: { sentAt: 'asc' },
+          select: { sentAt: true, senderType: true, content: true, rawPayload: true },
+        });
+
+        // 识别客服消息：senderType='agent' 或 rawPayload.sender='agent'
+        const isAgentMsg = (m: typeof allMsgs[number]) =>
+          m.senderType === 'agent' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent';
+        const isCustomerMsg = (m: typeof allMsgs[number]) =>
+          m.senderType === 'customer' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer';
+        // 过滤自动消息：content 中含 "auto":true 或 type 为 survey/start_session 的不计入人工响应
+        // 同时过滤系统通知：no_need_save:true 或 push_type 的消息
+        const isAutoMsg = (m: typeof allMsgs[number]) => {
+          const c = m.content || '';
+          return c.includes('"auto":true') || c.includes('"type":"survey"') || c.includes('"type":"start_session"')
+            || c.includes('"no_need_save":true') || c.includes('"push_type"') || c.includes('"is_welcome":true');
+        };
+        // 人工客服消息 = 客服消息 - 自动消息
+        const isHumanAgentMsg = (m: typeof allMsgs[number]) => isAgentMsg(m) && !isAutoMsg(m);
+
+        // 首次响应时间：客服首次人工回复 - 会话开始时间
+        // 使用 session.startedAt 作为基准，排除留言未接入前的等待时间
+        const firstHumanAgentMsg = allMsgs.find(m => isHumanAgentMsg(m));
+        if (firstHumanAgentMsg) {
+          const diffMs = firstHumanAgentMsg.sentAt.getTime() - session.startedAt.getTime();
+          if (diffMs > 0) {
+            firstResponseTime = Math.floor(diffMs / 1000);
+          } else {
+            firstResponseTime = 0; // 客服回复早于会话创建，视为即时
+          }
+        }
+        // 客户有消息但客服未回复，firstResponseTime 保持 null
+
+        // 平均响应时间：仅统计客服接入后的客户消息配对（排除留言）
+        const customerMsgs = allMsgs.filter(m => isCustomerMsg(m));
+        const humanAgentMsgs = allMsgs.filter(m => isHumanAgentMsg(m));
+        const responseTimes: number[] = [];
+        // 找到首次客服回复时间（接入时间）
+        let firstAgentReplyTime = Infinity;
+        if (humanAgentMsgs.length > 0) {
+          firstAgentReplyTime = humanAgentMsgs[0].sentAt.getTime();
+        }
+        let agentIdx = 0;
+        for (let ci = 0; ci < customerMsgs.length && agentIdx < humanAgentMsgs.length; ci++) {
+          const custTime = customerMsgs[ci].sentAt.getTime();
+          // 跳过客服接入前的客户消息（留言等），不计入平均响应
+          if (custTime < firstAgentReplyTime) continue;
+          // 跳过当前客户消息之前的客服回复（已被之前客户消息配对）
+          while (agentIdx < humanAgentMsgs.length && humanAgentMsgs[agentIdx].sentAt.getTime() < custTime) {
+            agentIdx++;
+          }
+          if (agentIdx < humanAgentMsgs.length) {
+            const diff = humanAgentMsgs[agentIdx].sentAt.getTime() - custTime;
+            if (diff > 0) {
+              const capped = Math.min(Math.floor(diff / 1000), 3600); // 上限1小时，排除异常值
+              responseTimes.push(capped);
+            } else {
+              responseTimes.push(0); // 客服回复早于客户消息，视为即时
+            }
+            agentIdx++; // 每条客服回复只用于配对一条客户消息
+          }
+        }
+        if (responseTimes.length > 0) {
+          avgResponseTime = Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length);
+        } else if (humanAgentMsgs.length > 0) {
+          // 客服消息都在客户消息之前，视为即时回复
+          avgResponseTime = 0;
+        }
+
+        // 基于过滤后的消息重新计算消息计数（排除自动/系统消息）
+        const humanAgentMsgCount = humanAgentMsgs.length;
+        const humanCustomerMsgCount = customerMsgs.length;
+        
+        // 使用过滤后的计数覆盖原始计数
+        agentMessageCount = humanAgentMsgCount;
+        customerMessageCount = humanCustomerMsgCount;
+
+      } else {
+        // 没有足够的消息进行精确计算，需要加载消息来排除自动/系统消息
+        const allMsgs = await this.prisma.udescSessionMessage.findMany({
+          where: { sessionId: session.id },
+          orderBy: { sentAt: 'asc' },
+          select: { sentAt: true, senderType: true, content: true, rawPayload: true },
+        });
+        const isAutoMsg = (m: typeof allMsgs[number]) => {
+          const c = m.content || '';
+          return c.includes('"auto":true') || c.includes('"type":"survey"') || c.includes('"type":"start_session"')
+            || c.includes('"no_need_save":true') || c.includes('"push_type"') || c.includes('"is_welcome":true');
+        };
+        const isAgentMsg = (m: typeof allMsgs[number]) =>
+          m.senderType === 'agent' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent';
+        const isCustomerMsg = (m: typeof allMsgs[number]) =>
+          m.senderType === 'customer' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer';
+        agentMessageCount = allMsgs.filter(m => isAgentMsg(m) && !isAutoMsg(m)).length;
+        customerMessageCount = allMsgs.filter(m => isCustomerMsg(m)).length;
+      }
+      // 客户有消息但客服未回复（包括人工和自动），设为 null 表示未响应，不做 100 小时惩罚
+      // 注意：如果有人工回复但 firstResponseTime 仍为 null（不应发生），也保持 null
+      // if (actualCustomerMsgCount > 0 && firstResponseTime === null) {
+      //   firstResponseTime = 100 * 60 * 60;
+      // }
+
+      // 从 rawPayload 提取上游已计算好的指标（上游数据最准确）
       if (rawPayload) {
         const extractNumber = (value: unknown): number | null => {
           if (typeof value === 'number') return value;
@@ -1021,53 +1126,41 @@ export class SyncService {
 
         const respSeconds = extractNumber(rawPayload.resp_seconds);
         const avgRespSeconds = extractNumber(rawPayload.avg_resp_seconds);
-        const sustainSeconds = extractNumber(rawPayload.sustain_seconds);
         const queueSeconds = extractNumber(rawPayload.queue_seconds);
+        const agentMsgNum = extractNumber(rawPayload.agent_msg_num);
+        const customerMsgNum = extractNumber(rawPayload.customer_msg_num);
 
-        // 只有当实际有客户消息时，才计算首次响应时间
-        if (actualCustomerMsgCount > 0) {
-          // UDesk 数据可能不准确：resp_seconds=0 但实际有时间间隔
-          if (respSeconds !== null && respSeconds > 0) {
-            // UDesk 数据有效，直接使用
-            firstResponseTime = respSeconds;
-          } else {
-            // UDesk 数据为 0 或无效，从本地消息记录计算
-            const firstCustomerMsg = await this.prisma.udescSessionMessage.findFirst({
-              where: { sessionId: session.id, senderType: 'customer' },
-              orderBy: { sentAt: 'asc' },
-              select: { sentAt: true },
-            });
-            const firstAgentMsg = await this.prisma.udescSessionMessage.findFirst({
-              where: { sessionId: session.id, senderType: 'agent' },
-              orderBy: { sentAt: 'asc' },
-              select: { sentAt: true },
-            });
-            if (firstCustomerMsg && firstAgentMsg) {
-              const diffMs = firstAgentMsg.sentAt.getTime() - firstCustomerMsg.sentAt.getTime();
-              if (diffMs > 0) {
-                firstResponseTime = Math.floor(diffMs / 1000);
-              }
-            }
-            // 客户有消息但客服未回复，首次响应时间设为 100 小时
-            if (firstCustomerMsg && !firstAgentMsg) {
-              firstResponseTime = 100 * 60 * 60; // 360000 秒 = 100 小时
-            }
-          }
+        // 优先使用上游已算好的值，回退到本地计算
+        if (respSeconds !== null && respSeconds >= 0) {
+          firstResponseTime = respSeconds;
         }
-        if (avgRespSeconds !== null && avgRespSeconds > 0) {
+        if (avgRespSeconds !== null && avgRespSeconds >= 0) {
           avgResponseTime = avgRespSeconds;
         }
-        if (sustainSeconds !== null && sustainSeconds > 0) {
-          resolutionTime = sustainSeconds;
-        }
+        // 注意：resolutionTime（平均对话时长）不使用上游 sustain_seconds，
+        // 而是统一用 endedAt - startedAt 计算，确保与"开始到结束间隔"定义一致
         // queue_seconds 可能是 "未排队" 字符串，此时 extractNumber 返回 null
         if (queueSeconds !== null && queueSeconds >= 0) {
           waitTime = queueSeconds;
         }
-
-        // 消息总数 = 实际客服消息数 + 实际客户消息数
-        messageCount = actualAgentMsgCount + actualCustomerMsgCount;
+        // 使用上游消息计数（已排除系统/自动消息）
+        if (agentMsgNum !== null && agentMsgNum >= 0) {
+          agentMessageCount = agentMsgNum;
+        }
+        if (customerMsgNum !== null && customerMsgNum >= 0) {
+          customerMessageCount = customerMsgNum;
+        }
       }
+      // 如果 rawPayload 没有解决时间，从会话时间计算
+      if (!resolutionTime && session.endedAt) {
+        const diffMs = session.endedAt.getTime() - session.startedAt.getTime();
+        if (diffMs > 0) {
+          resolutionTime = Math.floor(diffMs / 1000);
+        }
+      }
+
+      // 消息总数 = 过滤后的客服消息数 + 客户消息数（排除自动/系统消息）
+      messageCount = agentMessageCount + customerMessageCount;
 
       await this.prisma.udescSessionMetrics.upsert({
         where: { sessionId: session.id },
@@ -1545,11 +1638,12 @@ export class SyncService {
     }
 
     // 3. 修复系统消息的 senderType 字段
-    // 根据消息内容检测系统消息，将 senderType 修正为 'system'
+    // 仅修复 senderType 为 NULL 或空字符串的消息（未被 API 正确标记的消息）
+    // 注意：不再将已标记为 'agent'/'customer' 的消息改为 'system'，避免误伤客服欢迎语等
     fixedSystemSenderTypes = await this.prisma.$executeRaw`
       UPDATE "UdescSessionMessage" m
       SET "senderType" = 'system', "syncedAt" = NOW()
-      WHERE "senderType" IN ('agent', 'customer')
+      WHERE ("senderType" IS NULL OR "senderType" = '')
         AND (
           m."content"::text LIKE '%"push_type":"sys_welcome_msg"%'
           OR m."content"::text LIKE '%"auto":true%'
