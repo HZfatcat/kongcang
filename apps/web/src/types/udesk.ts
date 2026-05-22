@@ -282,6 +282,7 @@ export interface UdeskMetricsSummary {
   totalSessions: number;
   avgFirstResponseTime: number | null;
   avgResponseTime: number | null;
+  avgSessionDuration: number | null;
   avgWaitTime: number | null;
   avgResolutionTime: number | null;
   totalMessages: number;

@@ -654,10 +654,11 @@ export function SessionDetailPage() {
                   const rawStatus = raw?.status as string | undefined;
                   const rawFrom = raw?.from as string | undefined;
                   
-                  const isSystemMsg = msg.senderType === '系统';
+                  const isSystemMsg = msg.senderType === '系统' || msg.senderType === 'system' || msg.senderType === 'SYSTEM';
                   const isAgent = (
                     msg.senderType === 'AGENT' ||
                     msg.senderType === 'agent' ||
+                    msg.senderType === '客服' ||
                     rawSender === 'AGENT' ||
                     rawSender === 'agent' ||
                     rawFrom === 'AGENT' ||
