@@ -20,6 +20,7 @@ import {
   Alert,
   Modal,
   Radio,
+  InputNumber,
 } from 'antd';
 import { marked } from 'marked';
 import {
@@ -342,6 +343,8 @@ export function WeeklyReportPage() {
   const [opportunitySummary, setOpportunitySummary] = useState<Awaited<ReturnType<typeof fetchOpportunitySummary>> | null>(null);
   const [monthlyVoteStats, setMonthlyVoteStats] = useState<Awaited<ReturnType<typeof fetchUdeskMonthlyVoteStats>> | null>(null);
   const [monthlyMetrics, setMonthlyMetrics] = useState<Awaited<ReturnType<typeof fetchUdeskMonthlyMetrics>> | null>(null);
+  // 手动录入：申请解绑华为云数量
+  const [huaweiCloudUnbindInput, setHuaweiCloudUnbindInput] = useState<number | null>(null);
 
   // 个人数据
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -527,22 +530,15 @@ export function WeeklyReportPage() {
       satisfactionRate = totalVotes > 0 ? clampRate(totalSatisfied / totalVotes) : 0;
       problemResolutionRate = totalVotes > 0 ? clampRate(totalResolved / totalVotes) : 0;
 
-      // 按月计算月度累计趋势（按累计口径，与 Dashboard 对齐）
-      // 逐月累计：每个月的值 = 该月及之前所有月份合计的比率
-      let cumVotes = 0;
-      let cumSatisfied = 0;
-      let cumResolved = 0;
+      // 按月计算月度趋势（当月口径：每个月独立计算，非累计）
       for (const m of mvs.sort((a, b) => a.month.localeCompare(b.month))) {
-        cumVotes += m.totalVotes;
-        cumSatisfied += m.satisfiedCount;
-        cumResolved += m.resolvedCount;
         satMonthly.push({
           month: m.month,
-          value: cumVotes > 0 ? clampRate(cumSatisfied / cumVotes) : 0,
+          value: m.totalVotes > 0 ? clampRate(m.satisfiedCount / m.totalVotes) : 0,
         });
         resMonthly.push({
           month: m.month,
-          value: cumVotes > 0 ? clampRate(cumResolved / cumVotes) : 0,
+          value: m.totalVotes > 0 ? clampRate(m.resolvedCount / m.totalVotes) : 0,
         });
       }
     } else {
@@ -623,10 +619,10 @@ export function WeeklyReportPage() {
       consultationCount,
       returnVisitCount: u?.returnVisitCount ?? null,
       huaweiCloudUnbind: null,
-      newDemands: ad?.totalIdentifiedCount ?? w?.totalIdentifiedCount ?? 0,
-      newBugs: ad?.bugCount ?? w?.bugCount ?? 0,
-      closedDemands: ad?.completedCount ?? w?.completedCount ?? 0,
-      closedBugs: ad?.bugCompletedCount ?? w?.bugCompletedCount ?? 0,
+      newDemands: w?.totalIdentifiedCount ?? 0,
+      newBugs: w?.bugCount ?? 0,
+      closedDemands: w?.completedCount ?? 0,
+      closedBugs: w?.bugCompletedCount ?? 0,
       agentCount: u?.agentCount ?? 0,
       totalSessions: u?.totalSessions ?? consultationCount,
       totalMessages: u?.totalMessages ?? 0,
@@ -742,7 +738,7 @@ export function WeeklyReportPage() {
       body += `|------|----------|-----------|------------|---------|-------------|-------------|------|\n`;
       body += `| 咨询承接 | 用户主动咨询量/次 | ${fmt(metrics.consultationCount)} | ${calcConsultHoursStr(metrics.consultationCount, metrics.avgSessionDuration)} | ✅已完成 | ${metrics.consultationCount > 0 ? '会话数' : '—'} | 咨询量×(平均对话时长−10min) | ${type === 'personal' ? '个人会话数' : '团队汇总'} |\n`;
       body += `| 咨询承接 | 回访次数/次 | ${fmt(metrics.returnVisitCount)} | ${calcHoursStr(metrics.returnVisitCount, 5)} | ✅已完成 | 会话数 | 回访总次数×5min | — |\n`;
-      body += `| 专项业务 | 申请解绑华为云数量 | ${fmt(metrics.huaweiCloudUnbind)} | ${calcHoursStr(metrics.huaweiCloudUnbind, 1)} | ${metrics.huaweiCloudUnbind !== null ? '✅已完成' : '⏳待接入'} | 工单数据 | 解绑申请总数×1min | 需接入工单系统 |\n`;
+      body += `| 专项业务 | 申请解绑华为云数量 | ${fmt(huaweiCloudUnbindInput)} | ${calcHoursStr(huaweiCloudUnbindInput, 1)} | ${huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? '✅已完成' : '⏳待接入'} | 工单数据 | 解绑申请总数×1min | 需接入工单系统 |\n`;
       body += `| 问题转化 | 新增需求数/个 | ${fmt(metrics.newDemands)} | ${calcHoursStr(metrics.newDemands, 30)} | ✅已录入 | 需求列表 | 新增需求总数×30min | — |\n`;
       body += `| 问题转化 | 新增BUG数/个 | ${fmt(metrics.newBugs)} | ${calcHoursStr(metrics.newBugs, 30)} | ✅已录入 | BUG列表 | 新增BUG总数×30min | — |\n`;
       body += `| 问题闭环 | 已闭环需求数/个 | ${fmt(metrics.closedDemands)} | ${calcHoursStr(metrics.closedDemands, 15)} | ✅已闭环 | ${fmt(metrics.newDemands - metrics.closedDemands)}个待跟进 | 已关单需求数×15min | — |\n`;
@@ -765,7 +761,7 @@ export function WeeklyReportPage() {
       setPreviewContent({ subject, body });
       setPreviewModalVisible(true);
     },
-    [dateRange, teamMetrics, personalMetrics, teamSections, personalSections, selectedAgentId, agents],
+    [dateRange, teamMetrics, personalMetrics, teamSections, personalSections, selectedAgentId, agents, huaweiCloudUnbindInput],
   );
 
   // 确认发送邮件
@@ -977,16 +973,44 @@ export function WeeklyReportPage() {
         calcMethod="回访总次数×5min"
         remark="—"
       />
-      <WorkloadRow
-        category="专项业务"
-        item="申请解绑华为云数量"
-        value={fmt(metrics.huaweiCloudUnbind)}
-        hours={calcHours(metrics.huaweiCloudUnbind, 1)}
-        status={metrics.huaweiCloudUnbind !== null ? '已完成' : '待接入'}
-        relatedData="工单数据"
-        calcMethod="解绑申请总数×1min"
-        remark="需接入工单系统"
-      />
+      {/* 专项业务 - 申请解绑华为云数量（手动录入） */}
+      <div style={{ padding: '6px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 }}>
+        <Row gutter={8} align="middle">
+          <Col span={2}>
+            <Tag>专项业务</Tag>
+          </Col>
+          <Col span={3}>
+            <Text>申请解绑华为云数量</Text>
+          </Col>
+          <Col span={2}>
+            <InputNumber
+              min={0}
+              value={huaweiCloudUnbindInput}
+              onChange={(val: number | null) => setHuaweiCloudUnbindInput(val)}
+              style={{ width: 80 }}
+              size="small"
+              placeholder="0"
+            />
+          </Col>
+          <Col span={2}>
+            <Text type="secondary">{calcHours(huaweiCloudUnbindInput, 1)}</Text>
+          </Col>
+          <Col span={2}>
+            <Tag color={huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? 'success' : 'default'}>
+              {huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? '已完成' : '待接入'}
+            </Tag>
+          </Col>
+          <Col span={2}>
+            <Text type="secondary" style={{ fontSize: 11 }}>工单数据</Text>
+          </Col>
+          <Col span={3}>
+            <Text type="secondary" style={{ fontSize: 11 }}>解绑申请总数×1min</Text>
+          </Col>
+          <Col span={2}>
+            <Text type="secondary" style={{ fontSize: 11 }}>需接入工单系统</Text>
+          </Col>
+        </Row>
+      </div>
       <WorkloadRow
         category="问题转化"
         item="新增需求数/个"
