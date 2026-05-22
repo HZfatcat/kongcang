@@ -11,11 +11,6 @@ function toLocalISOString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-function toLocalDateStr(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 /**
  * 判断消息是否为系统自动消息（不包含在消息数统计中）
  * 匹配内容包含系统提示、超时、会话关闭、满意度调查等
@@ -112,13 +107,14 @@ export class UdescService {
   private resolveRange(startDate?: string, endDate?: string) {
     let end: Date;
     if (endDate) {
-      // 将 endDate 解释为北京时间 23:59:59.999
-      end = new Date(`${endDate}T23:59:59.999+08:00`);
+      // 将 endDate 设置为当天的 23:59:59.999，确保包含当天所有数据
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
     } else {
       end = new Date();
     }
     const start = startDate
-      ? new Date(`${startDate}T00:00:00+08:00`)
+      ? new Date(startDate)
       : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
     return { start, end };
   }
@@ -436,18 +432,17 @@ export class UdescService {
       ORDER BY s."agentId", day ASC
     `;
 
-    // 使用本地时间（北京时间）提取日期字符串，例如 "2026-04-11"
-    // toLocalDateStr 已在模块级别定义
-
     const sessionMap = new Map<string, number>();
     const messageMap = new Map<string, number>();
+    const daySet = new Set<string>();
     const agentSet = new Set<string>();
 
     for (const row of sessionRows) {
-      const day = toLocalDateStr(new Date(row.day));
+      const day = new Date(row.day).toISOString().slice(0, 10);
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
       sessionMap.set(key, Number(row.sessionCount));
+      daySet.add(day);
       agentSet.add(agentId);
     }
 
@@ -462,21 +457,15 @@ export class UdescService {
         if (raw?.sender !== 'agent' && raw?.sender !== 'customer') continue;
       }
 
-      const day = toLocalDateStr(new Date(row.day));
+      const day = new Date(row.day).toISOString().slice(0, 10);
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
       messageMap.set(key, (messageMap.get(key) ?? 0) + 1);
+      daySet.add(day);
       agentSet.add(agentId);
     }
 
-    // 生成从 start 到 end 的完整本地日期列表（即使某天无数据也保留，填充 0）
-    const days: string[] = [];
-    const current = new Date(start);
-    while (current <= end) {
-      days.push(toLocalDateStr(current));
-      current.setDate(current.getDate() + 1);
-    }
-
+    const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
     const agents = Array.from(agentSet).sort((a, b) => a.localeCompare(b));
 
     return {
@@ -491,16 +480,7 @@ export class UdescService {
   }
 
   async getDailyRatingStats(startDate?: string, endDate?: string) {
-    // 使用与 getDailyAgentStats 相同的本地时区日期处理
-    const rawStart = startDate ? new Date(startDate) : new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
-    const rawEnd = endDate ? new Date(endDate) : new Date();
-    // 将开始日期设置为当天 00:00:00 本地时间
-    const startLocal = new Date(rawStart.getFullYear(), rawStart.getMonth(), rawStart.getDate());
-    // 将结束日期设置为当天 23:59:59.999 本地时间
-    const endLocal = new Date(rawEnd.getFullYear(), rawEnd.getMonth(), rawEnd.getDate(), 23, 59, 59, 999);
-    // 数据库查询使用对应的 UTC 时间
-    const start = new Date(startLocal.toISOString());
-    const end = new Date(endLocal.toISOString());
+    const { start, end } = this.resolveRange(startDate, endDate);
 
     const ratingRows = await this.prisma.$queryRaw<
       Array<{
@@ -527,8 +507,7 @@ export class UdescService {
     const agentSet = new Set<string>();
 
     for (const row of ratingRows) {
-      // 使用本地时区日期（与 getDailyAgentStats 一致）
-      const day = toLocalDateStr(row.day);
+      const day = new Date(row.day).toISOString().slice(0, 10);
       const agentId = row.agentId ?? '未分配客服';
       const key = `${day}__${agentId}`;
       const avg = row.avgRating ?? 0;
@@ -538,21 +517,13 @@ export class UdescService {
       agentSet.add(agentId);
     }
 
-    // 生成查询范围内的完整日期列表（本地时区）
-    const days: string[] = [];
-    const cursor = new Date(startLocal);
-    const endOfRange = new Date(endLocal);
-    while (cursor <= endOfRange) {
-      days.push(toLocalDateStr(cursor));
-      cursor.setDate(cursor.getDate() + 1);
-    }
-
+    const days = Array.from(daySet).sort((a, b) => a.localeCompare(b));
     const agents = Array.from(agentSet).sort((a, b) => a.localeCompare(b));
 
     // 计算整体平均评分（按天）
     const overallMap = new Map<string, { sum: number; count: number }>();
     for (const row of ratingRows) {
-      const day = toLocalDateStr(row.day);
+      const day = new Date(row.day).toISOString().slice(0, 10);
       const avg = row.avgRating ?? 0;
       const cnt = Number(row.ratingCount);
       const prev = overallMap.get(day) ?? { sum: 0, count: 0 };
@@ -1925,35 +1896,45 @@ export class UdescService {
   }) {
     const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
 
+    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
     const end = new Date(rawEnd);
+    end.setUTCHours(23, 59, 59, 999);
 
-    // 生成日期范围（北京时间）
+    // 生成日期范围
     const days: string[] = [];
     const current = new Date(start);
     while (current <= end) {
-      const bjDate = new Date(current.getTime() + 8 * 60 * 60 * 1000);
-      days.push(bjDate.toISOString().split('T')[0]);
-      current.setUTCDate(current.getUTCDate() + 1);
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
     }
 
-    // 按天统计创建数（按北京时间分组）
-    // 注意：数据库 createdAt 是 timestamp without time zone，存储的是 UTC 值
-    // 需要用 AT TIME ZONE 'UTC' 明确告知 PostgreSQL 该值是 UTC 时区
-    // 再用 AT TIME ZONE 'Asia/Shanghai' 转换为北京时间
+    // 按天统计创建数
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai') as date, COUNT(*) as count
+      SELECT DATE("createdAt") as date, COUNT(*) as count
       FROM "UdescTicket"
-      WHERE "createdAt" AT TIME ZONE 'UTC' >= ${start} AND "createdAt" AT TIME ZONE 'UTC' <= ${end}
-      GROUP BY DATE("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')
+      WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+      GROUP BY DATE("createdAt")
+      ORDER BY date
+    `;
+
+    // 按天统计解决数
+    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
+      SELECT DATE("resolvedAt") as date, COUNT(*) as count
+      FROM "UdescTicket"
+      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+AND "status" = '已解决'
+      GROUP BY DATE("resolvedAt")
       ORDER BY date
     `;
 
     const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       days,
       created: days.map((d) => createdMap.get(d) ?? 0),
+      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
     };
   }
 
