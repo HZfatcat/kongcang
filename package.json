@@ -7,7 +7,7 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "node -e \"require('fs').copyFileSync('.env.dev-local','.env')\" && npm run dev:api & npm run dev:web",
+    "dev": "cp .env.dev-local .env && npm run dev:api & npm run dev:web",
     "dev:api": "npm run dev --workspace apps/api",
     "dev:web": "npm run dev --workspace apps/web",
     "dev:docker": "cp .env.dev-docker .env && docker compose -f docker-compose.dev.yml up -d",

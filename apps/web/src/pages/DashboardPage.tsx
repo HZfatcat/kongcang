@@ -7,7 +7,6 @@ import {
   Checkbox,
   Col,
   DatePicker,
-  Divider,
   Form,
   Input,
   InputNumber,
@@ -179,8 +178,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
-    dayjs('2026-01-01').startOf('day'),
-    dayjs().endOf('day'),
+    dayjs('2026-04-11').startOf('day'),
+    dayjs('2026-05-11').endOf('day'),
   ]);
   const quickRangePresets = useMemo(
     () => [
@@ -438,7 +437,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   }, [activeMenuKey]);
 
   useEffect(() => {
-    if (activeMenuKey === 'sync-zouwu' || activeMenuKey === 'demand') {
+    if (activeMenuKey === 'sync-zouwu') {
       void loadZouwuStats();
     }
   }, [activeMenuKey, apiRange.startDateIso, apiRange.endDateIso]);
@@ -1095,11 +1094,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     },
   ];
 
-  // 驺吾汇总统计（scope='all'）
-  const zouwuAllStat = useMemo(() => {
-    return zouwuStats?.closeRates?.find(c => c.scope === 'all') ?? null;
-  }, [zouwuStats]);
-
   // 需求Tab内容
   const requirementTabContent = (
     <>
@@ -1170,95 +1164,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             <Statistic
               title={<span style={{ color: '#666' }}>需求关单率</span>}
               value={Number(((demandOverview?.completionRate ?? 0) * 100).toFixed(2))}
-              suffix="%"
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </div>
-        </Col>
-        <Col span={4} style={{ position: 'relative' }}>
-          <div style={{ padding: '20px 16px' }}>
-            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
-              <Tooltip title="总关单率 = (需求闭环数 + 已拒绝需求 + Bug闭环数 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)">
-                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
-                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
-                </svg>
-              </Tooltip>
-            </span>
-            <Statistic
-              title={<span style={{ color: '#666' }}>总关单率</span>}
-              value={Number(((
-                ((demandOverview?.completedCount ?? 0) + (demandOverview?.rejectedCount ?? 0) + (demandOverview?.bugCompletedCount ?? 0) + (demandOverview?.bugRejectedCount ?? 0))
-                /
-                ((demandOverview?.totalIdentifiedCount ?? 0) - (demandOverview?.longTermCount ?? 0) + (demandOverview?.bugCount ?? 0) - (demandOverview?.bugLongTermCount ?? 0))
-              ) * 100).toFixed(2))}
-              suffix="%"
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </div>
-        </Col>
-      </Row>
-      {/* 驺吾汇总卡片 */}
-      <Divider orientation="left" style={{ fontSize: 16, fontWeight: 600, marginTop: 24 }}>驺吾汇总</Divider>
-      <Row gutter={16}>
-        <Col span={4}>
-          <div style={{ padding: '20px 16px' }}>
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>驺吾总数</span>} 
-              value={zouwuAllStat?.total ?? 0}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </div>
-        </Col>
-        <Col span={4}>
-          <div style={{ padding: '20px 16px' }}>
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>驺吾闭环数</span>} 
-              value={zouwuAllStat?.closedOrRejected ?? 0}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </div>
-        </Col>
-        <Col span={4}>
-          <div style={{ padding: '20px 16px' }}>
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>已拒绝驺吾</span>} 
-              value={0}
-              valueStyle={{ color: '#ff4d4f' }}
-            />
-          </div>
-        </Col>
-        <Col span={4}>
-          <div style={{ padding: '20px 16px' }}>
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>驺吾长期演进</span>} 
-              value={zouwuAllStat?.excludedByLongTermAccepted ?? 0}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </div>
-        </Col>
-        <Col span={4}>
-          <div style={{ padding: '20px 16px' }}>
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>跟进中驺吾</span>} 
-              value={((zouwuAllStat?.denominator ?? 0) - (zouwuAllStat?.closedOrRejected ?? 0))}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </div>
-        </Col>
-        <Col span={4} style={{ position: 'relative' }}>
-          <div style={{ padding: '20px 16px' }}>
-            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
-              <Tooltip title="指标说明：(已闭环驺吾+已拒绝驺吾)/(总驺吾工单-长期演进驺吾工单)">
-                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
-                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
-                </svg>
-              </Tooltip>
-            </span>
-            <Statistic
-              title={<span style={{ color: '#666' }}>驺吾关单率</span>}
-              value={Number(((zouwuAllStat?.closeRate ?? 0) * 100).toFixed(2))}
               suffix="%"
               valueStyle={{ color: '#52c41a' }}
             />
@@ -1380,28 +1285,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
             />
           </div>
         </Col>
-        <Col span={4} style={{ position: 'relative' }}>
-          <div style={{ padding: '20px 16px' }}>
-            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#faad14', zIndex: 1 }}>
-              <Tooltip title="总关单率 = (需求闭环数 + 已拒绝需求 + Bug闭环数 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)">
-                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
-                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
-                </svg>
-              </Tooltip>
-            </span>
-            <Statistic
-              title={<span style={{ color: '#666' }}>总关单率</span>}
-              value={Number(((
-                ((demandOverview?.completedCount ?? 0) + (demandOverview?.rejectedCount ?? 0) + (demandOverview?.bugCompletedCount ?? 0) + (demandOverview?.bugRejectedCount ?? 0))
-                /
-                ((demandOverview?.totalIdentifiedCount ?? 0) - (demandOverview?.longTermCount ?? 0) + (demandOverview?.bugCount ?? 0) - (demandOverview?.bugLongTermCount ?? 0))
-              ) * 100).toFixed(2))}
-              suffix="%"
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </div>
-        </Col>
       </Row>
       <Card title="Bug 明细" style={{ marginTop: 16 }}>
         <Table
@@ -1433,7 +1316,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       bugRejected: number;
       bugLongTerm: number;
       bugCompletionRate: number;
-      totalCompletionRate: number;
     }> = [];
     
     const sortedMonths = Array.from(months).sort().reverse();
@@ -1458,14 +1340,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       const bugEffectiveTotal = bugCreated - bugLongTerm;
       const bugCompletionRate = bugEffectiveTotal > 0 ? (bugCompleted + bugRejected) / bugEffectiveTotal : 0;
       
-      // 总关单率 = (需求闭环 + 已拒绝需求 + Bug闭环 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)
-      const totalCreated = reqCreated + bugCreated;
-      const totalCompleted = reqCompleted + bugCompleted;
-      const totalRejected = reqRejected + bugRejected;
-      const totalLongTerm = reqLongTerm + bugLongTerm;
-      const totalEffectiveTotal = totalCreated - totalLongTerm;
-      const totalCompletionRate = totalEffectiveTotal > 0 ? (totalCompleted + totalRejected) / totalEffectiveTotal : 0;
-      
       rows.push({
         month,
         reqCreated,
@@ -1478,18 +1352,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         bugRejected,
         bugLongTerm,
         bugCompletionRate,
-        totalCompletionRate,
       });
     });
     
-    // 汇总行：直接使用 demandOverview 的聚合字段
-    const totalCreated_sum = (demandOverview?.totalIdentifiedCount ?? 0) + (demandOverview?.bugCount ?? 0);
-    const totalCompleted_sum = (demandOverview?.completedCount ?? 0) + (demandOverview?.bugCompletedCount ?? 0);
-    const totalRejected_sum = (demandOverview?.rejectedCount ?? 0) + (demandOverview?.bugRejectedCount ?? 0);
-    const totalLongTerm_sum = (demandOverview?.longTermCount ?? 0) + (demandOverview?.bugLongTermCount ?? 0);
-    const totalEffective_sum = totalCreated_sum - totalLongTerm_sum;
-    const totalCompletionRate_sum = totalEffective_sum > 0 ? (totalCompleted_sum + totalRejected_sum) / totalEffective_sum : 0;
-    
+    // 汇总行：直接使用 demandOverview 的聚合字段，与需求详情页/Bug详情页保持一致
     rows.push({
       month: '汇总',
       reqCreated: demandOverview?.totalWithLongTerm ?? 0,
@@ -1502,7 +1368,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       bugRejected: demandOverview?.bugRejectedCount ?? 0,
       bugLongTerm: demandOverview?.bugLongTermCount ?? 0,
       bugCompletionRate: demandOverview?.bugCompletionRate ?? 0,
-      totalCompletionRate: totalCompletionRate_sum,
     });
     
     return rows;
@@ -1532,13 +1397,6 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       width: 140,
       render: (_: unknown, record: typeof mergedMonthlyRows[number]) => 
         `${(record.bugCompletionRate * 100).toFixed(2)}%`,
-    },
-    {
-      title: '总关单率',
-      key: 'totalCompletionRate',
-      width: 140,
-      render: (_: unknown, record: typeof mergedMonthlyRows[number]) =>
-        `${(record.totalCompletionRate * 100).toFixed(2)}%`,
     },
   ];
 
