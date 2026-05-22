@@ -328,18 +328,18 @@ export function WeeklyReportPage() {
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [annualDemandOverview, setAnnualDemandOverview] = useState<DemandOverview | null>(null);
   const [funnel, setFunnel] = useState<ConsultationFunnelOverview | null>(null);
-  const [udescOverview, setUdescOverview] = useState<Awaited<ReturnType<typeof fetchUdescOverview>> | null>(null);
-  const [dailyRatingStats, setDailyRatingStats] = useState<Awaited<ReturnType<typeof fetchUdescDailyRatingStats>> | null>(null);
-  const [teamMetricsSummary, setTeamMetricsSummary] = useState<UdescMetricsSummary | null>(null);
-  const [weeklyVotes, setWeeklyVotes] = useState<Awaited<ReturnType<typeof fetchUdescVotes>> | null>(null);
-  const [teamTicketSummary, setTeamTicketSummary] = useState<Awaited<ReturnType<typeof fetchUdescTicketSummary>> | null>(null);
+  const [udescOverview, setUdeskOverview] = useState<Awaited<ReturnType<typeof fetchUdeskOverview>> | null>(null);
+  const [dailyRatingStats, setDailyRatingStats] = useState<Awaited<ReturnType<typeof fetchUdeskDailyRatingStats>> | null>(null);
+  const [teamMetricsSummary, setTeamMetricsSummary] = useState<UdeskMetricsSummary | null>(null);
+  const [weeklyVotes, setWeeklyVotes] = useState<Awaited<ReturnType<typeof fetchUdeskVotes>> | null>(null);
+  const [teamTicketSummary, setTeamTicketSummary] = useState<Awaited<ReturnType<typeof fetchUdeskTicketSummary>> | null>(null);
   const [opportunitySummary, setOpportunitySummary] = useState<Awaited<ReturnType<typeof fetchOpportunitySummary>> | null>(null);
 
   // 个人数据
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
-  const [agentPerformance, setAgentPerformance] = useState<Awaited<ReturnType<typeof fetchUdescAgentPerformance>> | null>(null);
-  const [agentMetricsSummary, setAgentMetricsSummary] = useState<UdescMetricsSummary | null>(null);
+  const [agentPerformance, setAgentPerformance] = useState<Awaited<ReturnType<typeof fetchUdeskAgentPerformance>> | null>(null);
+  const [agentMetricsSummary, setAgentMetricsSummary] = useState<UdeskMetricsSummary | null>(null);
 
   // 可编辑模块内容
   const [teamSections, setTeamSections] = useState<Record<string, string>>({ otherWork: '', nextPlan: '' });
@@ -415,19 +415,19 @@ export function WeeklyReportPage() {
     try {
       const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary] = await Promise.all([
         fetchReportData(start, end).catch(() => null),
-        fetchUdescOverview({ startDate: start, endDate: end }).catch(() => null),
-        fetchUdescDailyRatingStats({ startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskOverview({ startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskDailyRatingStats({ startDate: start, endDate: end }).catch(() => null),
         fetchDemandOverview({ startDate: annualStart, endDate: end }).catch(() => null),
-        fetchUdescMetricsSummary({ startDate: start, endDate: end }).catch(() => null),
-        fetchUdescVotes({ startDate: start, endDate: end, pageSize: 1 }).catch(() => null),
-        fetchUdescTicketSummary({ startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskMetricsSummary({ startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskVotes({ startDate: start, endDate: end, pageSize: 1 }).catch(() => null),
+        fetchUdeskTicketSummary({ startDate: start, endDate: end }).catch(() => null),
         fetchOpportunitySummary({ startDate: start, endDate: end }).catch(() => null),
       ]);
       setKpiOverview(report?.kpiOverview ?? null);
       setDemandOverview(report?.demandOverview ?? null);
       setAnnualDemandOverview(annualDemand);
       setFunnel(report?.funnel ?? null);
-      setUdescOverview(udeskOv);
+      setUdeskOverview(udeskOv);
       setDailyRatingStats(ratingStats);
       setTeamMetricsSummary(metricsSum);
       setWeeklyVotes(votes);
@@ -446,8 +446,8 @@ export function WeeklyReportPage() {
     const end = formatDate(dateRange[1]);
     try {
       const [perf, metricsSum] = await Promise.all([
-        fetchUdescAgentPerformance(selectedAgentId, { startDate: start, endDate: end }).catch(() => null),
-        fetchUdescMetricsSummary({ startDate: start, endDate: end, agentId: selectedAgentId }).catch(() => null),
+        fetchUdeskAgentPerformance(selectedAgentId, { startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskMetricsSummary({ startDate: start, endDate: end, agentId: selectedAgentId }).catch(() => null),
       ]);
       setAgentPerformance(perf);
       setAgentMetricsSummary(metricsSum);
