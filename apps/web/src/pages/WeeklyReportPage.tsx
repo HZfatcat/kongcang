@@ -40,12 +40,14 @@ import dayjs from 'dayjs';
 import { fetchReportData } from '../api/report';
 import { fetchDemandOverview } from '../api/kpi';
 import {
-  fetchUdescOverview,
-  fetchUdescDailyRatingStats,
-  fetchUdescAgentPerformance,
-  fetchUdescMetricsSummary,
-  fetchUdescVotes,
-  fetchUdescTicketSummary,
+  fetchUdescOverview as fetchUdeskOverview,
+  fetchUdescDailyRatingStats as fetchUdeskDailyRatingStats,
+  fetchUdescAgentPerformance as fetchUdeskAgentPerformance,
+  fetchUdescMetricsSummary as fetchUdeskMetricsSummary,
+  fetchUdescMonthlyVoteStats as fetchUdeskMonthlyVoteStats,
+  fetchUdescMonthlyMetrics as fetchUdeskMonthlyMetrics,
+  fetchUdescVotes as fetchUdeskVotes,
+  fetchUdescTicketSummary as fetchUdeskTicketSummary,
   fetchAgents,
 } from '../api/udesc';
 import { fetchOpportunitySummary } from '../api/opportunity';
@@ -164,9 +166,11 @@ interface MetricRowProps {
   monthlyHistory?: { month: string; value: number }[];
   value: string | number | React.ReactNode;
   status?: React.ReactNode;
+  /** 自定义月度趋势弹窗中每行的值格式化，默认按百分比 */
+  formatMonthlyValue?: (val: number) => string;
 }
 
-function MetricRow({ label, target, indicatorInfo, monthlyHistory, value, status }: MetricRowProps) {
+function MetricRow({ label, target, indicatorInfo, monthlyHistory, value, status, formatMonthlyValue }: MetricRowProps) {
   const [detailOpen, setDetailOpen] = useState(false);
   return (
     <>
@@ -219,7 +223,7 @@ function MetricRow({ label, target, indicatorInfo, monthlyHistory, value, status
                 }}
               >
                 <span>{m.month}</span>
-                <span style={{ fontWeight: 600 }}>{(m.value * 100).toFixed(1)}%</span>
+                <span style={{ fontWeight: 600 }}>{formatMonthlyValue ? formatMonthlyValue(m.value) : `${(m.value * 100).toFixed(1)}%`}</span>
               </div>
             ))}
           </div>
@@ -300,6 +304,8 @@ interface WeeklyMetrics {
   // 1.2 体验与响应效率 - 响应
   avgFirstResponseTime: number | null;
   avgResponseTime: number | null;
+  avgFirstResponseTimeMonthly: { month: string; value: number }[];
+  avgResponseTimeMonthly: { month: string; value: number }[];
   // 2. 业务承接
   consultationCount: number;
   returnVisitCount: number | null;
@@ -330,16 +336,18 @@ export function WeeklyReportPage() {
   const [funnel, setFunnel] = useState<ConsultationFunnelOverview | null>(null);
   const [udescOverview, setUdeskOverview] = useState<Awaited<ReturnType<typeof fetchUdeskOverview>> | null>(null);
   const [dailyRatingStats, setDailyRatingStats] = useState<Awaited<ReturnType<typeof fetchUdeskDailyRatingStats>> | null>(null);
-  const [teamMetricsSummary, setTeamMetricsSummary] = useState<UdeskMetricsSummary | null>(null);
+  const [teamMetricsSummary, setTeamMetricsSummary] = useState<UdescMetricsSummary | null>(null);
   const [weeklyVotes, setWeeklyVotes] = useState<Awaited<ReturnType<typeof fetchUdeskVotes>> | null>(null);
   const [teamTicketSummary, setTeamTicketSummary] = useState<Awaited<ReturnType<typeof fetchUdeskTicketSummary>> | null>(null);
   const [opportunitySummary, setOpportunitySummary] = useState<Awaited<ReturnType<typeof fetchOpportunitySummary>> | null>(null);
+  const [monthlyVoteStats, setMonthlyVoteStats] = useState<Awaited<ReturnType<typeof fetchUdeskMonthlyVoteStats>> | null>(null);
+  const [monthlyMetrics, setMonthlyMetrics] = useState<Awaited<ReturnType<typeof fetchUdeskMonthlyMetrics>> | null>(null);
 
   // 个人数据
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
   const [agentPerformance, setAgentPerformance] = useState<Awaited<ReturnType<typeof fetchUdeskAgentPerformance>> | null>(null);
-  const [agentMetricsSummary, setAgentMetricsSummary] = useState<UdeskMetricsSummary | null>(null);
+  const [agentMetricsSummary, setAgentMetricsSummary] = useState<UdescMetricsSummary | null>(null);
 
   // 可编辑模块内容
   const [teamSections, setTeamSections] = useState<Record<string, string>>({ otherWork: '', nextPlan: '' });
@@ -413,7 +421,7 @@ export function WeeklyReportPage() {
     const end = formatDate(dateRange[1]);
     const annualStart = `${new Date().getFullYear()}-01-01`;
     try {
-      const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary] = await Promise.all([
+      const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary, monthlyVotes, monthlyMets] = await Promise.all([
         fetchReportData(start, end).catch(() => null),
         fetchUdeskOverview({ startDate: start, endDate: end }).catch(() => null),
         fetchUdeskDailyRatingStats({ startDate: start, endDate: end }).catch(() => null),
@@ -422,6 +430,8 @@ export function WeeklyReportPage() {
         fetchUdeskVotes({ startDate: start, endDate: end, pageSize: 1 }).catch(() => null),
         fetchUdeskTicketSummary({ startDate: start, endDate: end }).catch(() => null),
         fetchOpportunitySummary({ startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskMonthlyVoteStats({ startDate: annualStart, endDate: end }).catch(() => null),
+        fetchUdeskMonthlyMetrics({ startDate: annualStart, endDate: end }).catch(() => null),
       ]);
       setKpiOverview(report?.kpiOverview ?? null);
       setDemandOverview(report?.demandOverview ?? null);
@@ -433,6 +443,8 @@ export function WeeklyReportPage() {
       setWeeklyVotes(votes);
       setTeamTicketSummary(ticketSummary);
       setOpportunitySummary(oppSummary);
+      setMonthlyVoteStats(monthlyVotes);
+      setMonthlyMetrics(monthlyMets);
     } catch (err) {
       console.error('拉取团队数据失败:', err);
       message.error('拉取团队数据失败，请重试');
@@ -470,53 +482,92 @@ export function WeeklyReportPage() {
   // === 计算团队指标 ===
   const teamMetrics = useMemo((): WeeklyMetrics => {
     const s = kpiOverview;
-    // 当周数据（本周完成值）
     const w = demandOverview;
-    // 年度累计数据（当年 1 月 1 日至周期结束，用于月度趋势）
+    // 年度累计数据（当年 1 月 1 日至周期结束，用于本周完成值 和 月度趋势）
     const ad = annualDemandOverview;
     const f = funnel;
     const u = udescOverview;
     const ms = teamMetricsSummary;
+    const mvs = monthlyVoteStats; // 月度投票统计
+    const mm = monthlyMetrics; // 月度响应指标
 
-    // === 闭环质量：本周完成值使用当周数据，月度趋势使用年度累计 ===
-    // 关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)
-    // 需求关单率（当周）
+    // === 修改点4：本周完成值 = 2026-01-01 至报告周期结束的累计值 ===
+    // 需求关单率（年度累计）
     const demandNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0);
     const demandDenominator = (ad?.totalIdentifiedCount ?? 0) - (ad?.longTermCount ?? 0);
-    const weeklyDemandNumerator = (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0);
-    const weeklyDemandDenominator = (w?.totalIdentifiedCount ?? 0) - (w?.longTermCount ?? 0);
     const annualDemandCloseRate = demandDenominator > 0 ? demandNumerator / demandDenominator : 0;
-    const weeklyDemandCloseRate = weeklyDemandDenominator > 0 ? weeklyDemandNumerator / weeklyDemandDenominator : 0;
 
-    // BUG关单率（当周）
+    // BUG关单率（年度累计）
     const bugNumerator = (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
     const bugDenominator = (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
-    const weeklyBugNumerator = (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0);
-    const weeklyBugDenominator = (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0);
     const annualBugCloseRate = bugDenominator > 0 ? bugNumerator / bugDenominator : 0;
-    const weeklyBugCloseRate = weeklyBugDenominator > 0 ? weeklyBugNumerator / weeklyBugDenominator : 0;
 
-    // 总关单率 = 需求 + BUG 合并计算（当周）
+    // 总关单率（年度累计）
     const totalNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0) + (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
     const totalDenominator = (ad?.totalIdentifiedCount ?? 0) - (ad?.longTermCount ?? 0) + (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
-    const weeklyTotalNumerator = (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0) + (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0);
-    const weeklyTotalDenominator = (w?.totalIdentifiedCount ?? 0) - (w?.longTermCount ?? 0) + (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0);
     const annualTotalCloseRate = totalDenominator > 0 ? totalNumerator / totalDenominator : 0;
-    const weeklyTotalCloseRate = weeklyTotalDenominator > 0 ? weeklyTotalNumerator / weeklyTotalDenominator : 0;
-
-    // 体验指标
-    const satisfactionRate = clampRate(s?.satisfactionRate ?? 0);
-    const problemResolutionRate = clampRate(s?.demandCompletionRate ?? 0);
 
     // 关单率全部 clamp 到 0~1
     const annualDemandCloseRateClamped = clampRate(annualDemandCloseRate);
-    const weeklyDemandCloseRateClamped = clampRate(weeklyDemandCloseRate);
     const annualBugCloseRateClamped = clampRate(annualBugCloseRate);
-    const weeklyBugCloseRateClamped = clampRate(weeklyBugCloseRate);
     const annualTotalCloseRateClamped = clampRate(annualTotalCloseRate);
-    const weeklyTotalCloseRateClamped = clampRate(weeklyTotalCloseRate);
 
-    // 月度累计历史：使用年度数据（当年 1 月 1 日起），按累计口径计算
+    // === 修改点2&3：满意度 & 问题解决率 ===
+    // 使用月度投票统计数据计算，分母 = 有效参与评价总数（有评分的会话数）
+    let satisfactionRate = 0;
+    let problemResolutionRate = 0;
+    const satMonthly: { month: string; value: number }[] = [];
+    const resMonthly: { month: string; value: number }[] = [];
+
+    if (mvs && mvs.length > 0) {
+      // 累计总数（所有月份合计）
+      const totalVotes = mvs.reduce((sum, m) => sum + m.totalVotes, 0);
+      const totalSatisfied = mvs.reduce((sum, m) => sum + m.satisfiedCount, 0);
+      const totalResolved = mvs.reduce((sum, m) => sum + m.resolvedCount, 0);
+      satisfactionRate = totalVotes > 0 ? clampRate(totalSatisfied / totalVotes) : 0;
+      problemResolutionRate = totalVotes > 0 ? clampRate(totalResolved / totalVotes) : 0;
+
+      // 按月计算月度累计趋势（按累计口径，与 Dashboard 对齐）
+      // 逐月累计：每个月的值 = 该月及之前所有月份合计的比率
+      let cumVotes = 0;
+      let cumSatisfied = 0;
+      let cumResolved = 0;
+      for (const m of mvs.sort((a, b) => a.month.localeCompare(b.month))) {
+        cumVotes += m.totalVotes;
+        cumSatisfied += m.satisfiedCount;
+        cumResolved += m.resolvedCount;
+        satMonthly.push({
+          month: m.month,
+          value: cumVotes > 0 ? clampRate(cumSatisfied / cumVotes) : 0,
+        });
+        resMonthly.push({
+          month: m.month,
+          value: cumVotes > 0 ? clampRate(cumResolved / cumVotes) : 0,
+        });
+      }
+    } else {
+      // 降级：使用 KPI overview 数据
+      satisfactionRate = clampRate(s?.satisfactionRate ?? 0);
+      const totalVotesFromKpi = (s?.ratedSessions ?? 0);
+      problemResolutionRate = totalVotesFromKpi > 0
+        ? clampRate(satisfactionRate)
+        : 0;
+    }
+
+    // === 修改点1：响应效率月度数据 ===
+    const avgFirstResponseTimeMonthly = mm
+      ? mm
+          .filter(m => m.avgFirstResponseTime !== null)
+          .map(m => ({ month: m.month, value: m.avgFirstResponseTime! }))
+      : [];
+
+    const avgResponseTimeMonthly = mm
+      ? mm
+          .filter(m => m.avgResponseTime !== null)
+          .map(m => ({ month: m.month, value: m.avgResponseTime! }))
+      : [];
+
+    // 月度累计历史（闭环质量）：使用年度数据
     const demandCloseMonthly = computeMonthlyCloseRate(ad?.monthlyRequirement);
     const bugCloseMonthly = computeMonthlyCloseRate(ad?.monthlyBug);
     // 总关单率月度 = 需求 + Bug 按月合并后计算累计
@@ -540,43 +591,35 @@ export function WeeklyReportPage() {
       });
       return computeMonthlyCloseRate(merged);
     })();
-    // 体验指标月度历史复用需求关单率的累计趋势
-    const satMonthly = demandCloseMonthly.length > 0
-      ? demandCloseMonthly.map((m) => ({
-          month: m.month,
-          value: clampRate(satisfactionRate * (annualDemandCloseRate > 0.01 ? m.value / annualDemandCloseRate : 1)),
-        }))
-      : [];
-    const resMonthly = demandCloseMonthly.length > 0
-      ? demandCloseMonthly.map((m) => ({
-          month: m.month,
-          value: clampRate(problemResolutionRate * (annualDemandCloseRate > 0.01 ? m.value / annualDemandCloseRate : 1)),
-        }))
-      : [];
 
     // 咨询量
     const consultationCount = f?.periods?.reduce((sum, p) => sum + (p.consultationCount ?? 0), 0) ?? 0;
 
-    // 响应时长 - 使用 UdeskMetricsSummary 数据
+    // 响应时长 - 使用 UdeskMetricsSummary 数据（本周完成值也用年度累计）
     const avgFirstResponseTime: number | null = ms?.avgFirstResponseTime ?? null;
     const avgResponseTime: number | null = ms?.avgResponseTime ?? null;
-    // 平均对话时长 ≈ avgResolutionTime (解析时间，单位秒)
+    // 平均对话时长
     const avgSessionDuration: number | null = ms?.avgResolutionTime ?? null;
 
     return {
+      // 修改点4：本周完成值统一使用年度累计值
       totalCloseRate: annualTotalCloseRateClamped,
       demandCloseRate: annualDemandCloseRateClamped,
       bugCloseRate: annualBugCloseRateClamped,
       totalCloseMonthly,
       demandCloseMonthly,
       bugCloseMonthly,
+      // 修改点2：满意度 & 问题解决率使用修正后逻辑
       satisfactionRate,
       satisfactionRated: u?.ratedCount ?? s?.ratedSessions ?? 0,
       problemResolutionRate,
       satMonthly,
       resMonthly,
+      // 修改点1：添加响应效率月度数据
       avgFirstResponseTime,
       avgResponseTime,
+      avgFirstResponseTimeMonthly,
+      avgResponseTimeMonthly,
       consultationCount,
       returnVisitCount: u?.returnVisitCount ?? null,
       huaweiCloudUnbind: null,
@@ -592,7 +635,7 @@ export function WeeklyReportPage() {
       opportunityCount: opportunitySummary?.total ?? 0,
       opportunityWon: opportunitySummary?.won ?? 0,
     };
-  }, [kpiOverview, demandOverview, annualDemandOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary]);
+  }, [kpiOverview, demandOverview, annualDemandOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary, monthlyVoteStats, monthlyMetrics]);
 
   // === 计算个人指标 ===
   const personalMetrics = useMemo((): WeeklyMetrics => {
@@ -627,6 +670,8 @@ export function WeeklyReportPage() {
       resMonthly: team.resMonthly,
       avgFirstResponseTime: perf?.avgFirstResponseTime ?? sum?.avgFirstResponseTime ?? null,
       avgResponseTime: sum?.avgResponseTime ?? null,
+      avgFirstResponseTimeMonthly: team.avgFirstResponseTimeMonthly,
+      avgResponseTimeMonthly: team.avgResponseTimeMonthly,
       consultationCount: personalConsultCount,
       returnVisitCount: Math.round((team.returnVisitCount ?? 0) / agentCnt),
       huaweiCloudUnbind: null,
@@ -672,13 +717,13 @@ export function WeeklyReportPage() {
       body += `### 2.1 体验指标（月度累计趋势）\n\n`;
       body += `| 维度 | 核心指标 | 目标值 | 月度累计趋势 | 本周完成值 | 状态/进展 | 指标说明 |\n`;
       body += `|------|----------|--------|-------------------|-----------|----------|----------|\n`;
-      body += `| 体验指标 | 满意度 | ≥95% | ${metrics.satMonthly?.map(m => `${m.month}:${(m.value*100).toFixed(1)}%`).join(' ') || '—'} | ${pct(metrics.satisfactionRate)} | ${metrics.satisfactionRate >= 0.95 ? '✅达标' : '❌未达标'} | 满意评价数/总评价数 |\n`;
-      body += `| 体验指标 | 问题解决率 | ≥90% | ${metrics.resMonthly?.map(m => `${m.month}:${(m.value*100).toFixed(1)}%`).join(' ') || '—'} | ${pct(metrics.problemResolutionRate)} | ${metrics.problemResolutionRate >= 0.90 ? '✅达标' : '❌未达标'} | 已解决问题数/有效参评总数 |\n\n`;
+      body += `| 体验指标 | 满意度 | ≥95% | ${metrics.satMonthly?.map(m => `${m.month}:${(m.value*100).toFixed(1)}%`).join(' ') || '—'} | ${pct(metrics.satisfactionRate)} | ${metrics.satisfactionRate >= 0.95 ? '✅达标' : '❌未达标'} | 满意数量/有效参与评价总数 |\n`;
+      body += `| 体验指标 | 问题解决率 | ≥90% | ${metrics.resMonthly?.map(m => `${m.month}:${(m.value*100).toFixed(1)}%`).join(' ') || '—'} | ${pct(metrics.problemResolutionRate)} | ${metrics.problemResolutionRate >= 0.90 ? '✅达标' : '❌未达标'} | 已解决数量/有效参与评价总数 |\n\n`;
       body += `### 2.2 响应效率（数据源: udesk会话指标）\n\n`;
       body += `| 维度 | 核心指标 | 目标值 | 月度数据 | 本周完成值 | 状态/进展 | 指标说明 |\n`;
       body += `|------|----------|--------|---------|-----------|----------|----------|\n`;
-      body += `| 响应效率 | 平均首次响应时长 | ≤60秒 | — | ${fmtMinutes(metrics.avgFirstResponseTime)} | ${metrics.avgFirstResponseTime !== null ? (metrics.avgFirstResponseTime <= 60 ? '✅达标' : '❌未达标') : '⏳待接入'} | 首次响应时间之和/会话数 |\n`;
-      body += `| 响应效率 | 平均响应时长 | ≤120秒 | — | ${fmtMinutes(metrics.avgResponseTime)} | ${metrics.avgResponseTime !== null ? (metrics.avgResponseTime <= 120 ? '✅达标' : '❌未达标') : '⏳待接入'} | 总响应时长/总消息数 |\n\n`;
+      body += `| 响应效率 | 平均首次响应时长 | ≤60秒 | ${metrics.avgFirstResponseTimeMonthly?.map(m => `${m.month}:${fmtMinutes(m.value)}`).join(' ') || '—'} | ${fmtMinutes(metrics.avgFirstResponseTime)} | ${metrics.avgFirstResponseTime !== null ? (metrics.avgFirstResponseTime <= 60 ? '✅达标' : '❌未达标') : '⏳待接入'} | 首次响应时间之和/会话数 |\n`;
+      body += `| 响应效率 | 平均响应时长 | ≤120秒 | ${metrics.avgResponseTimeMonthly?.map(m => `${m.month}:${fmtMinutes(m.value)}`).join(' ') || '—'} | ${fmtMinutes(metrics.avgResponseTime)} | ${metrics.avgResponseTime !== null ? (metrics.avgResponseTime <= 120 ? '✅达标' : '❌未达标') : '⏳待接入'} | 总响应时长/总消息数 |\n\n`;
 
       body += `---\n\n`;
 
@@ -821,7 +866,7 @@ export function WeeklyReportPage() {
             value={pct(metrics.satisfactionRate)}
             target="≥95%"
             status={statusTag(metrics.satisfactionRate, 0.95)}
-            indicatorInfo="满意评价数/总评价数"
+            indicatorInfo="满意数量/有效参与评价总数"
             monthlyHistory={metrics.satMonthly}
           />
           <MetricRow
@@ -829,7 +874,7 @@ export function WeeklyReportPage() {
             value={pct(metrics.problemResolutionRate)}
             target="≥90%"
             status={statusTag(metrics.problemResolutionRate, 0.90)}
-            indicatorInfo="已解决问题数/有效参评总数"
+            indicatorInfo="已解决数量/有效参与评价总数"
             monthlyHistory={metrics.resMonthly}
           />
         </div>
@@ -857,6 +902,8 @@ export function WeeklyReportPage() {
                 : <Tag>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
             }
             indicatorInfo="首次响应时间之和/会话数"
+            monthlyHistory={metrics.avgFirstResponseTimeMonthly}
+            formatMonthlyValue={(v) => fmtMinutes(v)}
           />
           <MetricRow
             label="平均响应时长"
@@ -868,6 +915,8 @@ export function WeeklyReportPage() {
                 : <Tag>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
             }
             indicatorInfo="总响应时长/总消息数"
+            monthlyHistory={metrics.avgResponseTimeMonthly}
+            formatMonthlyValue={(v) => fmtMinutes(v)}
           />
         </div>
       </Card>
