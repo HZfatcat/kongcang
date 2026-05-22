@@ -833,7 +833,7 @@ export class KpiService {
     >`
       WITH issue_sessions AS (
         SELECT DISTINCT m."sessionId"
-        FROM "UdeskSessionMessage" m
+        FROM "UdescSessionMessage" m
         WHERE m."content" ILIKE '%问题%'
           OR m."content" ILIKE '%报错%'
           OR m."content" ILIKE '%异常%'
@@ -860,7 +860,7 @@ export class KpiService {
           COALESCE(ra.has_requirement, FALSE) AS has_requirement,
           COALESCE(ra.is_completed, FALSE) AS is_completed,
           COALESCE(ra.is_released, FALSE) AS is_released
-        FROM "UdeskSession" s
+        FROM "UdescSession" s
         LEFT JOIN issue_sessions i ON i."sessionId" = s."id"
         LEFT JOIN requirement_agg ra ON ra."sourceSessionId" = s."id"
         WHERE s."startedAt" >= ${start}

@@ -19,7 +19,9 @@ import {
   Select,
   Alert,
   Modal,
+  Radio,
 } from 'antd';
+import { marked } from 'marked';
 import {
   EditOutlined,
   SaveOutlined,
@@ -30,6 +32,9 @@ import {
   TeamOutlined,
   CheckCircleOutlined,
   InfoCircleOutlined,
+  CopyOutlined,
+  CodeOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchReportData } from '../api/report';
@@ -101,21 +106,16 @@ function clampRate(val: number): number {
   return Math.min(Math.max(val, 0), 1);
 }
 
-/** 从 MonthlyCompletion[] 计算各月累计关单率（例: 2月 = 1.1~2.28 累计值） */
-function computeCumulativeMonthly(
+/** 从 MonthlyCompletion[] 计算各月当月关单率（非累计，与 Dashboard 按月汇总表口径一致） */
+function computeMonthlyCloseRate(
   data: { month: string; created: number; completed: number; rejectedCount: number; longTermCount: number }[] | undefined,
 ): { month: string; value: number }[] {
   if (!data || data.length === 0) return [];
-  let cumCreated = 0, cumCompleted = 0, cumRejected = 0, cumLongTerm = 0;
   return data.map((m) => {
-    cumCreated += m.created;
-    cumCompleted += m.completed;
-    cumRejected += m.rejectedCount;
-    cumLongTerm += m.longTermCount;
-    const denom = cumCreated - cumLongTerm;
+    const denom = m.created - m.longTermCount;
     return {
       month: m.month,
-      value: denom > 0 ? clampRate((cumCompleted + cumRejected) / denom) : 0,
+      value: denom > 0 ? clampRate((m.completed + m.rejectedCount) / denom) : 0,
     };
   });
 }
@@ -156,58 +156,78 @@ function EditableSection({ title, content, onChange, isEditing, onToggleEdit, he
   );
 }
 
-// ====== 指标行组件（用户规范：维度|核心指标|目标值|月度数据|本周完成值|状态/进展|指标说明） ======
+// ====== 指标行组件（核心指标|目标值|本周完成值|状态/进展） ======
 interface MetricRowProps {
-  dimension: string;
   label: string;
   target: string;
+  indicatorInfo?: string;
   monthlyHistory?: { month: string; value: number }[];
   value: string | number | React.ReactNode;
   status?: React.ReactNode;
-  indicatorDesc?: string;
 }
 
-function MetricRow({ dimension, label, target, monthlyHistory, value, status, indicatorDesc }: MetricRowProps) {
+function MetricRow({ label, target, indicatorInfo, monthlyHistory, value, status }: MetricRowProps) {
+  const [detailOpen, setDetailOpen] = useState(false);
   return (
-    <div style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-      <Row gutter={8} align="middle">
-        <Col span={2}>
-          <Text type="secondary" style={{ fontSize: 12 }}>{dimension}</Text>
-        </Col>
-        <Col span={4}>
-          <Text strong>{label}</Text>
-        </Col>
-        <Col span={3}>
-          <Text type="secondary">{target}</Text>
-        </Col>
-        <Col span={5}>
-          {monthlyHistory && monthlyHistory.length > 0 ? (
-            <Space size="small" wrap>
-              {monthlyHistory.map((m) => (
-                <Tag key={m.month} style={{ fontSize: 11 }}>
-                  {m.month}: {(m.value * 100).toFixed(1)}%
-                </Tag>
-              ))}
+    <>
+      <div style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+        <Row gutter={8} align="middle">
+          <Col span={6}>
+            <Text strong>{label}</Text>
+            {indicatorInfo ? (
+              <Tooltip title={indicatorInfo}>
+                <InfoCircleOutlined
+                  style={{ marginLeft: 6, color: '#1677ff', cursor: 'pointer', fontSize: 13 }}
+                />
+              </Tooltip>
+            ) : null}
+          </Col>
+          <Col span={3}>
+            <Text type="secondary">{target}</Text>
+          </Col>
+          <Col span={8}>
+            <Space>
+              <Text>{value}</Text>
+              {monthlyHistory && monthlyHistory.length > 0 && (
+                <Button type="link" size="small" onClick={() => setDetailOpen(true)}>
+                  查看详情
+                </Button>
+              )}
             </Space>
-          ) : (
-            <Text type="secondary" style={{ fontSize: 11 }}>—</Text>
-          )}
-        </Col>
-        <Col span={3}>
-          <Text>{value}</Text>
-        </Col>
-        <Col span={3}>{status}</Col>
-        <Col span={4}>
-          {indicatorDesc ? (
-            <Tooltip title={indicatorDesc}>
-              <Text type="secondary" style={{ fontSize: 11, cursor: 'help' }}>
-                <InfoCircleOutlined style={{ marginRight: 4 }} />{indicatorDesc}
-              </Text>
-            </Tooltip>
-          ) : null}
-        </Col>
-      </Row>
-    </div>
+          </Col>
+          <Col span={7}>{status}</Col>
+        </Row>
+      </div>
+      <Modal
+        title={`${label} - 月度累计趋势`}
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        footer={null}
+        width={400}
+      >
+        {monthlyHistory && monthlyHistory.length > 0 ? (
+          <div style={{ padding: '8px 0' }}>
+            {monthlyHistory.map((m) => (
+              <div
+                key={m.month}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  borderBottom: '1px solid #f0f0f0',
+                  fontSize: 14,
+                }}
+              >
+                <span>{m.month}</span>
+                <span style={{ fontWeight: 600 }}>{(m.value * 100).toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Text type="secondary">暂无月度数据</Text>
+        )}
+      </Modal>
+    </>
   );
 }
 
@@ -330,6 +350,7 @@ export function WeeklyReportPage() {
   // 邮件预览
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewContent, setPreviewContent] = useState({ subject: '', body: '' });
+  const [previewViewMode, setPreviewViewMode] = useState<'rendered' | 'source'>('rendered');
 
   // 当前登录用户
   const loginUserStr = useMemo(() => {
@@ -393,7 +414,7 @@ export function WeeklyReportPage() {
     const annualStart = `${new Date().getFullYear()}-01-01`;
     try {
       const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary] = await Promise.all([
-        fetchReportData(start, end),
+        fetchReportData(start, end).catch(() => null),
         fetchUdeskOverview({ startDate: start, endDate: end }).catch(() => null),
         fetchUdeskDailyRatingStats({ startDate: start, endDate: end }).catch(() => null),
         fetchDemandOverview({ startDate: annualStart, endDate: end }).catch(() => null),
@@ -402,10 +423,10 @@ export function WeeklyReportPage() {
         fetchUdeskTicketSummary({ startDate: start, endDate: end }).catch(() => null),
         fetchOpportunitySummary({ startDate: start, endDate: end }).catch(() => null),
       ]);
-      setKpiOverview(report.kpiOverview);
-      setDemandOverview(report.demandOverview);
+      setKpiOverview(report?.kpiOverview ?? null);
+      setDemandOverview(report?.demandOverview ?? null);
       setAnnualDemandOverview(annualDemand);
-      setFunnel(report.funnel);
+      setFunnel(report?.funnel ?? null);
       setUdeskOverview(udeskOv);
       setDailyRatingStats(ratingStats);
       setTeamMetricsSummary(metricsSum);
@@ -449,29 +470,39 @@ export function WeeklyReportPage() {
   // === 计算团队指标 ===
   const teamMetrics = useMemo((): WeeklyMetrics => {
     const s = kpiOverview;
-    const d = demandOverview;
-    // 年度累计数据（当年 1 月 1 日至周期结束）
+    // 当周数据（本周完成值）
+    const w = demandOverview;
+    // 年度累计数据（当年 1 月 1 日至周期结束，用于月度趋势）
     const ad = annualDemandOverview;
     const f = funnel;
     const u = udeskOverview;
     const ms = teamMetricsSummary;
 
-    // === 闭环质量：使用年度累计数据 ===
+    // === 闭环质量：本周完成值使用当周数据，月度趋势使用年度累计 ===
     // 关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)
-    // 需求关单率
+    // 需求关单率（当周）
     const demandNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0);
     const demandDenominator = (ad?.totalIdentifiedCount ?? 0) - (ad?.longTermCount ?? 0);
+    const weeklyDemandNumerator = (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0);
+    const weeklyDemandDenominator = (w?.totalIdentifiedCount ?? 0) - (w?.longTermCount ?? 0);
     const annualDemandCloseRate = demandDenominator > 0 ? demandNumerator / demandDenominator : 0;
+    const weeklyDemandCloseRate = weeklyDemandDenominator > 0 ? weeklyDemandNumerator / weeklyDemandDenominator : 0;
 
-    // BUG关单率
+    // BUG关单率（当周）
     const bugNumerator = (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
     const bugDenominator = (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
+    const weeklyBugNumerator = (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0);
+    const weeklyBugDenominator = (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0);
     const annualBugCloseRate = bugDenominator > 0 ? bugNumerator / bugDenominator : 0;
+    const weeklyBugCloseRate = weeklyBugDenominator > 0 ? weeklyBugNumerator / weeklyBugDenominator : 0;
 
-    // 总关单率 = 需求 + BUG 合并计算
+    // 总关单率 = 需求 + BUG 合并计算（当周）
     const totalNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0) + (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
     const totalDenominator = (ad?.totalIdentifiedCount ?? 0) - (ad?.longTermCount ?? 0) + (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
+    const weeklyTotalNumerator = (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0) + (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0);
+    const weeklyTotalDenominator = (w?.totalIdentifiedCount ?? 0) - (w?.longTermCount ?? 0) + (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0);
     const annualTotalCloseRate = totalDenominator > 0 ? totalNumerator / totalDenominator : 0;
+    const weeklyTotalCloseRate = weeklyTotalDenominator > 0 ? weeklyTotalNumerator / weeklyTotalDenominator : 0;
 
     // 体验指标
     const satisfactionRate = clampRate(s?.satisfactionRate ?? 0);
@@ -479,13 +510,36 @@ export function WeeklyReportPage() {
 
     // 关单率全部 clamp 到 0~1
     const annualDemandCloseRateClamped = clampRate(annualDemandCloseRate);
+    const weeklyDemandCloseRateClamped = clampRate(weeklyDemandCloseRate);
     const annualBugCloseRateClamped = clampRate(annualBugCloseRate);
+    const weeklyBugCloseRateClamped = clampRate(weeklyBugCloseRate);
     const annualTotalCloseRateClamped = clampRate(annualTotalCloseRate);
+    const weeklyTotalCloseRateClamped = clampRate(weeklyTotalCloseRate);
 
     // 月度累计历史：使用年度数据（当年 1 月 1 日起），按累计口径计算
-    const demandCloseMonthly = computeCumulativeMonthly(ad?.monthlyRequirement);
-    const bugCloseMonthly = computeCumulativeMonthly(ad?.monthlyBug);
-    const totalCloseMonthly = computeCumulativeMonthly(ad?.monthlyRequirement);
+    const demandCloseMonthly = computeMonthlyCloseRate(ad?.monthlyRequirement);
+    const bugCloseMonthly = computeMonthlyCloseRate(ad?.monthlyBug);
+    // 总关单率月度 = 需求 + Bug 按月合并后计算累计
+    const totalCloseMonthly = (() => {
+      const reqData = ad?.monthlyRequirement ?? [];
+      const bugData = ad?.monthlyBug ?? [];
+      const monthsSet = new Set<string>();
+      reqData.forEach(m => monthsSet.add(m.month));
+      bugData.forEach(m => monthsSet.add(m.month));
+      const merged: { month: string; created: number; completed: number; rejectedCount: number; longTermCount: number }[] = [];
+      Array.from(monthsSet).sort().forEach(month => {
+        const r = reqData.find(m => m.month === month);
+        const b = bugData.find(m => m.month === month);
+        merged.push({
+          month,
+          created: (r?.created ?? 0) + (b?.created ?? 0),
+          completed: (r?.completed ?? 0) + (b?.completed ?? 0),
+          rejectedCount: (r?.rejectedCount ?? 0) + (b?.rejectedCount ?? 0),
+          longTermCount: (r?.longTermCount ?? 0) + (b?.longTermCount ?? 0),
+        });
+      });
+      return computeMonthlyCloseRate(merged);
+    })();
     // 体验指标月度历史复用需求关单率的累计趋势
     const satMonthly = demandCloseMonthly.length > 0
       ? demandCloseMonthly.map((m) => ({
@@ -526,10 +580,10 @@ export function WeeklyReportPage() {
       consultationCount,
       returnVisitCount: u?.returnVisitCount ?? null,
       huaweiCloudUnbind: null,
-      newDemands: ad?.totalIdentifiedCount ?? d?.totalIdentifiedCount ?? 0,
-      newBugs: ad?.bugCount ?? d?.bugCount ?? 0,
-      closedDemands: ad?.completedCount ?? d?.completedCount ?? 0,
-      closedBugs: ad?.bugCompletedCount ?? d?.bugCompletedCount ?? 0,
+      newDemands: ad?.totalIdentifiedCount ?? w?.totalIdentifiedCount ?? 0,
+      newBugs: ad?.bugCount ?? w?.bugCount ?? 0,
+      closedDemands: ad?.completedCount ?? w?.completedCount ?? 0,
+      closedBugs: ad?.bugCompletedCount ?? w?.bugCompletedCount ?? 0,
       agentCount: u?.agentCount ?? 0,
       totalSessions: u?.totalSessions ?? consultationCount,
       totalMessages: u?.totalMessages ?? 0,
@@ -681,7 +735,20 @@ export function WeeklyReportPage() {
     message.success('已打开企微邮箱，请确认后手动发送');
   }, [previewContent]);
 
-  // === UI 渲染函数 ===
+  // 复制周报内容到剪贴板
+  const handleCopyContent = useCallback(() => {
+    navigator.clipboard.writeText(previewContent.body).then(() => {
+      message.success('周报内容已复制到剪贴板，可直接粘贴到邮件');
+    }).catch(() => {
+      message.error('复制失败，请手动选择内容后 Ctrl+C 复制');
+    });
+  }, [previewContent]);
+
+  // 渲染 Markdown 为 HTML（安全模式，仅支持表格、标题、加粗等基础语法）
+  const renderedHtml = useMemo(() => {
+    if (!previewContent.body) return '';
+    return marked.parse(previewContent.body, { breaks: true, gfm: true });
+  }, [previewContent.body]);
 
   const renderMetricsSection = (metrics: WeeklyMetrics, isPersonal: boolean) => (
     <>
@@ -692,46 +759,40 @@ export function WeeklyReportPage() {
         style={{ marginBottom: 12 }}
         extra={
           <Text type="secondary" style={{ fontSize: 12 }}>
-            月度累计趋势 ｜ 目标: ≥95% ｜ 数据源: 需求关单率模块
+            目标: ≥95%
           </Text>
         }
       >
         <div style={{ padding: '4px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 12 }}>
           <Row gutter={8}>
-            <Col span={2}>维度</Col>
-            <Col span={4}>核心指标</Col>
+            <Col span={6}>核心指标</Col>
             <Col span={3}>目标值</Col>
-            <Col span={5}>月度累计趋势</Col>
-            <Col span={3}>本周完成值</Col>
-            <Col span={3}>状态/进展</Col>
-            <Col span={4}>指标说明</Col>
+            <Col span={8}>本周完成值</Col>
+            <Col span={7}>状态/进展</Col>
           </Row>
         </div>
         <MetricRow
-          dimension="闭环质量"
           label="总关单率"
           value={pct(metrics.totalCloseRate)}
           target="≥95%"
           status={statusTag(metrics.totalCloseRate, 0.95)}
-          indicatorDesc="(已闭环+已拒绝)/(总-长期演进)"
+          indicatorInfo="总关单率 = (需求闭环数 + 已拒绝需求 + Bug闭环数 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)"
           monthlyHistory={metrics.totalCloseMonthly}
         />
         <MetricRow
-          dimension="闭环质量"
           label="需求关单率"
           value={pct(metrics.demandCloseRate)}
           target="≥95%"
           status={statusTag(metrics.demandCloseRate, 0.95)}
-          indicatorDesc="(已闭环需求+已拒绝需求)/(总需求-长期演进需求)"
+          indicatorInfo="(已闭环需求+已拒绝需求)/(总需求-长期演进需求)"
           monthlyHistory={metrics.demandCloseMonthly}
         />
         <MetricRow
-          dimension="闭环质量"
           label="BUG关单率"
           value={pct(metrics.bugCloseRate)}
           target="≥95%"
           status={statusTag(metrics.bugCloseRate, 0.95)}
-          indicatorDesc="(已闭环BUG+已拒绝BUG)/(总BUG-长期演进BUG)"
+          indicatorInfo="(已闭环BUG+已拒绝BUG)/(总BUG-长期演进BUG)"
           monthlyHistory={metrics.bugCloseMonthly}
         />
       </Card>
@@ -745,35 +806,30 @@ export function WeeklyReportPage() {
         {/* 2.1 体验指标 */}
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary" style={{ fontSize: 12, fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
-            2.1 体验指标（月度累计趋势）
+            2.1 体验指标
           </Text>
           <div style={{ padding: '4px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 12 }}>
             <Row gutter={8}>
-              <Col span={2}>维度</Col>
-              <Col span={4}>核心指标</Col>
+              <Col span={6}>核心指标</Col>
               <Col span={3}>目标值</Col>
-            <Col span={5}>月度累计趋势</Col>
-            <Col span={3}>本周完成值</Col>
-            <Col span={3}>状态/进展</Col>
-            <Col span={4}>指标说明</Col>
+            <Col span={8}>本周完成值</Col>
+            <Col span={7}>状态/进展</Col>
           </Row>
         </div>
         <MetricRow
-          dimension="体验指标"
           label="满意度"
             value={pct(metrics.satisfactionRate)}
             target="≥95%"
             status={statusTag(metrics.satisfactionRate, 0.95)}
-            indicatorDesc="满意评价数/总评价数"
+            indicatorInfo="满意评价数/总评价数"
             monthlyHistory={metrics.satMonthly}
           />
           <MetricRow
-            dimension="体验指标"
             label="问题解决率"
             value={pct(metrics.problemResolutionRate)}
             target="≥90%"
             status={statusTag(metrics.problemResolutionRate, 0.90)}
-            indicatorDesc="已解决问题数/有效参评总数"
+            indicatorInfo="已解决问题数/有效参评总数"
             monthlyHistory={metrics.resMonthly}
           />
         </div>
@@ -785,17 +841,13 @@ export function WeeklyReportPage() {
           </Text>
           <div style={{ padding: '4px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 12 }}>
             <Row gutter={8}>
-              <Col span={2}>维度</Col>
-              <Col span={4}>核心指标</Col>
+              <Col span={6}>核心指标</Col>
               <Col span={3}>目标值</Col>
-            <Col span={5}>月度累计趋势</Col>
-            <Col span={3}>本周完成值</Col>
-            <Col span={3}>状态/进展</Col>
-            <Col span={4}>指标说明</Col>
+            <Col span={8}>本周完成值</Col>
+            <Col span={7}>状态/进展</Col>
           </Row>
         </div>
         <MetricRow
-          dimension="响应效率"
           label="平均首次响应时长"
             value={fmtMinutes(metrics.avgFirstResponseTime)}
             target="≤60秒"
@@ -804,11 +856,9 @@ export function WeeklyReportPage() {
                 ? (metrics.avgFirstResponseTime <= 60 ? <Tag color="success">✅ 达标</Tag> : <Tag color="error">❌ 未达标</Tag>)
                 : <Tag>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
             }
-            indicatorDesc="首次响应时间之和/会话数"
-            monthlyHistory={undefined}
+            indicatorInfo="首次响应时间之和/会话数"
           />
           <MetricRow
-            dimension="响应效率"
             label="平均响应时长"
             value={fmtMinutes(metrics.avgResponseTime)}
             target="≤120秒"
@@ -817,7 +867,7 @@ export function WeeklyReportPage() {
                 ? (metrics.avgResponseTime <= 120 ? <Tag color="success">✅ 达标</Tag> : <Tag color="error">❌ 未达标</Tag>)
                 : <Tag>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
             }
-            indicatorDesc="总响应时长/总消息数"
+            indicatorInfo="总响应时长/总消息数"
           />
         </div>
       </Card>
@@ -1039,16 +1089,7 @@ export function WeeklyReportPage() {
             showIcon
             icon={<InfoCircleOutlined />}
             message={
-              <Space wrap>
-                <span>报告周期：<Text strong>{formatDate(dateRange[0])} ~ {formatDate(dateRange[1])}</Text>（默认上周五→本周四）</span>
-                {isPersonal && selectedAgentId && (
-                  <span>| 当前客服：{agents.find((a) => a.agentId === selectedAgentId)?.displayName ?? selectedAgentId}</span>
-                )}
-                {!isPersonal && teamMetrics.agentCount > 0 && (
-                  <span>| 团队人数：{teamMetrics.agentCount} 人</span>
-                )}
-                <span>| 闭环质量数据源：需求关单率模块</span>
-              </Space>
+              <span>报告周期：<Text strong>{formatDate(dateRange[0])} ~ {formatDate(dateRange[1])}</Text></span>
             }
             style={{ marginBottom: 16 }}
           />
@@ -1157,25 +1198,69 @@ export function WeeklyReportPage() {
               </Space>
             }
           >
+            {/* 主题 */}
             <div style={{ marginBottom: 12 }}>
               <Text strong>主题：</Text>
               <Text>{previewContent.subject}</Text>
             </div>
-            <div
-              style={{
-                border: '1px solid #e8e8e8',
-                borderRadius: 6,
-                padding: 16,
-                maxHeight: 400,
-                overflow: 'auto',
-                fontFamily: 'monospace',
-                fontSize: 13,
-                whiteSpace: 'pre-wrap',
-                lineHeight: 1.6,
-                backgroundColor: '#fafafa',
-              }}
-            >
-              {previewContent.body}
+
+            {/* 视图切换 */}
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Radio.Group
+                value={previewViewMode}
+                onChange={(e) => setPreviewViewMode(e.target.value)}
+                size="small"
+                optionType="button"
+                buttonStyle="solid"
+              >
+                <Radio.Button value="rendered"><EyeOutlined /> 预览</Radio.Button>
+                <Radio.Button value="source"><CodeOutlined /> 源码</Radio.Button>
+              </Radio.Group>
+              <Button size="small" icon={<CopyOutlined />} onClick={handleCopyContent}>
+                复制内容
+              </Button>
+            </div>
+
+            {/* 预览/源码切换 */}
+            {previewViewMode === 'rendered' ? (
+              <div
+                className="email-preview-rendered"
+                style={{
+                  border: '1px solid #e8e8e8',
+                  borderRadius: 6,
+                  padding: 16,
+                  maxHeight: 420,
+                  overflow: 'auto',
+                  lineHeight: 1.8,
+                  backgroundColor: '#ffffff',
+                  fontSize: 14,
+                  color: '#333',
+                }}
+                dangerouslySetInnerHTML={{ __html: renderedHtml }}
+              />
+            ) : (
+              <div
+                style={{
+                  border: '1px solid #e8e8e8',
+                  borderRadius: 6,
+                  padding: 16,
+                  maxHeight: 420,
+                  overflow: 'auto',
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.6,
+                  backgroundColor: '#fafafa',
+                }}
+              >
+                {previewContent.body}
+              </div>
+            )}
+
+            {/* 引导提示 */}
+            <div style={{ marginTop: 12, color: '#999', fontSize: 12 }}>
+              <InfoCircleOutlined style={{ marginRight: 4 }} />
+              预览视图下表格、标题、加粗等格式已渲染为 HTML。点击「复制内容」可快速复制周报到剪贴板。
             </div>
           </Modal>
         </>
