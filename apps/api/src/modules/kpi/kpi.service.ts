@@ -774,43 +774,44 @@ export class KpiService {
   private truncateDate(date: Date, granularity: 'day' | 'week' | 'month') {
     const d = new Date(date);
     if (granularity === 'month') {
-      d.setUTCDate(1);
-      d.setUTCHours(0, 0, 0, 0);
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
       return d;
     }
     if (granularity === 'week') {
-      const day = d.getUTCDay();
+      const day = d.getDay();
       const diff = day === 0 ? -6 : 1 - day;
-      d.setUTCDate(d.getUTCDate() + diff);
-      d.setUTCHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + diff);
+      d.setHours(0, 0, 0, 0);
       return d;
     }
-    d.setUTCHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
     return d;
   }
 
   private addStep(date: Date, granularity: 'day' | 'week' | 'month') {
     const d = new Date(date);
     if (granularity === 'month') {
-      d.setUTCMonth(d.getUTCMonth() + 1);
+      d.setMonth(d.getMonth() + 1);
       return d;
     }
     if (granularity === 'week') {
-      d.setUTCDate(d.getUTCDate() + 7);
+      d.setDate(d.getDate() + 7);
       return d;
     }
-    d.setUTCDate(d.getUTCDate() + 1);
+    d.setDate(d.getDate() + 1);
     return d;
   }
 
   private formatLabel(date: Date, granularity: 'day' | 'week' | 'month') {
+    const pad = (n: number) => n.toString().padStart(2, '0');
     if (granularity === 'month') {
-      return date.toISOString().slice(0, 7);
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
     }
     if (granularity === 'week') {
-      return `${date.toISOString().slice(0, 10)}(周)`;
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}(周)`;
     }
-    return date.toISOString().slice(0, 10);
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
 
   async getConsultationFunnel(
