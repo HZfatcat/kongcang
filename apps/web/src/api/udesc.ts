@@ -316,6 +316,7 @@ export interface UdescTicketDailyStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];
   created: number[];
+  resolved: number[];
 }
 
 export async function fetchUdescTickets(params: {

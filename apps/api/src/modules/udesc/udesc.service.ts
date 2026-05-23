@@ -1978,35 +1978,45 @@ export class UdescService {
   }) {
     const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
 
+    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
     const end = new Date(rawEnd);
+    end.setUTCHours(23, 59, 59, 999);
 
-    // 生成日期范围（北京时间）
+    // 生成日期范围
     const days: string[] = [];
     const current = new Date(start);
     while (current <= end) {
-      const bjDate = new Date(current.getTime() + 8 * 60 * 60 * 1000);
-      days.push(bjDate.toISOString().split('T')[0]);
-      current.setUTCDate(current.getUTCDate() + 1);
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
     }
 
-    // 按天统计创建数（按北京时间分组）
-    // 注意：数据库 createdAt 是 timestamp without time zone，存储的是 UTC 值
-    // 需要用 AT TIME ZONE 'UTC' 明确告知 PostgreSQL 该值是 UTC 时区
-    // 再用 AT TIME ZONE 'Asia/Shanghai' 转换为北京时间
+    // 按天统计创建数
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai') as date, COUNT(*) as count
+      SELECT DATE("createdAt") as date, COUNT(*) as count
       FROM "UdescTicket"
-      WHERE "createdAt" AT TIME ZONE 'UTC' >= ${start} AND "createdAt" AT TIME ZONE 'UTC' <= ${end}
-      GROUP BY DATE("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')
+      WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+      GROUP BY DATE("createdAt")
+      ORDER BY date
+    `;
+
+    // 按天统计解决数
+    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
+      SELECT DATE("resolvedAt") as date, COUNT(*) as count
+      FROM "UdescTicket"
+      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
+AND "status" = '已解决'
+      GROUP BY DATE("resolvedAt")
       ORDER BY date
     `;
 
     const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       days,
       created: days.map((d) => createdMap.get(d) ?? 0),
+      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
     };
   }
 

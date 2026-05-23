@@ -57,82 +57,16 @@ import { sendReport, previewReport } from '../api/weekly-report';
 import type { KpiOverview, DemandOverview, ConsultationFunnelOverview } from '../types/kpi';
 import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
 
-const { Text, Title } = Typography;
-const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
-// ====== 工具函数 ======
-
-function pct(val: number | undefined | null): string {
-  if (val === undefined || val === null) return '—';
-  return `${(val * 100).toFixed(1)}%`;
-}
-
-function fmt(val: number | undefined | null): string {
-  if (val === undefined || val === null) return '0';
-  return String(val);
-}
-
-function fmtMinutes(val: number | undefined | null): string {
-  if (val === undefined || val === null) return '—';
-  if (val < 60) return `${val.toFixed(0)}秒`;
-  return `${(val / 60).toFixed(1)}分钟`;
-}
-
-function statusTag(val: number | undefined | null, target: number): React.ReactNode {
-  if (val === undefined || val === null) return <Tag>—</Tag>;
-  return val >= target ? <Tag color="success">✅ 达标</Tag> : <Tag color="error">❌ 未达标</Tag>;
-}
-
-/** 默认统计周期：上周五 → 本周四 */
-function getDefaultWeekRange(): [dayjs.Dayjs, dayjs.Dayjs] {
-  const now = dayjs();
-  // 计算本周四：如果今天 <= 周四，本周四就是这周；否则是下周
-  const dayOfWeek = now.day(); // 0=Sun, 1=Mon,...,4=Thu,5=Fri,6=Sat
-  let thisThursday: dayjs.Dayjs;
-  if (dayOfWeek <= 4) {
-    // 还没到周五，本周四是未来
-    thisThursday = now.day(4); // 本周四
-  } else {
-    thisThursday = now.day(4).add(7, 'day'); // 下周的周四
-  }
-  // 上周五 = 本周四 - 6天
-  const lastFriday = thisThursday.subtract(6, 'day');
-  return [lastFriday.startOf('day'), thisThursday.endOf('day')];
-}
-
-function formatDate(d: dayjs.Dayjs): string {
-  return d.format('YYYY-MM-DD');
-}
-
-
-/** 安全截断到 0~1 范围 */
-function clampRate(val: number): number {
-  return Math.min(Math.max(val, 0), 1);
-}
-
-/** 从 MonthlyCompletion[] 计算各月当月关单率（非累计，与 Dashboard 按月汇总表口径一致） */
-function computeMonthlyCloseRate(
-  data: { month: string; created: number; completed: number; rejectedCount: number; longTermCount: number }[] | undefined,
-): { month: string; value: number }[] {
-  if (!data || data.length === 0) return [];
-  return data.map((m) => {
-    const denom = m.created - m.longTermCount;
-    return {
-      month: m.month,
-      value: denom > 0 ? clampRate((m.completed + m.rejectedCount) / denom) : 0,
-    };
-  });
-}
-
-// ====== 可编辑文本模块组件 ======
-interface EditableSectionProps {
+interface WeeklyReport {
+  id: string;
+  weekStart: string;
+  weekEnd: string;
   title: string;
-  content: string;
-  onChange: (val: string) => void;
-  isEditing: boolean;
-  onToggleEdit: () => void;
-  height?: number;
+  author: string;
+  status: 'draft' | 'published';
+  createdAt: string;
 }
 
 function EditableSection({ title, content, onChange, isEditing, onToggleEdit, height = 6 }: EditableSectionProps) {
@@ -328,9 +262,9 @@ interface WeeklyMetrics {
 
 // ====== 主页面 ======
 export function WeeklyReportPage() {
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(getDefaultWeekRange);
+  const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [loading, setLoading] = useState(false);
-  const [reportTab, setReportTab] = useState<string>('team');
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
 
   // 团队数据
   const [kpiOverview, setKpiOverview] = useState<KpiOverview | null>(null);
@@ -455,10 +389,11 @@ export function WeeklyReportPage() {
       setMonthlyVoteStats(monthlyVotes);
       setMonthlyMetrics(monthlyMets);
     } catch (err) {
-      console.error('拉取团队数据失败:', err);
-      message.error('拉取团队数据失败，请重试');
+      console.error('获取周报失败:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [dateRange]);
+  }, [dateRange, formatDate]);
 
   // === 加载个人数据 ===
   const loadPersonalData = useCallback(async () => {
@@ -1204,215 +1139,6 @@ export function WeeklyReportPage() {
           </Col>
         </Row>
       </Card>
-
-      {loading ? (
-        <div style={{ padding: 16 }}>
-          {/* 骨架屏：信息栏 */}
-          <Skeleton active paragraph={{ rows: 1 }} style={{ marginBottom: 16 }} />
-          {/* 骨架屏：闭环质量卡片 */}
-          <Card size="small" style={{ marginBottom: 12 }}>
-            <Skeleton active paragraph={{ rows: 4 }} />
-          </Card>
-          {/* 骨架屏：体验指标卡片 */}
-          <Card size="small" style={{ marginBottom: 12 }}>
-            <Skeleton active paragraph={{ rows: 4 }} />
-          </Card>
-          {/* 骨架屏：业务承接卡片 */}
-          <Card size="small" style={{ marginBottom: 12 }}>
-            <Skeleton active paragraph={{ rows: 10 }} />
-          </Card>
-          {/* 骨架屏：编辑模块 */}
-          <Skeleton active paragraph={{ rows: 4 }} style={{ marginBottom: 12 }} />
-          <Skeleton active paragraph={{ rows: 4 }} style={{ marginBottom: 12 }} />
-          <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <Spin style={{ marginRight: 8 }} />
-            <span style={{ color: '#999', fontSize: 13 }}>正在拉取周报数据...</span>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* 信息栏 */}
-          <Alert
-            type="info"
-            showIcon
-            icon={<InfoCircleOutlined />}
-            message={
-              <span>报告周期：<Text strong>{formatDate(dateRange[0])} ~ {formatDate(dateRange[1])}</Text></span>
-            }
-            style={{ marginBottom: 16 }}
-          />
-
-          {/* 个人周报额外：客服选择器 */}
-          {isPersonal && (
-            <Card size="small" style={{ marginBottom: 16 }}>
-              <Row align="middle" gutter={16}>
-                <Col>
-                  <Text strong>选择客服：</Text>
-                </Col>
-                <Col>
-                  <Select
-                    value={selectedAgentId}
-                    onChange={(val) => setSelectedAgentId(val)}
-                    style={{ width: 240 }}
-                    options={agents.map((a) => ({
-                      value: a.agentId,
-                      label: `${a.displayName} (${a.agentId})`,
-                    }))}
-                    placeholder="请选择客服"
-                  />
-                </Col>
-                <Col>
-                  {agentPerformance ? (
-                    <Space size="middle">
-                      <Text type="secondary">会话数: {agentPerformance.totalSessions}</Text>
-                      <Text type="secondary">满意度: {agentPerformance.avgRating !== null ? (agentPerformance.avgRating * 100).toFixed(1) + '%' : '—'}</Text>
-                    </Space>
-                  ) : (
-                    <Text type="secondary">暂无个人数据</Text>
-                  )}
-                </Col>
-              </Row>
-            </Card>
-          )}
-
-          {/* 一、闭环质量 + 二、体验与响应效率指标 */}
-          {renderMetricsSection(currentMetrics, isPersonal)}
-
-          {/* 三、业务承接 */}
-          {renderWorkloadSection(currentMetrics, isPersonal)}
-
-          {/* 四、其他工作事项 */}
-          <Title level={5} style={{ marginTop: 16, marginBottom: 8 }}>
-            <EditOutlined style={{ color: '#faad14', marginRight: 8 }} />
-            四、其他工作事项
-          </Title>
-          <EditableSection
-            title="其他工作事项（支持自定义输入，每条事项可标注工时，自动换行排版）"
-            content={currentSections.otherWork}
-            onChange={(val) => setCurrentSections((prev) => ({ ...prev, otherWork: val }))}
-            isEditing={currentEditing.otherWork ?? false}
-            onToggleEdit={() => setCurrentEditing((prev) => ({ ...prev, otherWork: !prev.otherWork }))}
-            height={8}
-          />
-
-          {/* 五、下周工作计划 */}
-          <Title level={5} style={{ marginTop: 16, marginBottom: 8 }}>
-            <CheckCircleOutlined style={{ color: '#722ed1', marginRight: 8 }} />
-            五、下周工作计划
-          </Title>
-          <EditableSection
-            title="下周工作计划（采用纯文本序号列表格式，支持增删修改，自动排版）"
-            content={currentSections.nextPlan}
-            onChange={(val) => setCurrentSections((prev) => ({ ...prev, nextPlan: val }))}
-            isEditing={currentEditing.nextPlan ?? false}
-            onToggleEdit={() => setCurrentEditing((prev) => ({ ...prev, nextPlan: !prev.nextPlan }))}
-            height={10}
-          />
-
-          <Divider />
-
-          {/* 底部操作 */}
-          <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <Space size="large">
-              <Button icon={<ReloadOutlined />} onClick={handleRefresh} loading={loading}>
-                刷新数据
-              </Button>
-              <Button
-                type="primary"
-                size="large"
-                icon={<SendOutlined />}
-                onClick={() => handleSendEmail(reportTab as 'personal' | 'team')}
-              >
-                一键发送到企微邮箱
-              </Button>
-            </Space>
-            <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
-              点击「一键发送」将打开企微邮箱页面，周报内容已自动填充为邮件正文，请确认后手动发送
-            </div>
-          </div>
-
-          {/* 邮件预览弹窗 */}
-          <Modal
-            title="📧 邮件预览"
-            open={previewModalVisible}
-            onCancel={() => setPreviewModalVisible(false)}
-            width={720}
-            footer={
-              <Space>
-                <Button onClick={() => setPreviewModalVisible(false)}>取消</Button>
-                <Button type="primary" icon={<SendOutlined />} onClick={handleConfirmSend}>
-                  确认发送到企微邮箱
-                </Button>
-              </Space>
-            }
-          >
-            {/* 主题 */}
-            <div style={{ marginBottom: 12 }}>
-              <Text strong>主题：</Text>
-              <Text>{previewContent.subject}</Text>
-            </div>
-
-            {/* 视图切换 */}
-            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Radio.Group
-                value={previewViewMode}
-                onChange={(e) => setPreviewViewMode(e.target.value)}
-                size="small"
-                optionType="button"
-                buttonStyle="solid"
-              >
-                <Radio.Button value="rendered"><EyeOutlined /> 预览</Radio.Button>
-                <Radio.Button value="source"><CodeOutlined /> 源码</Radio.Button>
-              </Radio.Group>
-              <Button size="small" icon={<CopyOutlined />} onClick={handleCopyContent}>
-                复制内容
-              </Button>
-            </div>
-
-            {/* 预览/源码切换 */}
-            {previewViewMode === 'rendered' ? (
-              <div
-                className="email-preview-rendered"
-                style={{
-                  border: '1px solid #e8e8e8',
-                  borderRadius: 6,
-                  padding: 16,
-                  maxHeight: 420,
-                  overflow: 'auto',
-                  lineHeight: 1.8,
-                  backgroundColor: '#ffffff',
-                  fontSize: 14,
-                  color: '#333',
-                }}
-                dangerouslySetInnerHTML={{ __html: renderedHtml }}
-              />
-            ) : (
-              <div
-                style={{
-                  border: '1px solid #e8e8e8',
-                  borderRadius: 6,
-                  padding: 16,
-                  maxHeight: 420,
-                  overflow: 'auto',
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.6,
-                  backgroundColor: '#fafafa',
-                }}
-              >
-                {previewContent.body}
-              </div>
-            )}
-
-            {/* 引导提示 */}
-            <div style={{ marginTop: 12, color: '#999', fontSize: 12 }}>
-              <InfoCircleOutlined style={{ marginRight: 4 }} />
-              预览视图下表格、标题、加粗等格式已渲染为 HTML。点击「复制内容」可快速复制周报到剪贴板。
-            </div>
-          </Modal>
-        </>
-      )}
     </div>
   );
 }
