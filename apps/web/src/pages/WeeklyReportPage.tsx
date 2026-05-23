@@ -36,6 +36,7 @@ import {
   CopyOutlined,
   CodeOutlined,
   EyeOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchReportData } from '../api/report';
@@ -52,6 +53,7 @@ import {
   fetchAgents,
 } from '../api/udesc';
 import { fetchOpportunitySummary } from '../api/opportunity';
+import { sendReport, previewReport } from '../api/weekly-report';
 import type { KpiOverview, DemandOverview, ConsultationFunnelOverview } from '../types/kpi';
 import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
 
@@ -362,6 +364,10 @@ export function WeeklyReportPage() {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewContent, setPreviewContent] = useState({ subject: '', body: '' });
   const [previewViewMode, setPreviewViewMode] = useState<'rendered' | 'source'>('rendered');
+
+  // 服务器端 SMTP 发送
+  const [smtpSending, setSmtpSending] = useState(false);
+  const [smtpEmail, setSmtpEmail] = useState('');
 
   // 当前登录用户
   const loginUserStr = useMemo(() => {
@@ -764,10 +770,11 @@ export function WeeklyReportPage() {
     [dateRange, teamMetrics, personalMetrics, teamSections, personalSections, selectedAgentId, agents, huaweiCloudUnbindInput],
   );
 
-  // 确认发送邮件
+  // 确认发送邮件（企微邮箱 —— 传纯文本，避免 Markdown 符号）
   const handleConfirmSend = useCallback(() => {
+    const plainBody = markdownToPlainText(previewContent.body);
     const encodedSubject = encodeURIComponent(previewContent.subject);
-    const encodedBody = encodeURIComponent(previewContent.body);
+    const encodedBody = encodeURIComponent(plainBody);
     window.open(
       `https://mail.weixin.qq.com/cgi-bin/readtemplate?t=send&subject=${encodedSubject}&body=${encodedBody}`,
       '_blank',
@@ -785,11 +792,63 @@ export function WeeklyReportPage() {
     });
   }, [previewContent]);
 
+  // 通过后端 SMTP 发送精美 HTML 邮件
+  const handleSendSmtp = useCallback(async (type: 'personal' | 'team') => {
+    if (!smtpEmail.trim()) {
+      message.error('请输入收件人邮箱地址');
+      return;
+    }
+    const sections = type === 'team' ? teamSections : personalSections;
+    const agentName = type === 'personal' && selectedAgentId
+      ? agents.find((a) => a.agentId === selectedAgentId)?.displayName ?? selectedAgentId
+      : undefined;
+    setSmtpSending(true);
+    try {
+      await sendReport({
+        startDate: formatDate(dateRange[0]),
+        endDate: formatDate(dateRange[1]),
+        summary: sections.otherWork,
+        nextPlan: sections.nextPlan,
+        recipientEmail: smtpEmail.trim(),
+        subject: `GitCode 客服${type === 'team' ? '团队' : '个人'}周报（${formatDate(dateRange[0])} ~ ${formatDate(dateRange[1])}）`,
+        type,
+        agentName,
+      });
+      message.success('✅ 精美周报已发送到 ' + smtpEmail.trim());
+    } catch (e: any) {
+      message.error('发送失败: ' + (e?.response?.data?.message ?? e?.message ?? '未知错误'));
+    } finally {
+      setSmtpSending(false);
+    }
+  }, [dateRange, teamSections, personalSections, selectedAgentId, agents, smtpEmail]);
+
   // 渲染 Markdown 为 HTML（安全模式，仅支持表格、标题、加粗等基础语法）
   const renderedHtml = useMemo(() => {
     if (!previewContent.body) return '';
     return marked.parse(previewContent.body, { breaks: true, gfm: true });
   }, [previewContent.body]);
+
+  // Markdown → 纯文本（用于企业微信邮箱，避免显示 # | --- 等符号）
+  const markdownToPlainText = (md: string): string => {
+    return md
+      // 移除 # 标题标记
+      .replace(/^#+\s*/gm, '')
+      // 移除表格分隔行（|---|----|---|）
+      .replace(/^[\|\s\-:]+\|[\|\s\-:]+\|[\|\s\-:]+$/gm, '')
+      // 移除表格的 Markdown 框线（保留内容）
+      .replace(/^\|/gm, ' ')
+      .replace(/\|$/gm, ' ')
+      .replace(/\|/g, ' | ')
+      // 移除 --- 分隔线
+      .replace(/^---+\s*$/gm, '')
+      // 移除 **加粗**
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      // 合并连续空行为单个空行
+      .replace(/\n{3,}/g, '\n\n')
+      // 修整表格单元格多余空格
+      .replace(/ \| /g, ' | ')
+      .trim();
+  };
 
   const renderMetricsSection = (metrics: WeeklyMetrics, isPersonal: boolean) => (
     <>
@@ -1117,8 +1176,24 @@ export function WeeklyReportPage() {
               <Button icon={<ReloadOutlined />} onClick={handleRefresh} loading={loading} size="small">
                 刷新数据
               </Button>
+              <Input
+                placeholder="收件人邮箱"
+                value={smtpEmail}
+                onChange={(e) => setSmtpEmail(e.target.value)}
+                style={{ width: 180 }}
+                size="small"
+                prefix={<MailOutlined />}
+              />
               <Button
                 type="primary"
+                icon={<SendOutlined />}
+                onClick={() => handleSendSmtp(reportTab as 'personal' | 'team')}
+                loading={smtpSending}
+                size="small"
+              >
+                发送服务器邮件
+              </Button>
+              <Button
                 icon={<SendOutlined />}
                 onClick={() => handleSendEmail(reportTab as 'personal' | 'team')}
                 size="small"
