@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "dev:win": "set NODE_OPTIONS=--dns-result-order=ipv4first && nest start --watch",
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
@@ -27,6 +28,7 @@
     "axios": "^1.8.2",
     "bull": "^4.16.5",
     "class-transformer": "^0.5.1",
+    "nodemailer": "^6.9.16",
     "class-validator": "^0.14.1",
     "csv-parse": "^6.2.1",
     "nestjs-pino": "^4.6.1",
