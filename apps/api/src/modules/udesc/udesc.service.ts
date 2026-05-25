@@ -106,10 +106,14 @@ export class UdescService {
 
   private resolveRange(startDate?: string, endDate?: string) {
     const start = startDate
-      ? new Date(startDate + 'T00:00:00.000+08:00')
+      ? startDate.includes('T') || startDate.includes('Z')
+        ? new Date(startDate)
+        : new Date(startDate + 'T00:00:00.000+08:00')
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const end = endDate
-      ? new Date(endDate + 'T23:59:59.999+08:00')
+      ? endDate.includes('T') || endDate.includes('Z')
+        ? new Date(endDate)
+        : new Date(endDate + 'T23:59:59.999+08:00')
       : new Date();
     return { start, end };
   }
