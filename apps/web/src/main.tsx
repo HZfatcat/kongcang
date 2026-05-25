@@ -11,7 +11,6 @@ const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m =>
 const DemandSummaryPage = React.lazy(() => import('./pages/DemandSummaryPage').then(m => ({ default: m.DemandSummaryPage })));
 const RequirementDetailPage = React.lazy(() => import('./pages/RequirementDetailPage').then(m => ({ default: m.RequirementDetailPage })));
 const BugDetailPage = React.lazy(() => import('./pages/BugDetailPage').then(m => ({ default: m.BugDetailPage })));
-const WeeklyReportPage = React.lazy(() => import('./pages/WeeklyReportPage').then(m => ({ default: m.WeeklyReportPage })));
 const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const LoginVerifyPage = React.lazy(() => import('./pages/LoginVerifyPage').then(m => ({ default: m.LoginVerifyPage })));
 const UsersPage = React.lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
@@ -254,7 +253,6 @@ function AppRoutes() {
         <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
         <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
         <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
-        <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
         <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
         <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
         <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
