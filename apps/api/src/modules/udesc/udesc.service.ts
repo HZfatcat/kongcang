@@ -1894,11 +1894,7 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
   }) {
-    const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
-
-    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
-    const end = new Date(rawEnd);
-    end.setUTCHours(23, 59, 59, 999);
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
 
     // 生成日期范围
     const days: string[] = [];
@@ -1908,33 +1904,21 @@ export class UdescService {
       current.setDate(current.getDate() + 1);
     }
 
-    // 按天统计创建数
+    // 按天统计创建数（使用 Asia/Shanghai 时区，与 Udesk 系统一致）
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("createdAt") as date, COUNT(*) as count
+      SELECT DATE("createdAt" AT TIME ZONE 'Asia/Shanghai') as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
-      GROUP BY DATE("createdAt")
-      ORDER BY date
-    `;
-
-    // 按天统计解决数
-    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("resolvedAt") as date, COUNT(*) as count
-      FROM "UdescTicket"
-      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
-AND "status" = '已解决'
-      GROUP BY DATE("resolvedAt")
+      GROUP BY DATE("createdAt" AT TIME ZONE 'Asia/Shanghai')
       ORDER BY date
     `;
 
     const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
-    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       days,
       created: days.map((d) => createdMap.get(d) ?? 0),
-      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
     };
   }
 
