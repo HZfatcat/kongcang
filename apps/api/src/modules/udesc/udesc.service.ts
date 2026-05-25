@@ -105,17 +105,12 @@ export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
 
   private resolveRange(startDate?: string, endDate?: string) {
-    let end: Date;
-    if (endDate) {
-      // 将 endDate 设置为当天的 23:59:59.999，确保包含当天所有数据
-      end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-    } else {
-      end = new Date();
-    }
     const start = startDate
-      ? new Date(startDate)
-      : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
+      ? new Date(startDate + 'T00:00:00.000+08:00')
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate
+      ? new Date(endDate + 'T23:59:59.999+08:00')
+      : new Date();
     return { start, end };
   }
 
@@ -1896,24 +1891,33 @@ export class UdescService {
   }) {
     const { start, end } = this.resolveRange(params.startDate, params.endDate);
 
-    // 生成日期范围
+    // 生成日期范围（北京时间）
+    const formatLocalDate = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
     const days: string[] = [];
     const current = new Date(start);
     while (current <= end) {
-      days.push(current.toISOString().split('T')[0]);
+      days.push(formatLocalDate(current));
       current.setDate(current.getDate() + 1);
     }
 
-    // 按天统计创建数（使用 Asia/Shanghai 时区，与 Udesk 系统一致）
+    // 按天统计创建数（createdAt 字段存储的是 UTC 时间，需加 8 小时转为北京时间再分组）
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("createdAt" AT TIME ZONE 'Asia/Shanghai') as date, COUNT(*) as count
+      SELECT DATE("createdAt" + INTERVAL '8 hours') as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
-      GROUP BY DATE("createdAt" AT TIME ZONE 'Asia/Shanghai')
+      GROUP BY DATE("createdAt" + INTERVAL '8 hours')
       ORDER BY date
     `;
 
-    const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const createdMap = new Map(
+      dailyCreated.map((d) => [formatLocalDate(d.date), Number(d.count)])
+    );
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
