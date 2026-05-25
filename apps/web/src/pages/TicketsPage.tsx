@@ -284,16 +284,29 @@ export function TicketsPage() {
   ];
 
   // 每日趋势图配置
+  const chartData = useMemo(() => {
+    if (!dailyStats) return [];
+    const result: { day: string; type: string; count: number }[] = [];
+    dailyStats.days.forEach((day, i) => {
+      result.push({ day: day.slice(5), type: '创建', count: dailyStats.created[i] });
+      result.push({ day: day.slice(5), type: '解决', count: dailyStats.resolved[i] });
+    });
+    return result;
+  }, [dailyStats]);
+
+  // ECharts 图表配置
   const chartOption = useMemo(() => {
     if (!dailyStats) return {};
     const days = dailyStats.days.map(d => d.slice(5));
     return {
       tooltip: { trigger: 'axis' },
+      legend: { data: ['创建', '解决'], top: 0 },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: days },
       yAxis: { type: 'value' },
       series: [
-        { name: '创建', type: 'line', data: dailyStats.created, smooth: true, itemStyle: { color: '#1890ff' }, areaStyle: { color: 'rgba(24,144,255,0.1)' } },
+        { name: '创建', type: 'line', data: dailyStats.created, smooth: true, itemStyle: { color: '#1890ff' } },
+        { name: '解决', type: 'line', data: dailyStats.resolved, smooth: true, itemStyle: { color: '#52c41a' } },
       ],
     };
   }, [dailyStats]);
