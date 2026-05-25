@@ -35,10 +35,6 @@ console.log('[AppModule] envFilePath:', envPath, 'exists:', existsSync(envPath))
       isGlobal: true,
       envFilePath: envPath,
       ignoreEnvFile: false,
-      validate: (config: Record<string, any>) => {
-        // SMTP optional env vars
-        return config;
-      },
     }),
     ScheduleModule.forRoot(),
     LoggerModule,

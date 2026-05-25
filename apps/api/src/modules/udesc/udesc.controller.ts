@@ -100,16 +100,6 @@ export class UdescController {
     });
   }
 
-  @Get('monthly-vote-stats')
-  getMonthlyVoteStats(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getMonthlyVoteStats(query.startDate, query.endDate);
-  }
-
-  @Get('monthly-metrics')
-  getMonthlyMetrics(@Query() query: UdescDateRangeDto) {
-    return this.udescService.getMonthlyMetrics(query.startDate, query.endDate);
-  }
-
   // ========== 会话性能指标 ==========
 
   @Get('metrics')

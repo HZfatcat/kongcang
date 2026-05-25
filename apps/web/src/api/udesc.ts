@@ -40,29 +40,6 @@ export async function fetchUdescDailyRatingStats(params: { startDate?: string; e
   return resp.data;
 }
 
-export interface MonthlyVoteStat {
-  month: string;
-  totalVotes: number;
-  satisfiedCount: number;
-  resolvedCount: number;
-}
-
-export async function fetchUdescMonthlyVoteStats(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<MonthlyVoteStat[]>('/udesc/monthly-vote-stats', { params });
-  return resp.data;
-}
-
-export interface MonthlyMetricRow {
-  month: string;
-  avgFirstResponseTime: number | null;
-  avgResponseTime: number | null;
-}
-
-export async function fetchUdescMonthlyMetrics(params: { startDate?: string; endDate?: string }) {
-  const resp = await apiClient.get<MonthlyMetricRow[]>('/udesc/monthly-metrics', { params });
-  return resp.data;
-}
-
 export async function fetchUdescSessions(params: {
   startDate?: string;
   endDate?: string;
@@ -316,6 +293,7 @@ export interface UdescTicketDailyStats {
   dateRange: { startDate: string; endDate: string };
   days: string[];
   created: number[];
+  resolved: number[];
 }
 
 export async function fetchUdescTickets(params: {
