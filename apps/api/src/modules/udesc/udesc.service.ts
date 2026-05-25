@@ -546,6 +546,89 @@ export class UdescService {
     };
   }
 
+  async getMonthlyVoteStats(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        month: Date;
+        totalVotes: bigint;
+        satisfiedCount: bigint;
+        resolvedCount: bigint;
+      }>
+    >`
+      SELECT
+        DATE_TRUNC('month', s."startedAt") AS month,
+        COUNT(s."rating")::bigint AS "totalVotes",
+        COUNT(CASE WHEN s."rating" >= 4 THEN 1 END)::bigint AS "satisfiedCount",
+        COUNT(CASE WHEN s."rating" >= 3 THEN 1 END)::bigint AS "resolvedCount"
+      FROM "UdescSession" s
+      WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
+        AND s."rating" IS NOT NULL
+      GROUP BY DATE_TRUNC('month', s."startedAt")
+      ORDER BY month ASC
+    `;
+
+    // 构建月份 -> 数据映射
+    const monthMap = new Map<string, { totalVotes: number; satisfiedCount: number; resolvedCount: number }>();
+    for (const row of rows) {
+      const d = new Date(row.month);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap.set(key, {
+        totalVotes: Number(row.totalVotes),
+        satisfiedCount: Number(row.satisfiedCount),
+        resolvedCount: Number(row.resolvedCount),
+      });
+    }
+
+    // 补全从 start 到 end 之间的所有月份（缺失月份填 0）
+    const result: { month: string; totalVotes: number; satisfiedCount: number; resolvedCount: number }[] = [];
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const last = new Date(end.getFullYear(), end.getMonth(), 1);
+    while (current <= last) {
+      const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      const existing = monthMap.get(key);
+      result.push({
+        month: key,
+        totalVotes: existing?.totalVotes ?? 0,
+        satisfiedCount: existing?.satisfiedCount ?? 0,
+        resolvedCount: existing?.resolvedCount ?? 0,
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return result;
+  }
+
+  async getMonthlyMetrics(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        month: Date;
+        avgFirstResponseTime: number | null;
+        avgResponseTime: number | null;
+      }>
+    >`
+      SELECT
+        DATE_TRUNC('month', s."startedAt") AS month,
+        AVG(m."firstResponseTime")::double precision AS "avgFirstResponseTime",
+        AVG(m."avgResponseTime")::double precision AS "avgResponseTime"
+      FROM "UdescSession" s
+      JOIN "UdescSessionMetrics" m ON m."sessionId" = s."id"
+      WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
+        AND m."firstResponseTime" IS NOT NULL
+      GROUP BY DATE_TRUNC('month', s."startedAt")
+      ORDER BY month ASC
+    `;
+
+    return rows.map(row => ({
+      month: new Date(row.month).toISOString().slice(0, 7),
+      avgFirstResponseTime: row.avgFirstResponseTime ? Math.round(row.avgFirstResponseTime) : null,
+      avgResponseTime: row.avgResponseTime ? Math.round(row.avgResponseTime) : null,
+    }));
+  }
+
   // ========== 新增 API：客户管理 ==========
 
   async getCustomers(params: {
