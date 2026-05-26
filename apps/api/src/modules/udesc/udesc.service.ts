@@ -105,17 +105,16 @@ export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
 
   private resolveRange(startDate?: string, endDate?: string) {
-    let end: Date;
-    if (endDate) {
-      // 将 endDate 设置为当天的 23:59:59.999，确保包含当天所有数据
-      end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-    } else {
-      end = new Date();
-    }
     const start = startDate
-      ? new Date(startDate)
-      : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
+      ? startDate.includes('T') || startDate.includes('Z')
+        ? new Date(startDate)
+        : new Date(startDate + 'T00:00:00.000+08:00')
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate
+      ? endDate.includes('T') || endDate.includes('Z')
+        ? new Date(endDate)
+        : new Date(endDate + 'T23:59:59.999+08:00')
+      : new Date();
     return { start, end };
   }
 
@@ -545,6 +544,89 @@ export class UdescService {
         return entry && entry.count > 0 ? Number((entry.sum / entry.count).toFixed(2)) : null;
       }),
     };
+  }
+
+  async getMonthlyVoteStats(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        month: Date;
+        totalVotes: bigint;
+        satisfiedCount: bigint;
+        resolvedCount: bigint;
+      }>
+    >`
+      SELECT
+        DATE_TRUNC('month', s."startedAt") AS month,
+        COUNT(s."rating")::bigint AS "totalVotes",
+        COUNT(CASE WHEN s."rating" >= 4 THEN 1 END)::bigint AS "satisfiedCount",
+        COUNT(CASE WHEN s."rating" >= 3 THEN 1 END)::bigint AS "resolvedCount"
+      FROM "UdescSession" s
+      WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
+        AND s."rating" IS NOT NULL
+      GROUP BY DATE_TRUNC('month', s."startedAt")
+      ORDER BY month ASC
+    `;
+
+    // 构建月份 -> 数据映射
+    const monthMap = new Map<string, { totalVotes: number; satisfiedCount: number; resolvedCount: number }>();
+    for (const row of rows) {
+      const d = new Date(row.month);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap.set(key, {
+        totalVotes: Number(row.totalVotes),
+        satisfiedCount: Number(row.satisfiedCount),
+        resolvedCount: Number(row.resolvedCount),
+      });
+    }
+
+    // 补全从 start 到 end 之间的所有月份（缺失月份填 0）
+    const result: { month: string; totalVotes: number; satisfiedCount: number; resolvedCount: number }[] = [];
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const last = new Date(end.getFullYear(), end.getMonth(), 1);
+    while (current <= last) {
+      const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      const existing = monthMap.get(key);
+      result.push({
+        month: key,
+        totalVotes: existing?.totalVotes ?? 0,
+        satisfiedCount: existing?.satisfiedCount ?? 0,
+        resolvedCount: existing?.resolvedCount ?? 0,
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return result;
+  }
+
+  async getMonthlyMetrics(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        month: Date;
+        avgFirstResponseTime: number | null;
+        avgResponseTime: number | null;
+      }>
+    >`
+      SELECT
+        DATE_TRUNC('month', s."startedAt") AS month,
+        AVG(m."firstResponseTime")::double precision AS "avgFirstResponseTime",
+        AVG(m."avgResponseTime")::double precision AS "avgResponseTime"
+      FROM "UdescSession" s
+      JOIN "UdescSessionMetrics" m ON m."sessionId" = s."id"
+      WHERE s."startedAt" >= ${start} AND s."startedAt" <= ${end}
+        AND m."firstResponseTime" IS NOT NULL
+      GROUP BY DATE_TRUNC('month', s."startedAt")
+      ORDER BY month ASC
+    `;
+
+    return rows.map(row => ({
+      month: new Date(row.month).toISOString().slice(0, 7),
+      avgFirstResponseTime: row.avgFirstResponseTime ? Math.round(row.avgFirstResponseTime) : null,
+      avgResponseTime: row.avgResponseTime ? Math.round(row.avgResponseTime) : null,
+    }));
   }
 
   // ========== 新增 API：客户管理 ==========
@@ -1894,47 +1976,40 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
   }) {
-    const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
 
-    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
-    const end = new Date(rawEnd);
-    end.setUTCHours(23, 59, 59, 999);
+    // 生成日期范围（北京时间）
+    const formatLocalDate = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
 
-    // 生成日期范围
     const days: string[] = [];
     const current = new Date(start);
     while (current <= end) {
-      days.push(current.toISOString().split('T')[0]);
+      days.push(formatLocalDate(current));
       current.setDate(current.getDate() + 1);
     }
 
-    // 按天统计创建数
+    // 按天统计创建数（createdAt 字段存储的是 UTC 时间，需加 8 小时转为北京时间再分组）
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("createdAt") as date, COUNT(*) as count
+      SELECT DATE("createdAt" + INTERVAL '8 hours') as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
-      GROUP BY DATE("createdAt")
+      GROUP BY DATE("createdAt" + INTERVAL '8 hours')
       ORDER BY date
     `;
 
-    // 按天统计解决数
-    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("resolvedAt") as date, COUNT(*) as count
-      FROM "UdescTicket"
-      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
-AND "status" = '已解决'
-      GROUP BY DATE("resolvedAt")
-      ORDER BY date
-    `;
-
-    const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
-    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const createdMap = new Map(
+      dailyCreated.map((d) => [formatLocalDate(d.date), Number(d.count)])
+    );
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       days,
       created: days.map((d) => createdMap.get(d) ?? 0),
-      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
     };
   }
 
