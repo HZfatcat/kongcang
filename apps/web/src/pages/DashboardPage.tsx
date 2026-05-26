@@ -213,6 +213,42 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     [range],
   );
 
+  /** 补齐 dailyStats 日期范围：后端跳过无数据日期，前端补齐到完整范围（空值填 0） */
+  const normalizedDailyStats = useMemo<UdescDailyAgentStats | null>(() => {
+    if (!dailyStats) return null;
+    const fullDays: string[] = [];
+    let curr = range[0].startOf('day');
+    while (curr.isBefore(range[1].endOf('day'))) {
+      fullDays.push(curr.format('YYYY-MM-DD'));
+      curr = curr.add(1, 'day');
+    }
+    const apiDayIndex = new Map(dailyStats.days.map((d, i) => [d, i]));
+    const fullSeries = dailyStats.series.map((series) => ({
+      agentId: series.agentId,
+      sessions: fullDays.map((d) => {
+        const idx = apiDayIndex.get(d);
+        return idx !== undefined ? series.sessions[idx] : 0;
+      }),
+      messages: fullDays.map((d) => {
+        const idx = apiDayIndex.get(d);
+        return idx !== undefined ? series.messages[idx] : 0;
+      }),
+    }));
+    return { ...dailyStats, days: fullDays, series: fullSeries };
+  }, [dailyStats, range]);
+
+  /** 过滤 consultationFunnel 中超出所选范围的 period */
+  const filteredFunnelPeriods = useMemo(() => {
+    if (!consultationFunnel) return [];
+    const start = range[0].format('YYYY-MM-DD');
+    const end = range[1].format('YYYY-MM-DD');
+    return consultationFunnel.periods.filter((p) => {
+      // periodStart 可能是 "2026-05-11T00:00:00.000Z" 或 "2026-05-11"
+      const dateStr = p.periodStart.slice(0, 10);
+      return dateStr >= start && dateStr <= end;
+    });
+  }, [consultationFunnel, range]);
+
   const reload = async (
     nextPage?: number,
     nextPageSize?: number,
@@ -550,14 +586,14 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     : 0;
 
   const summarySeries = useMemo(() => {
-    if (!dailyStats) {
+    if (!normalizedDailyStats) {
       return null;
     }
-    const sessions = dailyStats.days.map((_, idx) =>
-      dailyStats.series.reduce((sum, agent) => sum + (agent.sessions[idx] ?? 0), 0),
+    const sessions = normalizedDailyStats.days.map((_, idx) =>
+      normalizedDailyStats.series.reduce((sum, agent) => sum + (agent.sessions[idx] ?? 0), 0),
     );
-    const messages = dailyStats.days.map((_, idx) =>
-      dailyStats.series.reduce((sum, agent) => sum + (agent.messages[idx] ?? 0), 0),
+    const messages = normalizedDailyStats.days.map((_, idx) =>
+      normalizedDailyStats.series.reduce((sum, agent) => sum + (agent.messages[idx] ?? 0), 0),
     );
     return {
       agentId: '__summary__',
@@ -565,23 +601,23 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       sessions,
       messages,
     };
-  }, [dailyStats]);
+  }, [normalizedDailyStats]);
 
   const agentOptions = useMemo(() => {
-    if (!dailyStats) {
+    if (!normalizedDailyStats) {
       return [{ label: '汇总', value: '__summary__' }];
     }
     return [
       { label: '汇总', value: '__summary__' },
-      ...dailyStats.series.map((item) => ({
+      ...normalizedDailyStats.series.map((item) => ({
         label: getAgentLabel(item.agentId),
         value: item.agentId,
       })),
     ];
-  }, [dailyStats, agentProfileMap]);
+  }, [normalizedDailyStats, agentProfileMap]);
 
   const selectedStatsSummary = useMemo(() => {
-    if (!dailyStats || !summarySeries) {
+    if (!normalizedDailyStats || !summarySeries) {
       return {
         totalSessions: 0,
         totalMessages: 0,
@@ -590,7 +626,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     }
 
     const hasSummary = selectedAgents.includes('__summary__');
-    const selectedAgentSeries = dailyStats.series.filter((item) => selectedAgents.includes(item.agentId));
+    const selectedAgentSeries = normalizedDailyStats.series.filter((item) => selectedAgents.includes(item.agentId));
 
     const sessionTotal = hasSummary
       ? summarySeries.sessions.reduce((sum, value) => sum + value, 0)
@@ -610,10 +646,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       totalMessages: messageTotal,
       avgMessagesPerSession: sessionTotal > 0 ? Number((messageTotal / sessionTotal).toFixed(2)) : 0,
     };
-  }, [dailyStats, selectedAgents, summarySeries]);
+  }, [normalizedDailyStats, selectedAgents, summarySeries]);
 
   const trendOption = useMemo(() => {
-    if (!dailyStats) {
+    if (!normalizedDailyStats) {
       return {
         xAxis: { type: 'category', data: [] as string[] },
         yAxis: { type: 'value' },
@@ -627,7 +663,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       grid: { left: 56, right: 72, top: 50, bottom: 40, containLabel: true },
       xAxis: {
         type: 'category',
-        data: dailyStats.days,
+        data: normalizedDailyStats.days,
       },
       yAxis: [
         {
@@ -668,7 +704,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 : []),
             ]
           : []),
-        ...dailyStats.series
+        ...normalizedDailyStats.series
           .filter((item) => selectedAgents.includes(item.agentId))
           .flatMap((item) => [
             ...(selectedMetrics.includes('sessions')
@@ -696,17 +732,35 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           ]),
       ],
     };
-  }, [dailyStats, selectedAgents, selectedMetrics, summarySeries, agentProfileMap]);
+  }, [normalizedDailyStats, selectedAgents, selectedMetrics, summarySeries, agentProfileMap]);
 
-  const latestFunnelPeriod = useMemo(() => {
-    if (!consultationFunnel || consultationFunnel.periods.length === 0) {
-      return null;
-    }
-    return consultationFunnel.periods[consultationFunnel.periods.length - 1];
-  }, [consultationFunnel]);
+  /** 汇总筛选范围内所有周期的漏斗数据 */
+  const aggregatedFunnel = useMemo(() => {
+    if (filteredFunnelPeriods.length === 0) return null;
+    return filteredFunnelPeriods.reduce(
+      (acc, p) => ({
+        consultationCount: acc.consultationCount + p.consultationCount,
+        issueConsultCount: acc.issueConsultCount + p.issueConsultCount,
+        feedbackCount: acc.feedbackCount + p.feedbackCount,
+        requirementIdentifiedCount:
+          acc.requirementIdentifiedCount + p.requirementIdentifiedCount,
+        requirementCompletedCount:
+          acc.requirementCompletedCount + p.requirementCompletedCount,
+        releaseCount: acc.releaseCount + p.releaseCount,
+      }),
+      {
+        consultationCount: 0,
+        issueConsultCount: 0,
+        feedbackCount: 0,
+        requirementIdentifiedCount: 0,
+        requirementCompletedCount: 0,
+        releaseCount: 0,
+      },
+    );
+  }, [filteredFunnelPeriods]);
 
   const funnelChartOption = useMemo(() => {
-    if (!latestFunnelPeriod) {
+    if (!aggregatedFunnel) {
       return { series: [] };
     }
     return {
@@ -720,17 +774,17 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           gap: 4,
           label: { show: true, position: 'inside' },
           data: [
-            { name: '咨询量', value: latestFunnelPeriod.consultationCount },
-            { name: '问题咨询', value: latestFunnelPeriod.issueConsultCount },
-            { name: '问题反馈', value: latestFunnelPeriod.feedbackCount },
-            { name: '需求/Bug识别', value: latestFunnelPeriod.requirementIdentifiedCount },
-            { name: '需求/Bug闭环量', value: latestFunnelPeriod.requirementCompletedCount },
-            { name: '需求/Bug上线闭环量', value: latestFunnelPeriod.releaseCount },
+            { name: '咨询量', value: aggregatedFunnel.consultationCount },
+            { name: '问题咨询', value: aggregatedFunnel.issueConsultCount },
+            { name: '问题反馈', value: aggregatedFunnel.feedbackCount },
+            { name: '需求/Bug识别', value: aggregatedFunnel.requirementIdentifiedCount },
+            { name: '需求/Bug闭环量', value: aggregatedFunnel.requirementCompletedCount },
+            { name: '需求/Bug上线闭环量', value: aggregatedFunnel.releaseCount },
           ],
         },
       ],
     };
-  }, [latestFunnelPeriod]);
+  }, [aggregatedFunnel]);
 
   const satisfactionTab = (
     <>
@@ -806,30 +860,14 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         <Col span={24}>
           <Card
             title={"咨询状态漏斗（咨询 -> 问题 -> 反馈 -> 需求/Bug处理）" + ' ｜ ' + queryRangeLabel}
-            extra={
-              <Segmented
-                value={funnelGranularity}
-                onChange={(value) => {
-                  setFunnelGranularity(value as 'day' | 'week' | 'month');
-                }}
-                options={[
-                  { label: '每天', value: 'day' },
-                  { label: '每周', value: 'week' },
-                  { label: '每月', value: 'month' },
-                ]}
-              />
-            }
           >
-            <Typography.Text type="secondary">
-              当前展示周期：{latestFunnelPeriod?.periodLabel ?? '-'}
-            </Typography.Text>
             <ReactECharts option={funnelChartOption} style={{ height: 360, marginTop: 8 }} />
             <Table
               rowKey="periodStart"
               size="small"
               style={{ marginTop: 8 }}
               pagination={{ pageSize: 10 }}
-              dataSource={consultationFunnel?.periods ?? []}
+              dataSource={filteredFunnelPeriods}
               columns={[
                 { title: '周期', dataIndex: 'periodLabel', key: 'periodLabel', sorter: (a: any, b: any) => a.periodStart.localeCompare(b.periodStart), defaultSortOrder: 'descend' as const },
                 { title: '咨询量', dataIndex: 'consultationCount', key: 'consultationCount' },
