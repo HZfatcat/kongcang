@@ -208,6 +208,10 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     }),
     [range],
   );
+  const queryRangeLabel = useMemo(
+    () => `${range[0].format('YYYY-MM-DD')} ~ ${range[1].format('YYYY-MM-DD')}`,
+    [range],
+  );
 
   const reload = async (
     nextPage?: number,
@@ -765,7 +769,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
 
       <Row gutter={16} style={{ marginTop: 16 }}>
         <Col span={24}>
-          <Card title="客服每日趋势曲线（咨询量 + 消息数）">
+          <Card title={"客服每日趋势曲线（咨询量 + 消息数）" + ' ｜ ' + queryRangeLabel}>
             <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>
               <div>
                 <Typography.Text strong>人员筛选：</Typography.Text>
@@ -801,7 +805,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
       <Row gutter={16} style={{ marginTop: 16 }}>
         <Col span={24}>
           <Card
-            title="咨询状态漏斗（咨询 -> 问题 -> 反馈 -> 需求/Bug处理）"
+            title={"咨询状态漏斗（咨询 -> 问题 -> 反馈 -> 需求/Bug处理）" + ' ｜ ' + queryRangeLabel}
             extra={
               <Segmented
                 value={funnelGranularity}
@@ -855,7 +859,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           </Card>
         </Col>
         <Col span={14}>
-          <Card title="咨询详情（结构化）">
+          <Card title={"咨询详情（结构化）" + ' ｜ ' + queryRangeLabel}>
             <Space wrap style={{ marginBottom: 12 }}>
               <Tag
                 color={sessionAgentFilters.length === 0 ? 'processing' : 'default'}
