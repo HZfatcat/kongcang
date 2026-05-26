@@ -26,6 +26,11 @@ export class KpiController {
     return this.kpiService.getAgentOverview(query.startDate, query.endDate);
   }
 
+  @Get('monthly-satisfaction')
+  async getMonthlySatisfaction(@Query() query: DateRangeQueryDto) {
+    return this.kpiService.getMonthlySatisfaction(query.startDate, query.endDate);
+  }
+
   @Get('consultation-funnel')
   async getConsultationFunnel(@Query() query: FunnelQueryDto) {
     return this.kpiService.getConsultationFunnel(

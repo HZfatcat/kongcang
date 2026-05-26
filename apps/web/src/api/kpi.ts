@@ -45,6 +45,18 @@ export async function fetchProductModuleDistribution(params: {
   return resp.data;
 }
 
+export interface MonthlySatisfactionItem {
+  month: string;
+  satisfactionRate: number;
+  problemResolutionRate: number;
+}
+
+/** 月度累计满意度 & 问题解决率趋势（与主指标"截止当前完成值"口径一致） */
+export async function fetchMonthlySatisfaction(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<MonthlySatisfactionItem[]>('/kpi/monthly-satisfaction', { params });
+  return resp.data;
+}
+
 export async function runSync() {
   const resp = await apiClient.post('/sync/run');
   return resp.data;
