@@ -255,7 +255,7 @@ function AppRoutes() {
         <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
         <Route path="/opportunity" element={<AppLayout><DashboardPage initialMenuKey="opportunity" /></AppLayout>} />
         <Route path="/weekly-report" element={<AppLayout><WeeklyReportPage /></AppLayout>} />
-        <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />
+        <Route path="/sync-udesk" element={<AppLayout><DashboardPage initialMenuKey="sync-udesc" /></AppLayout>} />        
         <Route path="/sync-zouwu" element={<AppLayout><DashboardPage initialMenuKey="sync-zouwu" /></AppLayout>} />
         <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
         <Route path="/logs" element={<AppLayout><LogsPage /></AppLayout>} />

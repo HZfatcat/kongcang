@@ -105,16 +105,16 @@ export class UdescService {
   constructor(private readonly prisma: PrismaService) {}
 
   private resolveRange(startDate?: string, endDate?: string) {
-    let end: Date;
-    if (endDate) {
-      // 兼容 YYYY-MM-DD 和 ISO 完整格式
-      end = endDate.includes('T') ? new Date(endDate) : new Date(`${endDate}T23:59:59.999+08:00`);
-    } else {
-      end = new Date();
-    }
     const start = startDate
-      ? (startDate.includes('T') ? new Date(startDate) : new Date(`${startDate}T00:00:00+08:00`))
-      : new Date(end.getTime() - 1000 * 60 * 60 * 24 * 30);
+      ? startDate.includes('T') || startDate.includes('Z')
+        ? new Date(startDate)
+        : new Date(startDate + 'T00:00:00.000+08:00')
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate
+      ? endDate.includes('T') || endDate.includes('Z')
+        ? new Date(endDate)
+        : new Date(endDate + 'T23:59:59.999+08:00')
+      : new Date();
     return { start, end };
   }
 
@@ -2069,47 +2069,40 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
   }) {
-    const { start, end: rawEnd } = this.resolveRange(params.startDate, params.endDate);
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
 
-    // 将结束日期设为当天最后一刻（UTC 23:59:59.999），确保覆盖全天
-    const end = new Date(rawEnd);
-    end.setUTCHours(23, 59, 59, 999);
+    // 生成日期范围（北京时间）
+    const formatLocalDate = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
 
-    // 生成日期范围
     const days: string[] = [];
     const current = new Date(start);
     while (current <= end) {
-      days.push(current.toISOString().split('T')[0]);
+      days.push(formatLocalDate(current));
       current.setDate(current.getDate() + 1);
     }
 
-    // 按天统计创建数
+    // 按天统计创建数（createdAt 字段存储的是 UTC 时间，需加 8 小时转为北京时间再分组）
     const dailyCreated = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("createdAt") as date, COUNT(*) as count
+      SELECT DATE("createdAt" + INTERVAL '8 hours') as date, COUNT(*) as count
       FROM "UdescTicket"
       WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
-      GROUP BY DATE("createdAt")
+      GROUP BY DATE("createdAt" + INTERVAL '8 hours')
       ORDER BY date
     `;
 
-    // 按天统计解决数
-    const dailyResolved = await this.prisma.$queryRaw<{ date: Date; count: bigint }[]>`
-      SELECT DATE("resolvedAt") as date, COUNT(*) as count
-      FROM "UdescTicket"
-      WHERE "resolvedAt" >= ${start} AND "resolvedAt" <= ${end}
-AND "status" = '已解决'
-      GROUP BY DATE("resolvedAt")
-      ORDER BY date
-    `;
-
-    const createdMap = new Map(dailyCreated.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
-    const resolvedMap = new Map(dailyResolved.map((d) => [d.date.toISOString().split('T')[0], Number(d.count)]));
+    const createdMap = new Map(
+      dailyCreated.map((d) => [formatLocalDate(d.date), Number(d.count)])
+    );
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       days,
       created: days.map((d) => createdMap.get(d) ?? 0),
-      resolved: days.map((d) => resolvedMap.get(d) ?? 0),
     };
   }
 
