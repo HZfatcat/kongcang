@@ -57,10 +57,11 @@ export async function fetchSyncRuns() {
 
 // Hook for KPI data with date range support
 export function useKpi() {
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
-    dayjs('2026-04-11').startOf('day'),
-    dayjs('2026-05-11').endOf('day'),
-  ]);
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => {
+    const end = dayjs();
+    const start = dayjs('2026-01-01');
+    return [start.startOf('day'), end.endOf('day')];
+  });
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [demandLoading, setDemandLoading] = useState(false);
 
