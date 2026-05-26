@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, type AgentMetricsSummary } from '../api/udesc';
-import type { UdescSessionMetrics, AgentProfile } from '../types/udesc';
+import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, fetchUdescMetricsSummary, type AgentMetricsSummary } from '../api/udesc';
+import type { UdescSessionMetrics, AgentProfile, UdescMetricsSummary } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
 
@@ -27,6 +27,8 @@ export function MetricsPage() {
   const [agentFilter, setAgentFilter] = useState<string[] | null>(null);
   const [agentSummary, setAgentSummary] = useState<AgentMetricsSummary[]>([]);
   const [agentSummaryLoading, setAgentSummaryLoading] = useState(false);
+  const [teamSummary, setTeamSummary] = useState<UdescMetricsSummary | null>(null);
+  const [teamSummaryLoading, setTeamSummaryLoading] = useState(false);
   
   // 从 URL 初始化分页状态，并监听 URL 变化（浏览器后退）
   const pageFromUrl = parseInt(searchParams.get('page') || '1', 10);
@@ -138,6 +140,25 @@ export function MetricsPage() {
     loadAgentSummary();
   }, [apiRange]);
 
+  // 团队整体汇总 - 独立加载，响应时间范围变化
+  useEffect(() => {
+    const loadTeamSummary = async () => {
+      setTeamSummaryLoading(true);
+      try {
+        const resp = await fetchUdescMetricsSummary({
+          startDate: apiRange.startDateIso,
+          endDate: apiRange.endDateIso,
+        });
+        setTeamSummary(resp);
+      } catch {
+        message.error('加载团队整体数据失败');
+      } finally {
+        setTeamSummaryLoading(false);
+      }
+    };
+    loadTeamSummary();
+  }, [apiRange]);
+
   const formatTime = (seconds: number | null) => {
     if (seconds === null || seconds === undefined) return '-';
     const abs = Math.abs(seconds);
@@ -239,7 +260,27 @@ export function MetricsPage() {
         />
       </Space>
 
-      <Card title="客服人员统计" style={{ marginBottom: 16 }}>
+      {/* 团队整体数据 */}
+      <Card title="团队整体数据" style={{ marginBottom: 16 }}>
+        <Spin spinning={teamSummaryLoading}>
+          <Table
+            rowKey={() => 'team'}
+            size="small"
+            pagination={false}
+            dataSource={teamSummary ? [teamSummary] : []}
+            columns={[
+              { title: '会话数', dataIndex: 'totalSessions', width: 100 },
+              { title: '平均首次响应', dataIndex: 'avgFirstResponseTime', width: 110, render: (v: number | null) => formatTime(v) },
+              { title: '平均响应', dataIndex: 'avgResponseTime', width: 110, render: (v: number | null) => formatTime(v) },
+              { title: '平均对话时长', dataIndex: 'avgResolutionTime', width: 120, render: (v: number | null) => formatTime(v) },
+              { title: '平均消息数', dataIndex: 'avgMessagesPerSession', width: 100 },
+            ]}
+            scroll={{ x: 540 }}
+          />
+        </Spin>
+      </Card>
+
+      <Card title="客服人员数据" style={{ marginBottom: 16 }}>
         <Spin spinning={agentSummaryLoading}>
           <Table
             rowKey="agentId"
