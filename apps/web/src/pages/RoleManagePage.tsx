@@ -32,6 +32,8 @@ const PAGE_PERM_DEFS: PagePermDef[] = [
   { path: '/udesc/tickets', label: '工单分析', category: 'Udesk 数据分析', permType: 'op' },
   { path: '/udesc/heatmap', label: '时段热力图', category: 'Udesk 数据分析', permType: 'view' },
   { path: '/udesc/sessions', label: '咨询详情', category: 'Udesk 数据分析', permType: 'op' },
+  { path: '/udesc/call-center', label: '呼叫中心', category: 'Udesk 数据分析', permType: 'op' },
+  { path: '/udesc/notes', label: '业务记录', category: 'Udesk 数据分析', permType: 'op' },
   { path: '/demand', label: '需求关单率汇总', category: '需求管理', permType: 'op' },
   { path: '/demand/requirements', label: '需求详情', category: '需求管理', permType: 'op' },
   { path: '/demand/bugs', label: 'Bug 详情', category: '需求管理', permType: 'op' },

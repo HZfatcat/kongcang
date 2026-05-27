@@ -23,6 +23,8 @@ const PAGE_LABELS: Record<string, string> = {
   '/udesc/votes': '评价分析',
   '/udesc/metrics': '会话指标',
   '/udesc/sessions': '咨询详情',
+  '/udesc/call-center': '呼叫中心',
+  '/udesc/notes': '业务记录',
   '/demand': '需求关单率',
   '/demand/requirements': '需求详情',
   '/demand/bugs': 'Bug详情',
@@ -39,6 +41,7 @@ const PAGE_LABELS: Record<string, string> = {
 const ALL_PAGES = [
   '/', '/satisfaction',
   '/udesc/votes', '/udesc/metrics', '/udesc/sessions',
+  '/udesc/call-center', '/udesc/notes',
   '/demand', '/demand/requirements', '/demand/bugs',
   '/opportunity', '/sync-udesk', '/sync-zouwu',
   '/users', '/logs',
