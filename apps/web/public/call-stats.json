@@ -1,0 +1,144 @@
+{
+  "period": {
+    "start": "2026-05-26 00:00:00",
+    "end": "2026-06-01 23:59:59"
+  },
+  "stats": {
+    "呼入数": 4,
+    "呼入接通数": 4,
+    "呼入通话总时长(秒)": 672,
+    "呼入通话平均时长(秒)": 168.0,
+    "呼入参评数": 2,
+    "呼入满意度": "100.0%",
+    "呼出数": 7,
+    "呼出接通数": 5,
+    "呼出通话总时长(秒)": 1056,
+    "呼出通话平均时长(秒)": 211.2,
+    "呼出参评数": 2,
+    "呼出满意度": "100.0%",
+    "总通话数": 11
+  },
+  "records": [
+    {
+      "id": 250170471,
+      "call_type": "呼出",
+      "call_result": "客户接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 67,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "未评价"
+    },
+    {
+      "id": 250105400,
+      "call_type": "呼出",
+      "call_result": "客户接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 14,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "无需评价"
+    },
+    {
+      "id": 250094932,
+      "call_type": "呼出",
+      "call_result": "客户接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 786,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "未评价"
+    },
+    {
+      "id": 250091829,
+      "call_type": "呼出",
+      "call_result": "客户未接",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 0,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "无需评价"
+    },
+    {
+      "id": 250090849,
+      "call_type": "呼出",
+      "call_result": "客户接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 61,
+      "start_time": "",
+      "satisfaction": "满意",
+      "survey": "已评价；满意度评价 -满意"
+    },
+    {
+      "id": 250064907,
+      "call_type": "呼入",
+      "call_result": "客服接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 187,
+      "start_time": "",
+      "satisfaction": "满意",
+      "survey": "已评价；满意度评价 -满意"
+    },
+    {
+      "id": 250047344,
+      "call_type": "呼出",
+      "call_result": "客户接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 128,
+      "start_time": "",
+      "satisfaction": "满意",
+      "survey": "已评价；满意度评价 -满意"
+    },
+    {
+      "id": 250046727,
+      "call_type": "呼出",
+      "call_result": "客户未接",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 0,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "无需评价"
+    },
+    {
+      "id": 250038505,
+      "call_type": "呼入",
+      "call_result": "客服接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 288,
+      "start_time": "",
+      "satisfaction": "满意",
+      "survey": "已评价；满意度评价 -满意"
+    },
+    {
+      "id": 250000166,
+      "call_type": "呼入",
+      "call_result": "客服接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 123,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "未评价"
+    },
+    {
+      "id": 249912365,
+      "call_type": "呼入",
+      "call_result": "客服接听",
+      "customer_phone": null,
+      "agent_name": "",
+      "call_time": 74,
+      "start_time": "",
+      "satisfaction": "未评价",
+      "survey": "未评价"
+    }
+  ]
+}
