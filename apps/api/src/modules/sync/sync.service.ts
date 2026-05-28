@@ -1130,11 +1130,12 @@ export class SyncService {
         const agentMsgNum = extractNumber(rawPayload.agent_msg_num);
         const customerMsgNum = extractNumber(rawPayload.customer_msg_num);
 
-        // 优先使用上游已算好的值，回退到本地计算
-        if (respSeconds !== null && respSeconds >= 0) {
+        // 本地计算结果优先(更准确，过滤了自动消息)，rawPayload 作为 fallback
+        // 仅当本地无法计算且 rawPayload 有值时，才使用 rawPayload
+        if (firstResponseTime === null && respSeconds !== null && respSeconds >= 0) {
           firstResponseTime = respSeconds;
         }
-        if (avgRespSeconds !== null && avgRespSeconds >= 0) {
+        if (avgResponseTime === null && avgRespSeconds !== null && avgRespSeconds >= 0) {
           avgResponseTime = avgRespSeconds;
         }
         // 注意：resolutionTime（平均对话时长）不使用上游 sustain_seconds，

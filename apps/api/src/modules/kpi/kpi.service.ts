@@ -551,7 +551,7 @@ export class KpiService {
     >`
       SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
       FROM "ZouwuRequirement" r
-      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+      WHERE r."completedAtSource" >= ${start} AND r."completedAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r.status IN ('CLOSED', 'DONE')
       GROUP BY r."createdByName"
@@ -603,7 +603,7 @@ export class KpiService {
     >`
       SELECT COALESCE(r."createdByName", '未知') AS "agentName", COUNT(*)::bigint AS count
       FROM "ZouwuRequirement" r
-      WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+      WHERE r."completedAtSource" >= ${start} AND r."completedAtSource" <= ${end}
         AND r."issueType" = 1
         AND r."isLongTerm" = false
         AND r.status IN ('CLOSED', 'DONE')
@@ -946,6 +946,92 @@ export class KpiService {
       ],
       periods,
     };
+  }
+
+  /**
+   * 月度累计满意度 & 问题解决率趋势
+   * 每月数据 = 从 startDate 到该月月底的累计值(与主指标"截止当前完成值"口径一致)
+   */
+  async getMonthlySatisfaction(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    // 生成从 start 到 end 之间的所有月份
+    const months: string[] = [];
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const last = new Date(end.getFullYear(), end.getMonth(), 1);
+    while (cursor <= last) {
+      months.push(
+        `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`,
+      );
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    const result: {
+      month: string;
+      satisfactionRate: number;
+      problemResolutionRate: number;
+    }[] = [];
+
+    for (const month of months) {
+      // 该月月底 = 下月1日 - 1ms
+      const monthEnd = new Date(
+        Number(month.slice(0, 4)),
+        Number(month.slice(5, 7)) - 1, // JS月份0-indexed
+        1,
+      );
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      monthEnd.setMilliseconds(-1);
+
+      // === 满意度（与 getOverview 相同的逻辑） ===
+      const sessions = await this.prisma.udescSession.findMany({
+        where: {
+          startedAt: { gte: start, lte: monthEnd },
+        },
+        select: { rating: true },
+      });
+      const rated = sessions.filter((s) => s.rating !== null);
+      const positive = rated.filter((s) => (s.rating ?? 0) >= 4).length;
+      const satisfactionRate =
+        rated.length > 0 ? positive / rated.length : 0;
+
+      // === 问题解决率（已解决数量 / 有效参与评价总数） ===
+      // 有效参与评价 = rating IS NOT NULL 的会话
+      // 已解决 = rawPayload->>'resolved_state_name' = '已解决'
+      //           或（resolved_state_name 缺失时）vote->>'resolved_state' = '0'
+      const voteStats = await this.prisma.udescSession.findMany({
+        where: {
+          startedAt: { gte: start, lte: monthEnd },
+        },
+        select: {
+          rating: true,
+          rawPayload: true,
+          votes: {
+            select: { rawPayload: true },
+          },
+        },
+      });
+      const ratedSessions = voteStats.filter((s) => s.rating !== null);
+      const resolvedCount = ratedSessions.filter((s) => {
+        const rp = s.rawPayload as Record<string, unknown> | null;
+        // 优先使用 session 上的 resolved_state_name
+        if (rp?.resolved_state_name === '已解决') return true;
+        // 如果 session 上没有，回退到 vote 表里的 resolved_state
+        if (rp?.resolved_state_name === null || rp?.resolved_state_name === undefined) {
+          for (const vote of s.votes ?? []) {
+            const voteRp = vote.rawPayload as Record<string, unknown> | null;
+            if (voteRp?.resolved_state === '0') return true;
+          }
+        }
+        return false;
+      }).length;
+      const totalVotes = ratedSessions.length;
+      const problemResolutionRate =
+        totalVotes > 0 ? resolvedCount / totalVotes : 0;
+
+      result.push({ month, satisfactionRate, problemResolutionRate });
+    }
+
+    return result;
   }
 
   async getProductModuleDistribution(

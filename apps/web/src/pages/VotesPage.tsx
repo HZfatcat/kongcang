@@ -100,12 +100,6 @@ export function VotesPage() {
       render: (c: string | null) => c || '-',
     },
     {
-      title: '评价人',
-      dataIndex: 'voterName',
-      width: 120,
-      render: (name: string | null) => name || '-',
-    },
-    {
       title: '评价时间',
       dataIndex: 'votedAt',
       width: 180,

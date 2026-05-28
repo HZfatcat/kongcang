@@ -1,26 +1,20 @@
 import { apiClient } from './client';
-import type { DemandOverview, ConsultationFunnelOverview, KpiOverview } from '../types/kpi';
+import type { KpiOverview, DemandOverview, ConsultationFunnelOverview } from '../types/kpi';
 
 export interface ReportData {
   kpiOverview: KpiOverview | null;
   demandOverview: DemandOverview | null;
   funnel: ConsultationFunnelOverview | null;
-  loading: boolean;
 }
 
-export async function fetchReportData(startDate: string, endDate: string): Promise<ReportData> {
-  const [kpiResp, demandResp, funnelResp] = await Promise.all([
-    apiClient.get('/kpi/overview', { params: { startDate, endDate } }),
-    apiClient.get('/kpi/demand', { params: { startDate, endDate } }),
-    apiClient.get('/kpi/consultation-funnel', {
-      params: { startDate, endDate, granularity: 'week' },
-    }),
+/**
+ * 获取周报所需的聚合数据：KPI 概览、需求概览、咨询漏斗
+ */
+export async function fetchReportData(startDate?: string, endDate?: string): Promise<ReportData> {
+  const [kpiOverview, demandOverview, funnel] = await Promise.all([
+    apiClient.get<KpiOverview>('/kpi/overview', { params: { startDate, endDate } }).then(r => r.data).catch(() => null),
+    apiClient.get<DemandOverview>('/kpi/demand', { params: { startDate, endDate } }).then(r => r.data).catch(() => null),
+    apiClient.get<ConsultationFunnelOverview>('/kpi/consultation-funnel', { params: { startDate, endDate, granularity: 'week' } }).then(r => r.data).catch(() => null),
   ]);
-
-  return {
-    kpiOverview: kpiResp.data,
-    demandOverview: demandResp.data,
-    funnel: funnelResp.data,
-    loading: false,
-  };
+  return { kpiOverview, demandOverview, funnel };
 }

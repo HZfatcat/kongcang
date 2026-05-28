@@ -277,18 +277,17 @@ export function TicketsPage() {
     },
   ];
 
-  // ECharts 图表配置
+  // 每日趋势图配置
   const chartOption = useMemo(() => {
     if (!dailyStats) return {};
     const days = dailyStats.days.map(d => d.slice(5));
     return {
       tooltip: { trigger: 'axis' },
-      legend: { data: ['创建'], top: 0 },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: days },
       yAxis: { type: 'value' },
       series: [
-        { name: '创建', type: 'line', data: dailyStats.created, smooth: true, itemStyle: { color: '#1890ff' } },
+        { name: '创建', type: 'line', data: dailyStats.created, smooth: true, itemStyle: { color: '#1890ff' }, areaStyle: { color: 'rgba(24,144,255,0.1)' } },
       ],
     };
   }, [dailyStats]);
