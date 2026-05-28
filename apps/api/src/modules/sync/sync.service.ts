@@ -3,6 +3,10 @@ import { Prisma, RequirementStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { UdescClient } from './udesc.client';
 import { ZouwuClient } from './zouwu.client';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 interface SyncProgressSnapshot {
   source: string;
@@ -1392,6 +1396,71 @@ export class SyncService {
           }
         : null,
     };
+  }
+
+  async syncCallStats(options?: { startDate?: Date }): Promise<{ accepted: boolean; message?: string; stats?: { total: number; records: number }; error?: string }> {
+    const PYTHON_CMD = process.env.PYTHON_CMD || 'python';
+    const projectRoot = process.env.PROJECT_ROOT || process.cwd();
+    // 默认从 2026-01-01 开始拉取（历史数据）
+    const since = options?.startDate ?? new Date('2026-01-01T00:00:00');
+    const sinceStr = since.toISOString().slice(0, 10).replace('T', ' ');
+    const jsonPath = `${projectRoot}/apps/web/public/call-stats.json`;
+
+    try {
+      this.logger.log(`Starting call-stats sync since ${sinceStr}`);
+      const cmd = `${PYTHON_CMD} "${projectRoot}/udesk_report.py" call-stats --start-time "${sinceStr} 00:00:00" --json "${jsonPath}"`;
+      const { stdout, stderr } = await execAsync(cmd, { timeout: 300000 }); // 5 min timeout
+      if (stderr) {
+        this.logger.warn(`call-stats stderr: ${stderr.slice(0, 500)}`);
+      }
+      this.logger.log(`call-stats sync completed`);
+
+      // 读取 JSON 获取统计
+      const fs = await import('fs');
+      const raw = fs.readFileSync(jsonPath, 'utf-8');
+      const data = JSON.parse(raw);
+      const stats = { total: data.records?.length || 0, records: data.records?.length || 0 };
+
+      // 更新同步运行记录
+      await this.prisma.syncRun.create({
+        data: {
+          source: 'call-stats',
+          status: 'SUCCESS',
+          recordsSynced: data.records?.length || 0,
+          startedAt: since,
+          finishedAt: new Date(),
+        },
+      });
+
+      return { accepted: true, message: `同步完成，共 ${data.records?.length || 0} 条通话记录`, stats };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`call-stats sync failed: ${errMsg}`);
+
+      await this.prisma.syncRun.create({
+        data: {
+          source: 'call-stats',
+          status: 'FAILED',
+          recordsSynced: 0,
+          startedAt: since,
+          finishedAt: new Date(),
+        },
+      });
+
+      // 记录失败详情
+      await this.prisma.syncIssue.create({
+        data: {
+          source: 'call-stats',
+          runId: `manual-${Date.now()}`,
+          category: 'CALL_STATS_SYNC',
+          externalId: '',
+          errorMessage: errMsg.slice(0, 500),
+          createdAt: new Date(),
+        },
+      });
+
+      return { accepted: false, error: errMsg };
+    }
   }
 
   async triggerScheduledUdescSync() {

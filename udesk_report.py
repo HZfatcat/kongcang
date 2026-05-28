@@ -27,6 +27,7 @@ import os
 import secrets
 import sys
 import time
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 
@@ -161,8 +162,179 @@ def parse_cascade(value_str: str, tree: list) -> list:
 
 
 # ── 通话统计 ──────────────────────────────────────────────────
+def _fetch_call_logs(
+    start_time: str, end_time: str,
+    customer_phone: Optional[str] = None,
+) -> Optional[list]:
+    """拉取一个时间段内的全部通话记录（自动翻页）。失败返回 None。"""
+    extra: Dict[str, Any] = {
+        "start_time": start_time,
+        "end_time": end_time,
+        "page": 1,
+        "page_size": 30,
+    }
+    if customer_phone:
+        extra["customer_phone"] = customer_phone
+
+    all_items: list = []
+    page = 1
+    while True:
+        extra["page"] = page
+        r = requests.get(_signed_url("callcenter/calllogs", extra), timeout=TIMEOUT)
+        if r.status_code != 200:
+            print(f"请求失败: HTTP {r.status_code}")
+            return None
+        data = r.json()
+        if data.get("code") != 1000:
+            print(f"API错误: {data.get('message', '')}")
+            return None
+        items = data.get("items", [])
+        if not items:
+            break
+        all_items.extend(items)
+        if len(all_items) >= data.get("total", 0):
+            break
+        page += 1
+
+    return all_items
+
+
+def _chunk_date_range(start_str: str, end_str: str, max_days: int = 28):
+    """将日期范围按 max_days 天分割成子段。"""
+    fmt = "%Y-%m-%d %H:%M:%S"
+    start = datetime.strptime(start_str, fmt)
+    end = datetime.strptime(end_str, fmt)
+    chunks = []
+    cur = start
+    while cur < end:
+        chunk_end = min(cur + timedelta(days=max_days), end)
+        chunks.append((cur.strftime(fmt), chunk_end.strftime(fmt)))
+        cur = chunk_end
+    return chunks
+
+
+def _compute_and_output(all_items: list, args: argparse.Namespace) -> int:
+    """对拉取到的全部记录进行统计并输出（终端 + JSON 文件）。"""
+    if not all_items:
+        print("无通话记录")
+        return 0
+
+    inbound = [x for x in all_items if x.get("call_type") == "呼入"]
+    outbound = [x for x in all_items if x.get("call_type") == "呼出"]
+    in_conn = [x for x in inbound if x.get("call_result") == "客服接听"]
+    out_conn = [x for x in outbound if x.get("call_result") == "客户接听"]
+    in_ring = [x for x in inbound if (x.get("ring_time") or 0) > 0]
+
+    def _is_rated(s: str) -> bool:
+        return "已评价" in s and "未评价" not in s
+
+    def _is_satisfied(s: str) -> bool:
+        return "满意" in s and "不满意" not in s
+
+    def _calc(records, connected, label):
+        cnt = len(records)
+        conn_cnt = len(connected)
+        total_t = sum(x.get("call_time", 0) or 0 for x in connected)
+        avg_t = round(total_t / conn_cnt, 1) if conn_cnt else 0
+        rated = [x for x in records if _is_rated(x.get("survey", ""))]
+        sat = len([x for x in rated if _is_satisfied(x.get("survey", ""))])
+        sat_rate = f"{sat / len(rated) * 100:.2f}%" if rated else "N/A"
+        return {
+            f"{label}数": cnt,
+            f"{label}接通数": conn_cnt,
+            f"{label}通话总时长(秒)": total_t,
+            f"{label}通话平均时长(秒)": avg_t,
+            f"{label}参评数": len(rated),
+            f"{label}满意度": sat_rate,
+        }
+
+    stats: dict = {}
+    stats.update(_calc(inbound, in_conn, "呼入"))
+    stats.update(_calc(outbound, out_conn, "呼出"))
+    stats["总通话数"] = len(all_items)
+    stats["呼入振铃数"] = len(in_ring)
+    stats["呼入接通率"] = f"{len(in_conn) / len(in_ring) * 100:.1f}%" if in_ring else "N/A"
+
+    end_disp = args.end_time or "至今"
+    print("=" * 50)
+    print(f"统计周期: {args.start_time} ~ {end_disp}")
+    print(f"总记录数: {len(all_items)}")
+    print("=" * 50)
+    for k, v in stats.items():
+        print(f"{k:.<30} {v}")
+    print("=" * 50)
+
+    # 输出 JSON
+    if args.json_path:
+        def _satisfaction_label(item):
+            s = item.get("survey", "")
+            if _is_rated(s):
+                return "满意" if _is_satisfied(s) else "不满意"
+            return "未评价"
+
+        records_out = []
+        for item in all_items:
+            records_out.append({
+                "id": item.get("id"),
+                "call_type": item.get("call_type"),
+                "call_result": item.get("call_result"),
+                "customer_phone": item.get("call_number") or item.get("customer_phone") or "",
+                "agent_name": item.get("agent_nick_name") or item.get("agent_name") or "",
+                "call_time": item.get("call_time", 0),
+                "ring_time": item.get("ring_time", 0),
+                "start_time": item.get("call_start_at") or item.get("start_time") or "",
+                "satisfaction": _satisfaction_label(item),
+                "survey": item.get("survey", ""),
+            })
+
+        output = {
+            "period": {"start": args.start_time, "end": end_disp},
+            "stats": stats,
+            "records": records_out,
+        }
+        os.makedirs(os.path.dirname(os.path.abspath(args.json_path)), exist_ok=True)
+        with open(args.json_path, "w", encoding="utf-8") as f:
+            json.dump(output, f, ensure_ascii=False, indent=2)
+        print(f"JSON 已输出: {args.json_path}")
+
+    return 0
+
+
 def cmd_call_stats(args: argparse.Namespace) -> int:
     """拉取全部通话记录（自动翻页），输出总览指标。"""
+    # 自动分片：当时间跨度超过 28 天时，拆分成多个段拉取
+    if args.end_time:
+        fmt = "%Y-%m-%d %H:%M:%S"
+        try:
+            start_dt = datetime.strptime(args.start_time, fmt)
+            end_dt = datetime.strptime(args.end_time, fmt)
+            if (end_dt - start_dt).days > 28:
+                chunks = _chunk_date_range(args.start_time, args.end_time)
+                total_chunks = len(chunks)
+                print(f"⏳ 时间跨度 {(end_dt - start_dt).days} 天 > 28 天，自动分 {total_chunks} 片拉取...")
+                all_items: list = []
+                for i, (cs, ce) in enumerate(chunks, 1):
+                    print(f"  分片 {i}/{total_chunks}: {cs} ~ {ce}")
+                    items = _fetch_call_logs(cs, ce, args.customer_phone)
+                    if items is None:
+                        return 1
+                    all_items.extend(items)
+                # 按 id 去重
+                seen = set()
+                deduped = []
+                for item in all_items:
+                    iid = item.get("id")
+                    if iid and iid not in seen:
+                        seen.add(iid)
+                        deduped.append(item)
+                all_items = deduped
+                print(f"  合并去重后共 {len(all_items)} 条唯一记录")
+                # 跳过原始单次拉取逻辑，直接进入统计输出
+                return _compute_and_output(all_items, args)
+        except ValueError:
+            pass  # 日期格式异常，降级为不分片
+
+    # 单次拉取（原始逻辑）
     extra: Dict[str, Any] = {
         "start_time": args.start_time,
         "end_time": args.end_time,
@@ -196,82 +368,7 @@ def cmd_call_stats(args: argparse.Namespace) -> int:
         print("无通话记录")
         return 0
 
-    inbound = [x for x in all_items if x.get("call_type") == "呼入"]
-    outbound = [x for x in all_items if x.get("call_type") == "呼出"]
-    in_conn = [x for x in inbound if x.get("call_result") == "客服接听"]
-    out_conn = [x for x in outbound if x.get("call_result") == "客户接听"]
-
-    def _is_rated(s: str) -> bool:
-        return "已评价" in s and "未评价" not in s
-
-    def _is_satisfied(s: str) -> bool:
-        return "满意" in s and "不满意" not in s
-
-    def _calc(records, connected, label):
-        cnt = len(records)
-        conn_cnt = len(connected)
-        total_t = sum(x.get("call_time", 0) or 0 for x in connected)
-        avg_t = round(total_t / conn_cnt, 1) if conn_cnt else 0
-        rated = [x for x in records if _is_rated(x.get("survey", ""))]
-        sat = len([x for x in rated if _is_satisfied(x.get("survey", ""))])
-        sat_rate = f"{sat / len(rated) * 100:.1f}%" if rated else "N/A"
-        return {
-            f"{label}数": cnt,
-            f"{label}接通数": conn_cnt,
-            f"{label}通话总时长(秒)": total_t,
-            f"{label}通话平均时长(秒)": avg_t,
-            f"{label}参评数": len(rated),
-            f"{label}满意度": sat_rate,
-        }
-
-    stats: dict = {}
-    stats.update(_calc(inbound, in_conn, "呼入"))
-    stats.update(_calc(outbound, out_conn, "呼出"))
-    stats["总通话数"] = len(all_items)
-
-    end_disp = args.end_time or "至今"
-    print("=" * 50)
-    print(f"统计周期: {args.start_time} ~ {end_disp}")
-    print(f"总记录数: {len(all_items)}")
-    print("=" * 50)
-    for k, v in stats.items():
-        print(f"{k:.<30} {v}")
-    print("=" * 50)
-
-    # 输出 JSON
-    if args.json_path:
-        # 为每条记录添加计算好的满意度分类
-        def _satisfaction_label(item):
-            s = item.get("survey", "")
-            if _is_rated(s):
-                return "满意" if _is_satisfied(s) else "不满意"
-            return "未评价"
-
-        records_out = []
-        for item in all_items:
-            records_out.append({
-                "id": item.get("id"),
-                "call_type": item.get("call_type"),       # 呼入/呼出
-                "call_result": item.get("call_result"),   # 客服接听/客户接听/未接通等
-                "customer_phone": item.get("customer_phone"),
-                "agent_name": item.get("agent_name", ""),
-                "call_time": item.get("call_time", 0),    # 秒
-                "start_time": item.get("start_time", ""),
-                "satisfaction": _satisfaction_label(item),
-                "survey": item.get("survey", ""),
-            })
-
-        output = {
-            "period": {"start": args.start_time, "end": end_disp},
-            "stats": stats,
-            "records": records_out,
-        }
-        os.makedirs(os.path.dirname(os.path.abspath(args.json_path)), exist_ok=True)
-        with open(args.json_path, "w", encoding="utf-8") as f:
-            json.dump(output, f, ensure_ascii=False, indent=2)
-        print(f"JSON 已输出: {args.json_path}")
-
-    return 0
+    return _compute_and_output(all_items, args)
 
 
 # ── 业务记录 + 问题类型 ───────────────────────────────────────
