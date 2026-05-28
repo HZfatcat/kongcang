@@ -61,6 +61,8 @@ import {
   retrySyncIssues,
   runSync,
   runZouwuSync,
+  runCallCenterSync,
+  fetchCallCenterLastRun,
   updateSyncConfig,
   updateZouwuSyncConfig,
   fetchZouwuSyncConfig,
@@ -160,6 +162,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
   const [zouwuSyncLoading, setZouwuSyncLoading] = useState(false);
   const [zouwuConfigLoading, setZouwuConfigLoading] = useState(false);
   const [zouwuConfig, setZouwuConfig] = useState<SyncConfig | null>(null);
+  const [callSyncLoading, setCallSyncLoading] = useState(false);
+  const [callCenterLastRun, setCallCenterLastRun] = useState<SyncRun | null>(null);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [udescAgentIds, setUdescAgentIds] = useState<string[]>([]);
@@ -2104,6 +2108,58 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
     </>
   );
 
+  const callCenterSyncTab = (
+    <>
+      <Space style={{ marginBottom: 16 }}>
+        <Button
+          type="primary"
+          loading={callSyncLoading}
+          onClick={async () => {
+            setCallSyncLoading(true);
+            try {
+              const resp = await runCallCenterSync();
+              if (resp.accepted) {
+                message.success('已触发呼叫中心同步任务（后台运行）');
+              } else {
+                message.warning('呼叫中心同步任务已在运行中');
+              }
+              const lastRun = await fetchCallCenterLastRun();
+              setCallCenterLastRun(lastRun);
+            } finally {
+              setCallSyncLoading(false);
+            }
+          }}
+        >
+          手动同步
+        </Button>
+      </Space>
+
+      <Card title="最近一次同步" style={{ marginTop: 16 }}>
+        {callCenterLastRun ? (
+          <Row gutter={12}>
+            <Col span={8}>
+              <Statistic title="同步时间" value={dayjs(callCenterLastRun.startedAt).format('YYYY-MM-DD HH:mm:ss')} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="同步条数" value={callCenterLastRun.recordsSynced ?? 0} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="状态" value={callCenterLastRun.status === 'completed' ? '成功' : callCenterLastRun.status === 'failed' ? '失败' : callCenterLastRun.status} />
+            </Col>
+          </Row>
+        ) : (
+          <Typography.Text type="secondary">暂无同步记录</Typography.Text>
+        )}
+      </Card>
+
+      <Card title="自动同步说明" style={{ marginTop: 16 }}>
+        <Typography.Text>
+          呼叫中心数据每小时自动同步一次，无需手动干预。如需立即同步，请点击上方「手动同步」按钮。
+        </Typography.Text>
+      </Card>
+    </>
+  );
+
   const zouwuSyncTab = (
     <>
       <Space style={{ marginBottom: 16 }}>
@@ -2433,6 +2489,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         {!loading && demandOverview && activeMenuKey === 'demand' && demandTab}
         {activeMenuKey === 'opportunity' && opportunityTab}
         {activeMenuKey === 'sync-udesc' && syncTab}
+        {activeMenuKey === 'sync-udesc' && callCenterSyncTab}
         {activeMenuKey === 'sync-zouwu' && zouwuSyncTab}
         {activeMenuKey === 'agents' && agentsTab}
 
