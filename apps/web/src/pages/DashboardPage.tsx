@@ -852,7 +852,7 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 />
               </div>
             </Space>
-            <ReactECharts option={trendOption} style={{ height: 340 }} />
+            <ReactECharts key={`trend-${selectedAgents.join(',')}-${selectedMetrics.join(',')}`} option={trendOption} notMerge={true} style={{ height: 340 }} />
           </Card>
         </Col>
       </Row>
