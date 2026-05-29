@@ -2128,49 +2128,44 @@ export class UdescService {
 
   async getCallCenterStats(startDate?: string, endDate?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
-    const startTime = start.toISOString().replace('Z', '').replace('T', ' ');
-    const endTime = end.toISOString().replace('Z', '').replace('T', ' ');
 
-    const { records } = await this.udescClient.fetchCallLogs({ startTime, endTime });
+    const records = await this.prisma.udescCallLog.findMany({
+      where: {
+        startTime: { gte: start, lte: end },
+      },
+      orderBy: { startTime: 'desc' },
+    });
 
-    const inbound = records.filter((x: any) => x.call_type === '呼入');
-    const outbound = records.filter((x: any) => x.call_type === '呼出');
-    const inConnected = inbound.filter((x: any) => x.call_result === '客服接听');
-    const outConnected = outbound.filter((x: any) => x.call_result === '客户接听');
+    const inbound = records.filter((x) => x.callType === '呼入');
+    const outbound = records.filter((x) => x.callType === '呼出');
+    const inConnected = inbound.filter((x) => x.callResult === '客服接听');
+    const outConnected = outbound.filter((x) => x.callResult === '客户接听');
 
-    const isRated = (s: string) => s?.includes('已评') && !s?.includes('未评');
-    const isSatisfied = (s: string) => s?.includes('满意') && !s?.includes('不满');
-    const satisfactionLabel = (item: any) => {
-      const survey = item.survey ?? '';
-      if (isRated(survey)) return isSatisfied(survey) ? '满意' : '不满意';
-      return '未评';
-    };
-
-    const calcStats = (items: any[], connected: any[], label: string) => {
+    const calcStats = (items: typeof records, connected: typeof records) => {
       const cnt = items.length;
       const connCnt = connected.length;
-      const totalDuration = connected.reduce((s: number, x: any) => s + (Number(x.call_time) || 0), 0);
+      const totalDuration = connected.reduce((s, x) => s + (x.callTime || 0), 0);
       const avgDuration = connCnt > 0 ? Math.round((totalDuration / connCnt) * 10) / 10 : 0;
-      const rated = items.filter((x: any) => isRated(x.survey ?? ''));
-      const sat = rated.filter((x: any) => isSatisfied(x.survey ?? ''));
+      const rated = items.filter((x) => x.satisfaction && x.satisfaction !== '未评');
+      const sat = rated.filter((x) => x.satisfaction === '满意');
       const satRate = rated.length > 0 ? `${Math.round((sat.length / rated.length) * 1000) / 10}%` : 'N/A';
       return { total: cnt, connected: connCnt, totalDuration, avgDuration, rated: rated.length, satisfaction: satRate };
     };
 
     return {
-      dateRange: { startDate: startTime, endDate: endTime },
-      inbound: calcStats(inbound, inConnected, '呼入'),
-      outbound: calcStats(outbound, outConnected, '呼出'),
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      inbound: calcStats(inbound, inConnected),
+      outbound: calcStats(outbound, outConnected),
       totalCalls: records.length,
-      records: records.map((item: any) => ({
+      records: records.map((item) => ({
         id: item.id,
-        callType: item.call_type,
-        callResult: item.call_result,
-        customerPhone: item.customer_phone,
-        agentName: item.agent_name ?? '',
-        callTime: item.call_time ?? 0,
-        startTime: item.start_time ?? '',
-        satisfaction: satisfactionLabel(item),
+        callType: item.callType || '',
+        callResult: item.callResult || '',
+        customerPhone: item.customerPhone || '',
+        agentName: item.agentName ?? '',
+        callTime: item.callTime ?? 0,
+        startTime: item.startTime?.toISOString() ?? '',
+        satisfaction: item.satisfaction || '未评',
       })),
     };
   }
@@ -2184,35 +2179,41 @@ export class UdescService {
     page?: number;
     perPage?: number;
   }) {
-    const fieldId = 'SelectField_19997';
-    const tree = await this.udescClient.fetchFieldOptions(fieldId);
-    const { records, meta } = await this.udescClient.fetchBusinessNotes({
-      startDate: params.startDate,
-      endDate: params.endDate,
-      category: params.category,
-      page: params.page,
-      perPage: params.perPage,
-    });
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const page = params.page ?? 1;
+    const perPage = params.perPage ?? 50;
 
-    const items = records.map((rec: any) => {
-      const raw = rec.custom_fields?.[fieldId] ?? '';
-      const levels = this.udescClient.parseCascade(String(raw), tree);
-      return {
-        id: rec.id,
-        time: (rec.created_at ?? '')?.toString().slice(0, 19),
-        agent: rec.agent_nick_name ?? '',
-        customer: rec.customer_nick_name ?? '',
-        problemType1: levels[0] ?? '',
-        problemType2: levels[1] ?? '',
-        problemType3: levels[2] ?? '',
-      };
-    });
+    const where: Record<string, unknown> = {
+      createdAt: { gte: start, lte: end },
+    };
+
+    const [records, total] = await Promise.all([
+      this.prisma.udescBusinessNote.findMany({
+        where: where as any,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      this.prisma.udescBusinessNote.count({
+        where: where as any,
+      }),
+    ]);
+
+    const items = records.map((rec) => ({
+      id: rec.id,
+      time: rec.createdAt ? toLocalISOString(rec.createdAt) : '',
+      agent: rec.agentNickName ?? '',
+      customer: rec.customerNickName ?? '',
+      problemType1: rec.problemType1 ?? '',
+      problemType2: rec.problemType2 ?? '',
+      problemType3: rec.problemType3 ?? '',
+    }));
 
     return {
       records: items,
-      total: (meta as any)?.total_records ?? items.length,
-      page: (meta as any)?.current_page ?? (params.page ?? 1),
-      totalPages: (meta as any)?.total_pages ?? 1,
+      total,
+      page,
+      totalPages: Math.ceil(total / perPage),
     };
   }
 }

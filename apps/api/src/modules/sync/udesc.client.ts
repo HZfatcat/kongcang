@@ -10,6 +10,8 @@ import {
   UdescAgentRecord,
   UdescOrganizationRecord,
   UdescTicketRecord,
+  UdescCallLogRecord,
+  UdescBusinessNoteRecord,
   UdescSessionStats,
 } from './sync.types';
 
@@ -783,6 +785,68 @@ export class UdescClient {
       this.logger.error(`Failed to fetch field options for ${fieldId}: ${msg}`);
       return [];
     }
+  }
+
+  // ========== 通话记录映射 ==========
+
+  mapCallLog(item: Record<string, unknown>): UdescCallLogRecord {
+    const survey = this.pickString(item, ['survey']);
+    const isRated = (s: string) => s?.includes('已评') && !s?.includes('未评');
+    const isSatisfied = (s: string) => s?.includes('满意') && !s?.includes('不满');
+    let satisfaction: string | undefined;
+    if (survey) {
+      if (isRated(survey)) satisfaction = isSatisfied(survey) ? '满意' : '不满意';
+      else satisfaction = '未评';
+    }
+    const startTime = this.pickString(item, ['start_time', 'startTime']);
+    return {
+      id: this.pickString(item, ['id']) ?? '',
+      callType: this.pickString(item, ['call_type', 'callType']),
+      callResult: this.pickString(item, ['call_result', 'callResult']),
+      customerPhone: this.pickString(item, ['customer_phone', 'customerPhone']),
+      agentName: this.pickString(item, ['agent_name', 'agentName']),
+      callTime: this.toNumber(this.pickString(item, ['call_time', 'callTime'])),
+      startTime,
+      survey,
+      satisfaction,
+      rawPayload: item as Record<string, unknown>,
+    };
+  }
+
+  // ========== 业务记录映射 ==========
+
+  private fieldOptionsCache: {
+    fieldId: string;
+    tree: Record<string, unknown>[];
+    fetchedAt: number;
+  } | null = null;
+
+  async getFieldOptionsTree(fieldId: string): Promise<Record<string, unknown>[]> {
+    // 缓存 5 分钟，避免每次同步都请求
+    if (this.fieldOptionsCache && this.fieldOptionsCache.fieldId === fieldId && Date.now() - this.fieldOptionsCache.fetchedAt < 300000) {
+      return this.fieldOptionsCache.tree;
+    }
+    const tree = await this.fetchFieldOptions(fieldId);
+    this.fieldOptionsCache = { fieldId, tree, fetchedAt: Date.now() };
+    return tree;
+  }
+
+  async mapBusinessNote(item: Record<string, unknown>): Promise<UdescBusinessNoteRecord> {
+    const fieldId = 'SelectField_19997';
+    const tree = await this.getFieldOptionsTree(fieldId);
+    const raw = (item.custom_fields as Record<string, unknown>)?.[fieldId] ?? '';
+    const levels = this.parseCascade(String(raw), tree);
+    const createdAt = this.pickString(item, ['created_at', 'createdAt']);
+    return {
+      id: this.pickString(item, ['id']) ?? '',
+      agentNickName: this.pickString(item, ['agent_nick_name', 'agentNickName']),
+      customerNickName: this.pickString(item, ['customer_nick_name', 'customerNickName']),
+      createdAt,
+      problemType1: levels[0] ?? '',
+      problemType2: levels[1] ?? '',
+      problemType3: levels[2] ?? '',
+      rawPayload: item as Record<string, unknown>,
+    };
   }
 
   // ========== 级联字段解析 ==========
