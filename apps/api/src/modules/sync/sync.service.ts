@@ -947,12 +947,13 @@ export class SyncService {
       this.progress.note = '同步通话记录';
       try {
         const now = syncStartedAt;
-        // 通话记录只同步最近 30 天
-        const callLogStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // 如果有手动指定日期范围，使用手动范围；否则只同步最近 30 天
+        const callLogStart = manualStartDate ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const callLogEnd = manualEndDate ?? now;
         const callLogResp = await this.withRetry('udesc.fetchCallLogs', () =>
           this.udescClient.fetchCallLogs({
             startTime: callLogStart.toISOString().replace('Z', '').replace('T', ' '),
-            endTime: now.toISOString().replace('Z', '').replace('T', ' '),
+            endTime: callLogEnd.toISOString().replace('Z', '').replace('T', ' '),
             pageSize: 200,
           }),
         );
@@ -1002,14 +1003,16 @@ export class SyncService {
       this.progress.note = '同步业务记录';
       try {
         const now = syncStartedAt;
-        const noteStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // 如果有手动指定日期范围，使用手动范围；否则只同步最近 30 天
+        const noteStart = manualStartDate ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const noteEnd = manualEndDate ?? now;
         let notePage = 1;
         let noteHasMore = true;
         while (noteHasMore) {
           const noteResp = await this.withRetry('udesc.fetchBusinessNotes', () =>
             this.udescClient.fetchBusinessNotes({
               startDate: noteStart.toISOString().slice(0, 19).replace('T', ' '),
-              endDate: now.toISOString().slice(0, 19).replace('T', ' '),
+              endDate: noteEnd.toISOString().slice(0, 19).replace('T', ' '),
               page: notePage,
               perPage: 100,
             }),

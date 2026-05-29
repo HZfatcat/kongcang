@@ -1843,9 +1843,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
           onClick={async () => {
             setSyncLoading(true);
             try {
-              const resp = await runSync();
+              const resp = await runSync({
+                startDate: apiRange.startDateIso,
+                endDate: apiRange.endDateIso,
+              });
               if (resp.accepted) {
-                message.success('已触发同步任务（后台运行）');
+                message.success(`已触发同步任务（${range[0].format('YYYY-MM-DD')} ~ ${range[1].format('YYYY-MM-DD')}）`);
               } else {
                 message.warning('同步任务已在运行中');
               }
