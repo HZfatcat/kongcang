@@ -35,21 +35,33 @@ import requests
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # 尝试加载 apps/api/.env（NestJS 项目标准位置）
+    for _dotenv_path in (".env", "../.env", "../api/.env", "apps/api/.env"):
+        _dotenv_file = os.path.join(os.path.dirname(__file__) or ".", _dotenv_path)
+        if os.path.isfile(_dotenv_file):
+            load_dotenv(_dotenv_file)
+            break
 except ImportError:
     pass
 
 
-# ── 内置默认租户 ──────────────────────────────────────────────
-_DEFAULT_SUBDOMAIN = "gitcode.s2"
-_DEFAULT_EMAIL = "chenjc@csdn.net"
-_DEFAULT_PASSWORD = "gitcode001"
-_DEFAULT_BASE_URL = f"https://{_DEFAULT_SUBDOMAIN}.udesk.cn"
-
-UDESK_BASE_URL = os.getenv("UDESK_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
-UDESK_EMAIL = os.getenv("UDESK_EMAIL", _DEFAULT_EMAIL)
-UDESK_PASSWORD = os.getenv("UDESK_PASSWORD", _DEFAULT_PASSWORD)
+# ── Udesk API 连接配置（全部来自环境变量，无内置默认值） ────────
+UDESK_BASE_URL = os.getenv("UDESK_BASE_URL")
+UDESK_EMAIL = os.getenv("UDESK_EMAIL")
+UDESK_PASSWORD = os.getenv("UDESK_PASSWORD")
+UDESK_TOKEN = os.getenv("UDESK_TOKEN")
 UDESK_SIGN_VERSION = os.getenv("UDESK_SIGN_VERSION", "v2")
+
+# 启动时校验凭据
+if not UDESK_BASE_URL or not UDESK_EMAIL or (not UDESK_PASSWORD and not UDESK_TOKEN):
+    print(
+        "错误: 请设置以下环境变量（任选一种方式）:\n"
+        "  方式一（推荐）: UDESK_BASE_URL + UDESK_EMAIL + UDESK_PASSWORD\n"
+        "  方式二:         UDESK_BASE_URL + UDESK_EMAIL + UDESK_TOKEN\n"
+        "可在 apps/api/.env 或系统环境变量中配置",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 _runtime_token: Optional[str] = None
 TIMEOUT = 30
