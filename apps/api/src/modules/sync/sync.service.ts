@@ -1407,10 +1407,20 @@ export class SyncService {
     const sinceStr = since.toISOString().slice(0, 10).replace('T', ' ');
     const jsonPath = `${projectRoot}/apps/web/public/call-stats.json`;
 
+    // 把 Udesk 凭据透传给 Python 子进程
+    const udeskEnvVars: Record<string, string> = {};
+    for (const key of ['UDESK_BASE_URL', 'UDESK_EMAIL', 'UDESK_PASSWORD', 'UDESK_TOKEN']) {
+      const val = process.env[key];
+      if (val) udeskEnvVars[key] = val;
+    }
+
     try {
       this.logger.log(`Starting call-stats sync since ${sinceStr}`);
       const cmd = `${PYTHON_CMD} "${projectRoot}/udesk_report.py" call-stats --start-time "${sinceStr} 00:00:00" --json "${jsonPath}"`;
-      const { stdout, stderr } = await execAsync(cmd, { timeout: 300000 }); // 5 min timeout
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: 300000, // 5 min timeout
+        env: { ...process.env, ...udeskEnvVars },
+      });
       if (stderr) {
         this.logger.warn(`call-stats stderr: ${stderr.slice(0, 500)}`);
       }
