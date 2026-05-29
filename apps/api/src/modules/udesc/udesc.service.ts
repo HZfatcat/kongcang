@@ -946,13 +946,23 @@ export class UdescService {
       sessionIds = sessionsInRange.map((s) => s.id);
     }
 
-    // 按会话 startedAt 筛选，而不是 votedAt
-    const where = {
+    // 构建评分筛选条件（统一构造，避免对象 key 覆盖）
+    const ratingFilter: Record<string, number> = {};
+    if (params.minRating !== undefined) ratingFilter.gte = params.minRating;
+    if (params.maxRating !== undefined) ratingFilter.lte = params.maxRating;
+
+    // 基础查询条件（按会话 startedAt 筛选，而不是 votedAt）
+    const where: any = {
       sessionId: { in: sessionIds },
-      ...(params.minRating !== undefined ? { rating: { gte: params.minRating } } : {}),
-      ...(params.maxRating !== undefined
-        ? { rating: { ...(params.minRating !== undefined ? { gte: params.minRating } : {}), lte: params.maxRating } }
-        : {}),
+    };
+    if (Object.keys(ratingFilter).length > 0) {
+      where.rating = ratingFilter;
+    }
+
+    // 统计查询条件（基础筛选 + 排除 null 评分 — 使用 AND 避免 key 覆盖）
+    const statsWhere: any = {
+      sessionId: { in: sessionIds },
+      rating: { ...ratingFilter, not: null },
     };
 
     // 构建排序条件
@@ -970,7 +980,8 @@ export class UdescService {
     }
 
     const [total, rows, ratingStats, avgRatingResult, nullRatingVotes, totalSessions] = await Promise.all([
-      this.prisma.udescSessionVote.count({ where }),
+      // total 只统计有评分的记录，确保总评价数 = 评分分布之和
+      this.prisma.udescSessionVote.count({ where: statsWhere }),
       this.prisma.udescSessionVote.findMany({
         where,
         orderBy,
@@ -989,17 +1000,17 @@ export class UdescService {
       // 非 null 评分分布（全部记录，不分页）
       this.prisma.udescSessionVote.groupBy({
         by: ['rating'],
-        where: { ...where, rating: { not: null } },
+        where: statsWhere,
         _count: { rating: true },
       }),
       // 非 null 平均分（全部记录，不分页）
       this.prisma.udescSessionVote.aggregate({
-        where: { ...where, rating: { not: null } },
+        where: statsWhere,
         _avg: { rating: true },
       }),
-      // null 评分记录，从 rawPayload 推断（全部记录，不分页）
+      // null 评分记录，用于展示时从 rawPayload 推断（全部记录，不分页）
       this.prisma.udescSessionVote.findMany({
-        where: { ...where, rating: null },
+        where: { sessionId: { in: sessionIds }, rating: null },
         select: { id: true, sessionId: true, rawPayload: true },
       }),
       this.prisma.udescSession.count({
@@ -1044,7 +1055,8 @@ export class UdescService {
       }
     }
 
-    // 2. 从 rawPayload 推断 null 评分记录，累加分布
+    // 2. 从 rawPayload 推断 null 评分记录，累加分布（仅使用显式评分字段 / survey_option_id）
+    //    注意：resolved_state 表示"是否已解决"，不等于"满意度"，不应用来推断评分
     for (const vote of nullRatingVotes) {
       if (vote.rawPayload) {
         const inferred = this.inferRatingFromRawPayload(vote.rawPayload as Record<string, unknown>);
@@ -1056,58 +1068,12 @@ export class UdescService {
       }
     }
 
-    // 2.5 对仍为 null 的评分记录，使用会话级别的 resolved_state_name 再次兜底推断
-    const stillNullIds = nullRatingVotes
-      .map((v, i) => ({ vote: v, idx: i }))
-      .filter(({ idx }) => {
-        // 检查上一步是否推断成功：如果 nullRatingVotes[idx] 对应的 rating 在上一步中没有被增加，则仍为 null
-        // 简化处理：收集所有未推断成功的 sessionId
-        return true; // 全部重新从 session 数据推断
-      })
-      .map(({ vote }) => vote.sessionId)
-      .filter(Boolean) as string[];
-
-    if (stillNullIds.length > 0) {
-      const sessionPayloads = await this.prisma.udescSession.findMany({
-        where: { id: { in: stillNullIds } },
-        select: { id: true, rawPayload: true },
-      });
-      const sessionPayloadMap = new Map(sessionPayloads.map((s) => [s.id, s.rawPayload]));
-      for (const vote of nullRatingVotes) {
-        if (vote.sessionId) {
-          const sessionRp = sessionPayloadMap.get(vote.sessionId);
-          if (sessionRp) {
-            const rsn = (sessionRp as Record<string, unknown>)?.resolved_state_name;
-            if (rsn === '已解决') {
-              ratingDistribution[5] = (ratingDistribution[5] ?? 0) + 1;
-              sumRating += 5;
-              countRated++;
-            } else if (rsn === '未解决') {
-              ratingDistribution[1] = (ratingDistribution[1] ?? 0) + 1;
-              sumRating += 1;
-              countRated++;
-            }
-          }
-        }
-      }
-    }
-
-    // 3. 处理分页记录中的评分（当前页展示，含 rawPayload 推断 + 会话级别兜底）
+    // 3. 处理分页记录中的评分（当前页展示，仅从 rawPayload 推断，不使用 resolved_state 兜底）
     const records = rows.map((vote) => {
       let effectiveRating = vote.rating;
       // 尝试从投票 rawPayload 推断
       if (effectiveRating === null && vote.rawPayload) {
         effectiveRating = this.inferRatingFromRawPayload(vote.rawPayload as Record<string, unknown>) ?? null;
-      }
-      // 若仍为 null，使用会话级别的 resolved_state_name 兜底
-      if (effectiveRating === null && vote.session.rawPayload) {
-        const sessionRp = vote.session.rawPayload as Record<string, unknown>;
-        const rsn = sessionRp.resolved_state_name;
-        if (rsn === '已解决') {
-          effectiveRating = 5;
-        } else if (rsn === '未解决') {
-          effectiveRating = 1;
-        }
       }
       return {
         id: vote.id,
@@ -1136,7 +1102,7 @@ export class UdescService {
 
   /**
    * 从 rawPayload JSON 中推断评分值（仅用于 rating 为 null 时的兜底推断）
-   * 按优先级：显式评分字段 → 嵌套 vote 对象 → resolved_state
+   * 按优先级：显式评分字段 → 嵌套 vote 对象 → survey_option_id
    */
   private inferRatingFromRawPayload(rawPayload: Record<string, unknown>): number | undefined {
     const normalize = (v: number | undefined): number | undefined => {
