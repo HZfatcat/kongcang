@@ -8,6 +8,8 @@ import {
   UdescMetricsQueryDto,
   UdescTicketQueryDto,
   UdescHeatmapQueryDto,
+  UdescCallCenterQueryDto,
+  UdescNotesQueryDto,
 } from './udesc.dto';
 import { UdescService } from './udesc.service';
 
@@ -182,6 +184,26 @@ export class UdescController {
       endDate: query.endDate,
       agentId: query.agentId,
       type: query.type || 'session',
+    });
+  }
+
+  // ========== 呼叫中心 ==========
+
+  @Get('call-center')
+  getCallCenter(@Query() query: UdescCallCenterQueryDto) {
+    return this.udescService.getCallCenterStats(query.startDate, query.endDate);
+  }
+
+  // ========== 业务记录 ==========
+
+  @Get('notes')
+  getNotes(@Query() query: UdescNotesQueryDto) {
+    return this.udescService.getNotes({
+      startDate: query.startDate,
+      endDate: query.endDate,
+      category: query.category,
+      page: query.page,
+      perPage: query.perPage,
     });
   }
 }

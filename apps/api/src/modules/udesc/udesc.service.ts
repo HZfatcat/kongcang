@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { UdescClient } from '../sync/udesc.client';
 
 /**
  * 将 Date 转为本地时间 ISO 字符串（不含 Z 后缀）
@@ -102,7 +103,10 @@ function normalizeSenderType(msg: any): string {
 
 @Injectable()
 export class UdescService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly udescClient: UdescClient,
+  ) {}
 
   private resolveRange(startDate?: string, endDate?: string) {
     const start = startDate
@@ -2210,6 +2214,99 @@ export class UdescService {
       total,
       peakHours: peakHours.slice(0, 5), // Top 5 繁忙时段
       peakDays: peakDays.slice(0, 3), // Top 3 繁忙天
+    };
+  }
+
+  // ========== 呼叫中心 ==========
+
+  async getCallCenterStats(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const records = await this.prisma.udescCallLog.findMany({
+      where: {
+        startTime: { gte: start, lte: end },
+      },
+      orderBy: { startTime: 'desc' },
+    });
+
+    const inbound = records.filter((x) => x.callType === '呼入');
+    const outbound = records.filter((x) => x.callType === '呼出');
+    const inConnected = inbound.filter((x) => x.callResult === '客服接听');
+    const outConnected = outbound.filter((x) => x.callResult === '客户接听');
+
+    const calcStats = (items: typeof records, connected: typeof records) => {
+      const cnt = items.length;
+      const connCnt = connected.length;
+      const totalDuration = connected.reduce((s, x) => s + (x.callTime || 0), 0);
+      const avgDuration = connCnt > 0 ? Math.round((totalDuration / connCnt) * 10) / 10 : 0;
+      const rated = items.filter((x) => x.satisfaction && x.satisfaction !== '未评');
+      const sat = rated.filter((x) => x.satisfaction === '满意');
+      const satRate = rated.length > 0 ? `${Math.round((sat.length / rated.length) * 1000) / 10}%` : 'N/A';
+      return { total: cnt, connected: connCnt, totalDuration, avgDuration, rated: rated.length, satisfaction: satRate };
+    };
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      inbound: calcStats(inbound, inConnected),
+      outbound: calcStats(outbound, outConnected),
+      totalCalls: records.length,
+      records: records.map((item) => ({
+        id: item.id,
+        callType: item.callType || '',
+        callResult: item.callResult || '',
+        customerPhone: item.customerPhone || '',
+        agentName: item.agentName ?? '',
+        callTime: item.callTime ?? 0,
+        startTime: item.startTime?.toISOString() ?? '',
+        satisfaction: item.satisfaction || '未评',
+      })),
+    };
+  }
+
+  // ========== 业务记录 ==========
+
+  async getNotes(params: {
+    startDate?: string;
+    endDate?: string;
+    category?: 'im' | 'call';
+    page?: number;
+    perPage?: number;
+  }) {
+    const { start, end } = this.resolveRange(params.startDate, params.endDate);
+    const page = params.page ?? 1;
+    const perPage = params.perPage ?? 50;
+
+    const where: Record<string, unknown> = {
+      createdAt: { gte: start, lte: end },
+    };
+
+    const [records, total] = await Promise.all([
+      this.prisma.udescBusinessNote.findMany({
+        where: where as any,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      this.prisma.udescBusinessNote.count({
+        where: where as any,
+      }),
+    ]);
+
+    const items = records.map((rec) => ({
+      id: rec.id,
+      time: rec.createdAt ? toLocalISOString(rec.createdAt) : '',
+      agent: rec.agentNickName ?? '',
+      customer: rec.customerNickName ?? '',
+      problemType1: rec.problemType1 ?? '',
+      problemType2: rec.problemType2 ?? '',
+      problemType3: rec.problemType3 ?? '',
+    }));
+
+    return {
+      records: items,
+      total,
+      page,
+      totalPages: Math.ceil(total / perPage),
     };
   }
 }

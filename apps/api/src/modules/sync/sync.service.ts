@@ -22,6 +22,8 @@ interface SyncProgressSnapshot {
   metricsSynced: number;
   organizationSynced: number;
   ticketSynced: number;
+  callLogSynced: number;
+  businessNoteSynced: number;
   issueCount: number;
   estimatedRemainingRecords: number;
   estimatedRemainingSeconds: number;
@@ -56,6 +58,8 @@ export class SyncService {
     metricsSynced: 0,
     organizationSynced: 0,
     ticketSynced: 0,
+    callLogSynced: 0,
+    businessNoteSynced: 0,
     issueCount: 0,
     estimatedRemainingRecords: 0,
     estimatedRemainingSeconds: 0,
@@ -244,6 +248,8 @@ export class SyncService {
     let organizationSynced = 0;
     let ticketSynced = 0;
     let issueCount = 0;
+    let callLogSynced = 0;
+    let businessNoteSynced = 0;
     const syncStartedAt = new Date();
 
     try {
@@ -291,6 +297,8 @@ export class SyncService {
       this.progress.agentSynced = 0;
       this.progress.metricsSynced = 0;
       this.progress.issueCount = issueCount;
+      this.progress.callLogSynced = 0;
+      this.progress.businessNoteSynced = 0;
       this.progress.currentWindowStart = windowStart.toISOString();
       this.progress.currentWindowEnd = undefined;
       this.progress.estimatedRemainingRecords = 0;
@@ -935,6 +943,120 @@ export class SyncService {
         this.logger.error(`ticket sync failed: ${msg}`);
       }
 
+      // 同步通话记录
+      this.progress.note = '同步通话记录';
+      try {
+        const now = syncStartedAt;
+        // 通话记录只同步最近 30 天
+        const callLogStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const callLogResp = await this.withRetry('udesc.fetchCallLogs', () =>
+          this.udescClient.fetchCallLogs({
+            startTime: callLogStart.toISOString().replace('Z', '').replace('T', ' '),
+            endTime: now.toISOString().replace('Z', '').replace('T', ' '),
+            pageSize: 200,
+          }),
+        );
+        for (const raw of callLogResp.records) {
+          const mapped = this.udescClient.mapCallLog(raw);
+          if (!mapped.id) continue;
+          try {
+            await this.prisma.udescCallLog.upsert({
+              where: { id: mapped.id },
+              create: {
+                id: mapped.id,
+                callType: mapped.callType ?? null,
+                callResult: mapped.callResult ?? null,
+                customerPhone: mapped.customerPhone ?? null,
+                agentName: mapped.agentName ?? null,
+                callTime: mapped.callTime ?? null,
+                startTime: this.asDateOrNull(mapped.startTime),
+                survey: mapped.survey ?? null,
+                satisfaction: mapped.satisfaction ?? null,
+                rawPayload: this.asJson(mapped.rawPayload),
+              },
+              update: {
+                callType: mapped.callType ?? null,
+                callResult: mapped.callResult ?? null,
+                customerPhone: mapped.customerPhone ?? null,
+                agentName: mapped.agentName ?? null,
+                callTime: mapped.callTime ?? null,
+                startTime: this.asDateOrNull(mapped.startTime),
+                survey: mapped.survey ?? null,
+                satisfaction: mapped.satisfaction ?? null,
+                rawPayload: this.asJson(mapped.rawPayload),
+                syncedAt: new Date(),
+              },
+            });
+            callLogSynced += 1;
+          } catch (e) {
+            // ignore individual errors
+          }
+        }
+        this.progress.callLogSynced = callLogSynced;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`call log sync failed: ${msg}`);
+      }
+
+      // 同步业务记录
+      this.progress.note = '同步业务记录';
+      try {
+        const now = syncStartedAt;
+        const noteStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        let notePage = 1;
+        let noteHasMore = true;
+        while (noteHasMore) {
+          const noteResp = await this.withRetry('udesc.fetchBusinessNotes', () =>
+            this.udescClient.fetchBusinessNotes({
+              startDate: noteStart.toISOString().slice(0, 19).replace('T', ' '),
+              endDate: now.toISOString().slice(0, 19).replace('T', ' '),
+              page: notePage,
+              perPage: 100,
+            }),
+          );
+          for (const raw of noteResp.records) {
+            const mapped = await this.udescClient.mapBusinessNote(raw);
+            if (!mapped.id) continue;
+            try {
+              await this.prisma.udescBusinessNote.upsert({
+                where: { id: mapped.id },
+                create: {
+                  id: mapped.id,
+                  agentNickName: mapped.agentNickName ?? null,
+                  customerNickName: mapped.customerNickName ?? null,
+                  createdAt: this.asDateOrNull(mapped.createdAt),
+                  problemType1: mapped.problemType1 ?? null,
+                  problemType2: mapped.problemType2 ?? null,
+                  problemType3: mapped.problemType3 ?? null,
+                  rawPayload: this.asJson(mapped.rawPayload),
+                },
+                update: {
+                  agentNickName: mapped.agentNickName ?? null,
+                  customerNickName: mapped.customerNickName ?? null,
+                  createdAt: this.asDateOrNull(mapped.createdAt),
+                  problemType1: mapped.problemType1 ?? null,
+                  problemType2: mapped.problemType2 ?? null,
+                  problemType3: mapped.problemType3 ?? null,
+                  rawPayload: this.asJson(mapped.rawPayload),
+                  syncedAt: new Date(),
+                },
+              });
+              businessNoteSynced += 1;
+            } catch (e) {
+              // ignore individual errors
+            }
+          }
+          const meta = noteResp.meta as Record<string, unknown> | undefined;
+          const totalPages = Number(meta?.total_pages ?? 1);
+          notePage += 1;
+          noteHasMore = notePage <= totalPages;
+        }
+        this.progress.businessNoteSynced = businessNoteSynced;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`business note sync failed: ${msg}`);
+      }
+
       // 从本地消息计算会话指标（不调用第三方接口）
       this.progress.note = '计算会话指标';
       metricsSynced = await this.calculateSessionMetricsFromLocal();
@@ -942,8 +1064,8 @@ export class SyncService {
 
       await this.finishRun(run.id, {
         status: 'SUCCESS',
-        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
-        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},organizations=${organizationSynced},tickets=${ticketSynced},issues=${issueCount}`,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced + callLogSynced + businessNoteSynced,
+        message: `sessions=${sessionSynced},messages=${messageSynced},votes=${voteSynced},customers=${customerSynced},agents=${agentSynced},metrics=${metricsSynced},organizations=${organizationSynced},tickets=${ticketSynced},callLogs=${callLogSynced},notes=${businessNoteSynced},issues=${issueCount}`,
       });
 
       this.progress.isRunning = false;
@@ -959,7 +1081,7 @@ export class SyncService {
       this.logger.error(`sync udesc failed: ${message}`);
       await this.finishRun(run.id, {
         status: 'FAILED',
-        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced,
+        recordsSynced: sessionSynced + messageSynced + voteSynced + customerSynced + agentSynced + metricsSynced + organizationSynced + ticketSynced + callLogSynced + businessNoteSynced,
         message,
       });
 

@@ -167,3 +167,29 @@ export interface ZouwuFeedbackStatistics {
   newBugs: number;
   closeRates: ZouwuCloseRateStat[];
 }
+
+// 通话记录
+export interface UdescCallLogRecord {
+  id: string;
+  callType?: string;
+  callResult?: string;
+  customerPhone?: string;
+  agentName?: string;
+  callTime?: number;
+  startTime?: string;
+  survey?: string;
+  satisfaction?: string;
+  rawPayload?: Record<string, unknown>;
+}
+
+// 业务记录
+export interface UdescBusinessNoteRecord {
+  id: string;
+  agentNickName?: string;
+  customerNickName?: string;
+  createdAt?: string;
+  problemType1?: string;
+  problemType2?: string;
+  problemType3?: string;
+  rawPayload?: Record<string, unknown>;
+}

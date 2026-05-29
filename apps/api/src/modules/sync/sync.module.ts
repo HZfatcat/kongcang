@@ -9,6 +9,6 @@ import { ZouwuClient } from './zouwu.client';
 @Module({
   controllers: [SyncController],
   providers: [SyncService, SyncScheduler, UdescClient, ZouwuClient, PrismaService],
-  exports: [SyncService],
+  exports: [SyncService, UdescClient],
 })
 export class SyncModule {}

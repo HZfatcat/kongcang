@@ -373,3 +373,74 @@ export async function fetchUdescHeatmap(params: {
   const resp = await apiClient.get<UdescHeatmap>('/udesc/heatmap', { params });
   return resp.data;
 }
+
+// ========== 呼叫中心 ==========
+
+export interface CallCenterStats {
+  dateRange: { startDate: string; endDate: string };
+  inbound: {
+    total: number;
+    connected: number;
+    totalDuration: number;
+    avgDuration: number;
+    rated: number;
+    satisfaction: string;
+  };
+  outbound: {
+    total: number;
+    connected: number;
+    totalDuration: number;
+    avgDuration: number;
+    rated: number;
+    satisfaction: string;
+  };
+  totalCalls: number;
+  records: Array<{
+    id: number;
+    callType: string;
+    callResult: string;
+    customerPhone: string;
+    agentName: string;
+    callTime: number;
+    startTime: string;
+    satisfaction: string;
+  }>;
+}
+
+export async function fetchCallCenterData(params: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<CallCenterStats> {
+  const resp = await apiClient.get<CallCenterStats>('/udesc/call-center', { params });
+  return resp.data;
+}
+
+// ========== 业务记录 ==========
+
+export interface NoteRecord {
+  id: number;
+  time: string;
+  agent: string;
+  customer: string;
+  problemType1: string;
+  problemType2: string;
+  problemType3: string;
+}
+
+export interface NotesResponse {
+  records: NoteRecord[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export async function fetchNotesData(params: {
+  startDate?: string;
+  endDate?: string;
+  category?: 'im' | 'call';
+  page?: number;
+  perPage?: number;
+}): Promise<NotesResponse> {
+  const resp = await apiClient.get<NotesResponse>('/udesc/notes', { params });
+  return resp.data;
+}

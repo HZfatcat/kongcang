@@ -436,5 +436,38 @@ model UdescTicket {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([imSubSessionId])
+}
 
+// 呼叫中心 · 通话记录
+model UdescCallLog {
+  id            String    @id
+  callType      String?
+  callResult    String?
+  customerPhone String?
+  agentName     String?
+  callTime      Int?
+  startTime     DateTime?
+  survey        String?
+  satisfaction  String?   // 预先计算的满意度: 满意/不满意/未评
+  rawPayload    Json?
+  syncedAt      DateTime  @default(now())
+
+  @@index([startTime])
+  @@index([callType])
+  @@index([callResult])
+}
+
+// 业务记录
+model UdescBusinessNote {
+  id               String    @id
+  agentNickName    String?
+  customerNickName String?
+  createdAt        DateTime?
+  problemType1     String?
+  problemType2     String?
+  problemType3     String?
+  rawPayload       Json?
+  syncedAt         DateTime  @default(now())
+
+  @@index([createdAt])
 }
