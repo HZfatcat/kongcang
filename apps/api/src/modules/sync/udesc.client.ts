@@ -798,7 +798,7 @@ export class UdescClient {
       if (isRated(survey)) satisfaction = isSatisfied(survey) ? '满意' : '不满意';
       else satisfaction = '未评';
     }
-    const startTime = this.pickString(item, ['start_time', 'startTime']);
+    const startTime = this.pickString(item, ['call_start_at', 'start_time', 'startTime']);
     return {
       id: this.pickString(item, ['id']) ?? '',
       callType: this.pickString(item, ['call_type', 'callType']),
