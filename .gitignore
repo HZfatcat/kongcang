@@ -10,10 +10,6 @@ npm-debug.log*
 apps/web/dist
 apps/api/dist
 apps/api/prisma/dev.db
-*.log
-*.msi
-_tmp_test.py
-__pycache__/
 .DS_Store
 datalog/
 .atomcode/

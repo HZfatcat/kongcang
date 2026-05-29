@@ -17,17 +17,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV TZ=Asia/Shanghai
 
-RUN apt-get update && apt-get install -y openssl curl python3 python3-pip && rm -rf /var/lib/apt/lists/*
-
-# 安装 Python 依赖（Udesk 数据同步用）
-RUN pip3 install requests --break-system-packages --no-cache-dir
+RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-# 复制根目录的 Python 同步脚本（供 syncCallStats 调用）
-COPY udesk_report.py ./udesk_report.py
 
 WORKDIR /app/apps/api
 EXPOSE 3000
