@@ -118,19 +118,4 @@ export class SyncController {
     const endDate = body?.endDate ? new Date(body.endDate) : undefined;
     return this.syncService.triggerUdescSync({ startDate, endDate, resetCursor: true });
   }
-
-  // 呼叫中心数据同步
-  @Post('call-center/run')
-  async runCallCenterSync(@Body() body?: { startDate?: string }) {
-    const options = body?.startDate ? { startDate: new Date(body.startDate) } : undefined;
-    return this.syncService.syncCallStats(options);
-  }
-
-  @Get('call-center/last-run')
-  async getCallCenterLastRun() {
-    return this.prisma.syncRun.findFirst({
-      where: { source: 'call-stats' },
-      orderBy: { startedAt: 'desc' },
-    });
-  }
 }

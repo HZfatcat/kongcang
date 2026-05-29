@@ -373,13 +373,3 @@ export async function fetchUdescHeatmap(params: {
   const resp = await apiClient.get<UdescHeatmap>('/udesc/heatmap', { params });
   return resp.data;
 }
-
-export async function runCallCenterSync(options?: { startDate?: string }) {
-  const resp = await apiClient.post<{ accepted: boolean; message?: string }>('/sync/call-center/run', options);
-  return resp.data;
-}
-
-export async function fetchCallCenterLastRun(): Promise<SyncRun | null> {
-  const resp = await apiClient.get<SyncRun | null>('/sync/call-center/last-run');
-  return resp.data;
-}
