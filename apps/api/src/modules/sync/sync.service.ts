@@ -996,8 +996,8 @@ export class SyncService {
         _count: true,
       });
       
-      const actualAgentMsgCount = actualMessages.find(m => m.senderType === 'agent')?._count ?? 0;
-      const actualCustomerMsgCount = actualMessages.find(m => m.senderType === 'customer')?._count ?? 0;
+      const actualAgentMsgCount = actualMessages.find(m => m.senderType === 'agent' || m.senderType === '客服' || m.senderType === 'AGENT')?._count ?? 0;
+      const actualCustomerMsgCount = actualMessages.find(m => m.senderType === 'customer' || m.senderType === '客户' || m.senderType === 'CUSTOMER')?._count ?? 0;
 
       // 从 Udesk 原始数据提取指标（优先使用，但需做合理性校验）
       let firstResponseTime: number | null = null;
@@ -1016,11 +1016,11 @@ export class SyncService {
           select: { sentAt: true, senderType: true, content: true, rawPayload: true },
         });
 
-        // 识别客服消息：senderType='agent' 或 rawPayload.sender='agent'
+        // 识别客服消息：senderType='agent'/'客服' 或 rawPayload.sender='agent'/'客服'
         const isAgentMsg = (m: typeof allMsgs[number]) =>
-          m.senderType === 'agent' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent';
+          m.senderType === 'agent' || m.senderType === '客服' || m.senderType === 'AGENT' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent';
         const isCustomerMsg = (m: typeof allMsgs[number]) =>
-          m.senderType === 'customer' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer';
+          m.senderType === 'customer' || m.senderType === '客户' || m.senderType === 'CUSTOMER' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer';
         // 过滤自动消息：content 中含 "auto":true 或 type 为 survey/start_session 的不计入人工响应
         // 同时过滤系统通知：no_need_save:true 或 push_type 的消息
         const isAutoMsg = (m: typeof allMsgs[number]) => {
@@ -1101,9 +1101,9 @@ export class SyncService {
             || c.includes('"no_need_save":true') || c.includes('"push_type"') || c.includes('"is_welcome":true');
         };
         const isAgentMsg = (m: typeof allMsgs[number]) =>
-          m.senderType === 'agent' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent';
+          m.senderType === 'agent' || m.senderType === '客服' || m.senderType === 'AGENT' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'agent';
         const isCustomerMsg = (m: typeof allMsgs[number]) =>
-          m.senderType === 'customer' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer';
+          m.senderType === 'customer' || m.senderType === '客户' || m.senderType === 'CUSTOMER' || (m.rawPayload as Record<string, unknown> | null)?.sender === 'customer';
         agentMessageCount = allMsgs.filter(m => isAgentMsg(m) && !isAutoMsg(m)).length;
         customerMessageCount = allMsgs.filter(m => isCustomerMsg(m)).length;
       }

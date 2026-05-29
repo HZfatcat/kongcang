@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Button,
   Card,
@@ -21,25 +21,27 @@ import {
   Modal,
   Radio,
   InputNumber,
+  Statistic,
 } from 'antd';
 import {
   EditOutlined,
   SaveOutlined,
   SendOutlined,
-  ReloadOutlined,
+  SyncOutlined,
   FileTextOutlined,
   UserOutlined,
   TeamOutlined,
-  CheckCircleOutlined,
-  InfoCircleOutlined,
   CopyOutlined,
   CodeOutlined,
   EyeOutlined,
   MailOutlined,
+  InfoCircleOutlined,
+  LeftOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchReportData } from '../api/report';
-import { fetchDemandOverview, fetchMonthlySatisfaction } from '../api/kpi';
+import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview } from '../api/kpi';
 import {
   fetchUdescOverview as fetchUdeskOverview,
   fetchUdescDailyRatingStats as fetchUdeskDailyRatingStats,
@@ -50,10 +52,13 @@ import {
   fetchUdescVotes as fetchUdeskVotes,
   fetchUdescTicketSummary as fetchUdeskTicketSummary,
   fetchAgents,
+  runSync,
+  runZouwuSync,
+  fetchSyncProgress,
 } from '../api/udesc';
 import { fetchOpportunitySummary } from '../api/opportunity';
 import { sendReport, previewReport } from '../api/weekly-report';
-import type { KpiOverview, DemandOverview, ConsultationFunnelOverview } from '../types/kpi';
+import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../types/kpi';
 import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
 import { TeamReportView } from './TeamReportView';
 import { PersonalReportView } from './PersonalReportView';
@@ -66,6 +71,23 @@ const TextArea = Input.TextArea;
 /** 将 Dayjs 对象格式化为 YYYY-MM-DD 字符串，处理 null/undefined */
 function formatDate(d: dayjs.Dayjs | null | undefined): string {
   return d ? d.format('YYYY-MM-DD') : '';
+}
+
+/**
+ * 计算周报统计周期：上周五 ～ 本周四（固定 7 天窗口）
+ * @param weekOffset 0=当前周, -1=上一周, 1=下一周, ...
+ */
+function getWeekRange(weekOffset: number = 0): [dayjs.Dayjs, dayjs.Dayjs] {
+  const today = dayjs();
+  // dayjs 中周日=0, 周一=1, ..., 周四=4, 周五=5, 周六=6
+  const thisThursday = today.day(4);
+  // 如果本周四还没到（周日~周三），取上周四作为当前周期结束日
+  const endDay = thisThursday.isAfter(today)
+    ? thisThursday.subtract(7, 'day')
+    : thisThursday;
+  const targetEnd = endDay.add(weekOffset * 7, 'day');
+  const startDay = targetEnd.subtract(6, 'day'); // 上周五
+  return [startDay, targetEnd];
 }
 
 /** 将比率 clamp 到 0~1 区间 */
@@ -129,7 +151,7 @@ interface WeeklyReport {
 }
 
 interface EditableSectionProps {
-  title: string;
+  title: React.ReactNode;
   content: string;
   onChange: (val: string) => void;
   isEditing: boolean;
@@ -138,14 +160,22 @@ interface EditableSectionProps {
 }
 
 function EditableSection({ title, content, onChange, isEditing, onToggleEdit, height = 6 }: EditableSectionProps) {
+  const charCount = content ? content.length : 0;
   return (
     <Card
       size="small"
       title={<Text strong>{title}</Text>}
       extra={
-        <Button type="text" icon={isEditing ? <SaveOutlined /> : <EditOutlined />} onClick={onToggleEdit}>
-          {isEditing ? '保存' : '编辑'}
-        </Button>
+        <Space size="small">
+          {isEditing && (
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {charCount} 字
+            </Text>
+          )}
+          <Button type="text" icon={isEditing ? <SaveOutlined /> : <EditOutlined />} onClick={onToggleEdit}>
+            {isEditing ? '保存' : '编辑'}
+          </Button>
+        </Space>
       }
       style={{ marginBottom: 12 }}
     >
@@ -155,6 +185,7 @@ function EditableSection({ title, content, onChange, isEditing, onToggleEdit, he
           onChange={(e) => onChange(e.target.value)}
           rows={height}
           style={{ fontFamily: 'inherit', fontSize: 13 }}
+          showCount
         />
       ) : (
         <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.8 }}>{content || '（暂无内容）'}</div>
@@ -240,6 +271,135 @@ function MetricRow({ label, target, indicatorInfo, monthlyHistory, value, status
   );
 }
 
+// ====== 精装指标行组件（含进度条 + 趋势弹窗 + 状态标签） ======
+interface PolishedMetricRowProps {
+  label: string;
+  value: string | number | React.ReactNode;
+  /** 目标阈值（可选），传递数字时自动生成进度条 */
+  target?: number;
+  indicatorInfo?: string;
+  monthlyHistory?: { month: string; value: number }[];
+  formatMonthlyValue?: (val: number) => string;
+  /** 当前达成率 0~1，用于进度条 */
+  rate?: number | null;
+  /** 自定义状态区域，默认按 rate vs target 自动生成 */
+  statusOverride?: React.ReactNode;
+}
+
+function PolishedMetricRow({
+  label,
+  value,
+  target,
+  indicatorInfo,
+  monthlyHistory,
+  formatMonthlyValue,
+  rate,
+  statusOverride,
+}: PolishedMetricRowProps) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const passed = rate != null && target != null ? rate >= target : null;
+  const pctValue = rate != null ? Math.min(rate * 100, 100) : 0;
+  const barColor = passed === true ? '#22c55e' : passed === false ? '#ef4444' : '#94a3b8';
+
+  return (
+    <>
+      <div style={{
+        padding: '10px 12px',
+        borderBottom: '1px solid #f0f0f0',
+        transition: 'background 0.15s',
+      }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+      >
+        <Row gutter={8} align="middle">
+          <Col span={5}>
+            <Text strong style={{ fontSize: 13 }}>{label}</Text>
+            {indicatorInfo ? (
+              <Tooltip title={indicatorInfo}>
+                <InfoCircleOutlined style={{ marginLeft: 4, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }} />
+              </Tooltip>
+            ) : null}
+          </Col>
+          <Col span={3}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {target != null ? (target >= 0 && target <= 1 ? `≥${(target * 100).toFixed(0)}%` : target) : '—'}
+            </Text>
+          </Col>
+          <Col span={5}>
+            <Text strong style={{ fontSize: 14, color: '#0f172a' }}>{value}</Text>
+            {monthlyHistory && monthlyHistory.length > 0 && (
+              <Button type="link" size="small" style={{ fontSize: 11, padding: '0 4px' }} onClick={() => setDetailOpen(true)}>
+                趋势
+              </Button>
+            )}
+          </Col>
+          <Col span={5}>
+            {rate != null && (
+              <Tooltip title={`${pctValue.toFixed(1)}%`}>
+                <div style={{
+                  width: '100%',
+                  height: 6,
+                  background: '#e2e8f0',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: `${pctValue}%`,
+                    height: '100%',
+                    background: `linear-gradient(90deg, ${barColor}88, ${barColor})`,
+                    borderRadius: 3,
+                    transition: 'width 0.4s ease',
+                  }} />
+                </div>
+              </Tooltip>
+            )}
+          </Col>
+          <Col span={6}>
+            {statusOverride ?? (
+              passed === true ? (
+                <Tag color="success" style={{ borderRadius: 12, border: 'none', margin: 0 }}>✅ 达标</Tag>
+              ) : passed === false ? (
+                <Tag color="error" style={{ borderRadius: 12, border: 'none', margin: 0 }}>❌ 未达标</Tag>
+              ) : (
+                <Tag style={{ borderRadius: 12, border: 'none', margin: 0 }}>⏳ 待接入</Tag>
+              )
+            )}
+          </Col>
+        </Row>
+      </div>
+      <Modal
+        title={`${label} - 月度累计趋势`}
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        footer={null}
+        width={400}
+      >
+        {monthlyHistory && monthlyHistory.length > 0 ? (
+          <div style={{ padding: '8px 0' }}>
+            {monthlyHistory.map((m) => (
+              <div
+                key={m.month}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  borderBottom: '1px solid #f0f0f0',
+                  fontSize: 14,
+                }}
+              >
+                <span>{m.month}</span>
+                <span style={{ fontWeight: 600 }}>{formatMonthlyValue ? formatMonthlyValue(m.value) : `${(m.value * 100).toFixed(1)}%`}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Text type="secondary">暂无月度数据</Text>
+        )}
+      </Modal>
+    </>
+  );
+}
+
 // ====== 工作量明细行组件 ======
 interface WorkloadRowProps {
   category: string;
@@ -290,7 +450,7 @@ function TopQuestionsSection({ questions }: { questions: { name: string; count: 
   return (
     <Card
       size="small"
-      title={<Text strong>🔥 四、高频问题 TOP5</Text>}
+      title={<Text strong id="section-topquestions">🔥 四、高频问题 TOP5</Text>}
       style={{ marginBottom: 12 }}
     >
       {top5.length === 0 ? (
@@ -372,27 +532,49 @@ export interface WeeklyMetrics {
   closedDemands: number;
   closedBugs: number;
   agentCount: number;
+  activeAgentCount: number;
   totalSessions: number;
   totalMessages: number;
   avgSessionDuration: number | null; // 平均对话时长(秒)，用于工时计算
   // 3. 商务转化
   opportunityCount: number;
   opportunityWon: number;
+  // 4. 人效评估
+  teamEfficiency: number; // 团队人效 = (咨询量 + 新增提单*2.5 + 回访*0.25) / (40*出勤人数)
+}
+
+// ====== 环比对比缓存 ======
+const CACHE_KEY_PREFIX = 'weekly_report_cache_';
+interface CachedMetrics {
+  weekStart: string;
+  weekEnd: string;
+  totalCloseRate: number;
+  satisfactionRate: number;
+  problemResolutionRate: number;
+  avgFirstResponseTime: number | null;
+  avgResponseTime: number | null;
+  consultationCount: number;
 }
 
 // ====== 主页面 ======
 export function WeeklyReportPage() {
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [loading, setLoading] = useState(false);
-  // 当前周的周一~周日作为默认日期范围
-  const defaultWeek = useMemo(() => {
-    const now = dayjs();
-    const dayOfWeek = now.day(); // 0=周日, 1=周一, ... 6=周六
-    const monday = now.subtract(dayOfWeek === 0 ? 6 : dayOfWeek - 1, 'day');
-    const sunday = monday.add(6, 'day');
-    return [monday, sunday] as [dayjs.Dayjs, dayjs.Dayjs];
+  const [syncLoading, setSyncLoading] = useState(false);
+
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 组件卸载时清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
   }, []);
+  // 固定周期：上周五 ～ 本周四
+  const defaultWeek = useMemo(() => getWeekRange(0), []);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(defaultWeek);
+  const [weekOffset, setWeekOffset] = useState(0); // 周次偏移：0=当前周, -1=上一周, ...
   const [reportTab, setReportTab] = useState<'team' | 'personal'>('team');
 
   // 团队数据
@@ -409,8 +591,11 @@ export function WeeklyReportPage() {
   const [monthlyVoteStats, setMonthlyVoteStats] = useState<Awaited<ReturnType<typeof fetchUdeskMonthlyVoteStats>> | null>(null);
   const [monthlyMetrics, setMonthlyMetrics] = useState<Awaited<ReturnType<typeof fetchUdeskMonthlyMetrics>> | null>(null);
   const [monthlySatisfaction, setMonthlySatisfaction] = useState<Awaited<ReturnType<typeof fetchMonthlySatisfaction>> | null>(null);
+  const [agentOverview, setAgentOverview] = useState<AgentOverview | null>(null);
   // 手动录入：申请解绑华为云数量
   const [huaweiCloudUnbindInput, setHuaweiCloudUnbindInput] = useState<number | null>(null);
+  // 手动录入：商机转化
+  const [manualOpportunityInput, setManualOpportunityInput] = useState<number | null>(null);
 
   // 个人数据
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -448,6 +633,61 @@ export function WeeklyReportPage() {
 
   // 视图模式：数据视图 / 精美视图
   const [beautifulView, setBeautifulView] = useState(false);
+
+  // 环比对比（与上周对比）
+  const [prevMetrics, setPrevMetrics] = useState<CachedMetrics | null>(null);
+  const [comparison, setComparison] = useState<{
+    totalCloseRate: number | null;
+    satisfactionRate: number | null;
+    avgFirstResponseTime: number | null;
+    consultationCount: number | null;
+  }>({ totalCloseRate: null, satisfactionRate: null, avgFirstResponseTime: null, consultationCount: null });
+
+  // 保存当前周数据到 localStorage 用于下周环比
+  const saveMetricsToCache = useCallback((metrics: WeeklyMetrics, start: string, end: string) => {
+    try {
+      const cache: CachedMetrics = {
+        weekStart: start,
+        weekEnd: end,
+        totalCloseRate: metrics.totalCloseRate,
+        satisfactionRate: metrics.satisfactionRate,
+        problemResolutionRate: metrics.problemResolutionRate,
+        avgFirstResponseTime: metrics.avgFirstResponseTime,
+        avgResponseTime: metrics.avgResponseTime,
+        consultationCount: metrics.consultationCount,
+      };
+      localStorage.setItem(`${CACHE_KEY_PREFIX}${start}`, JSON.stringify(cache));
+    } catch { /* ignore */ }
+  }, []);
+
+  // 从 localStorage 读取上周缓存
+  const loadPrevCache = useCallback((start: string) => {
+    try {
+      const prevWeekStart = dayjs(start).subtract(7, 'day').format('YYYY-MM-DD');
+      const raw = localStorage.getItem(`${CACHE_KEY_PREFIX}${prevWeekStart}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CachedMetrics;
+        setPrevMetrics(parsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // 计算环比
+  const calcComparison = useCallback((current: WeeklyMetrics) => {
+    if (!prevMetrics) return;
+    const diff = <T extends number | null>(cur: T, prev: T): number | null => {
+      if (cur == null || prev == null || prev === 0) return null;
+      return ((cur as number) - (prev as number)) / (prev as number);
+    };
+    setComparison({
+      totalCloseRate: diff(current.totalCloseRate, prevMetrics.totalCloseRate),
+      satisfactionRate: diff(current.satisfactionRate, prevMetrics.satisfactionRate),
+      avgFirstResponseTime: diff(current.avgFirstResponseTime, prevMetrics.avgFirstResponseTime),
+      consultationCount: diff(current.consultationCount, prevMetrics.consultationCount),
+    });
+  }, [prevMetrics]);
+
+  // 当前登录用户
 
   // 当前登录用户
   const loginUserStr = useMemo(() => {
@@ -546,7 +786,7 @@ export function WeeklyReportPage() {
     const end = formatDate(dateRange[1]);
     const annualStart = `${new Date().getFullYear()}-01-01`;
     try {
-      const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary, monthlyVotes, monthlyMets, monthlySat] = await Promise.all([
+      const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary, monthlyVotes, monthlyMets, monthlySat, agentCompletion] = await Promise.all([
         fetchReportData(start, end).catch(() => null),
         fetchUdeskOverview({ startDate: start, endDate: end }).catch(() => null),
         fetchUdeskDailyRatingStats({ startDate: start, endDate: end }).catch(() => null),
@@ -558,6 +798,7 @@ export function WeeklyReportPage() {
         fetchUdeskMonthlyVoteStats({ startDate: annualStart, endDate: end }).catch(() => null),
         fetchUdeskMonthlyMetrics({ startDate: annualStart, endDate: end }).catch(() => null),
         fetchMonthlySatisfaction({ startDate: annualStart, endDate: end }).catch(() => null),
+        fetchAgentOverview({ startDate: start, endDate: end }).catch(() => null),
       ]);
       setKpiOverview(report?.kpiOverview ?? null);
       setDemandOverview(report?.demandOverview ?? null);
@@ -572,6 +813,7 @@ export function WeeklyReportPage() {
       setMonthlyVoteStats(monthlyVotes);
       setMonthlyMetrics(monthlyMets);
       setMonthlySatisfaction(monthlySat);
+      setAgentOverview(agentCompletion);
     } catch (err) {
       console.error('获取周报失败:', err);
     } finally {
@@ -603,9 +845,73 @@ export function WeeklyReportPage() {
     setLoading(false);
   }, [loadTeamData, loadPersonalData]);
 
+  // 同步 + 刷新（合并为一个按钮）
+  const handleSync = useCallback(async () => {
+    // 清理旧轮询
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setSyncLoading(true);
+    try {
+      // 1. 触发同步（后台运行）
+      const udescResp = await runSync();
+      if (udescResp.accepted) {
+        message.success('Udesk 同步任务已触发（后台运行）');
+      } else {
+        message.info('Udesk 同步被跳过（可能正在运行中）');
+      }
+      const zouwuResp = await runZouwuSync();
+      if (zouwuResp.accepted) {
+        message.success('驺吾同步任务已触发（后台运行）');
+      } else {
+        message.info(`驺吾同步: ${zouwuResp.reason || '跳过'}`);
+      }
+
+      // 2. 立即刷新一次页面数据
+      await handleRefresh();
+
+      // 3. 轮询等待同步完成，完成后自动再刷新一次
+      const startTime = Date.now();
+      const MAX_POLL_MS = 120_000; // 最多等 2 分钟
+      pollingRef.current = setInterval(async () => {
+        try {
+          const progress = await fetchSyncProgress();
+          const isRunning = progress?.isRunning ?? false;
+          const timedOut = Date.now() - startTime > MAX_POLL_MS;
+
+          if (!isRunning || timedOut) {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            if (timedOut) {
+              message.info('同步仍在运行，数据可能未完全更新，可稍后手动刷新');
+            }
+            // 最终刷新一次
+            await handleRefresh();
+            setSyncLoading(false);
+          }
+        } catch {
+          // 单次轮询失败不中断，继续等待
+        }
+      }, 5000); // 每 5 秒检查一次
+    } catch (err) {
+      message.error('同步失败，请稍后重试');
+      console.error('同步异常:', err);
+      setSyncLoading(false);
+    }
+  }, [handleRefresh]);
   useEffect(() => {
-    handleRefresh();
-  }, [handleRefresh, selectedAgentId]);
+    if (!dateRange || !dateRange[0]) return;
+    const start = formatDate(dateRange[0]);
+    loadPrevCache(start);
+  }, [dateRange]);
+
+  // 周次偏移变化时更新 dateRange（历史周报导航）
+  useEffect(() => {
+    setDateRange(getWeekRange(weekOffset));
+  }, [weekOffset]);
 
   // === 计算团队指标 ===
   const teamMetrics = useMemo((): WeeklyMetrics => {
@@ -728,6 +1034,11 @@ export function WeeklyReportPage() {
     const avgResponseTime: number | null = ms?.avgResponseTime ?? null;
     // 平均对话时长
     const avgSessionDuration: number | null = ms?.avgResolutionTime ?? null;
+    // 实际出勤人数：按 topAgents 中实际有工作量的客服数（过滤掉零星会话）
+    const activeAgentCount = (() => {
+      const top = u?.topAgents ?? [];
+      return top.filter(a => a.sessions >= 5).length || Math.max(u?.agentCount ?? 0, 1);
+    })();
 
     return {
       // 修改点4：本周完成值统一使用年度累计值
@@ -755,15 +1066,61 @@ export function WeeklyReportPage() {
       newBugs: (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0),
       closedDemands: (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0),
       closedBugs: (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0),
+      activeAgentCount,
       agentCount: u?.agentCount ?? 0,
       totalSessions: u?.totalSessions ?? consultationCount,
       totalMessages: u?.totalMessages ?? 0,
       avgSessionDuration,
       // 商务转化
       opportunityCount: opportunitySummary?.total ?? 0,
-      opportunityWon: opportunitySummary?.won ?? 0,
+      opportunityWon: opportunitySummary?.manualCreated ?? 0,
+      // 4. 人效评估 = 每人分别算自己的周人效，然后取平均
+      teamEfficiency: (() => {
+        const returnVisit = u?.returnVisitCount ?? 0;
+
+        // 活跃客服（有实际工作量的）
+        const activeAgents = (u?.topAgents ?? []).filter(a => a.sessions >= 5);
+        const agentCnt = Math.max(activeAgents.length, 1);
+
+        // 出勤天数：按日评分数据中非 null 的天数
+        const ratingSeries = dailyRatingStats?.series ?? [];
+
+        // 每人各自的提单数（需求+bug）
+        const agentNameMap = new Map(agents.map(a => [a.agentId, a.displayName]));
+        const issueRows = agentOverview?.rows ?? [];
+        const agentIssuesMap = new Map<string, { demands: number; bugs: number }>();
+        for (const row of issueRows) {
+          agentIssuesMap.set(row.agentName, { demands: row.reqCreated, bugs: row.bugCreated });
+        }
+
+        // 每人均摊的回访数
+        const perAgentReturn = returnVisit / agentCnt;
+
+        const efficiencies = activeAgents.map(agent => {
+          const series = ratingSeries.find(s => s.agentId === agent.agentId);
+          const workDays = series
+            ? series.ratings.filter(r => r !== null).length
+            : 1;
+          // 找到该客服的提单数
+          const agentName = agentNameMap.get(agent.agentId);
+          const issues = agentName ? agentIssuesMap.get(agentName) : undefined;
+          const issueCount = issues ? (issues.demands + issues.bugs) : 0;
+          const numerator = agent.sessions + issueCount * 2.5 + perAgentReturn * 0.25;
+          const denominator = 40 * Math.max(workDays, 1);
+          return numerator / denominator;
+        });
+
+        return efficiencies.reduce((sum, e) => sum + e, 0) / efficiencies.length;
+      })(),
     };
-  }, [kpiOverview, demandOverview, annualDemandOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary, monthlyVoteStats, monthlyMetrics, monthlySatisfaction]);
+  }, [kpiOverview, demandOverview, annualDemandOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary, monthlyVoteStats, monthlyMetrics, monthlySatisfaction, agentOverview, agents]);
+
+  // 团队数据就绪后计算环比
+  useEffect(() => {
+    if (Object.values(teamMetrics).every(v => v !== undefined)) {
+      calcComparison(teamMetrics);
+    }
+  }, [teamMetrics]);
 
   // === 计算个人指标 ===
   const personalMetrics = useMemo((): WeeklyMetrics => {
@@ -771,10 +1128,10 @@ export function WeeklyReportPage() {
     const sum = agentMetricsSummary;
     const team = teamMetrics;
 
-    const agentCnt = Math.max(team.agentCount, 1);
+    const agentCnt = Math.max(team.activeAgentCount ?? team.agentCount, 1);
 
-    // 个人满意度 - avgRating 是1-5分制，归一化为0-1
-    const personalSatisfaction = perf?.avgRating != null ? clampRate(perf.avgRating / 5) : null;
+    // 个人满意度 — 使用后端计算的 satisfactionRate（满意数/有效评价数），已为0-1区间
+    const personalSatisfaction = perf?.satisfactionRate != null ? clampRate(perf.satisfactionRate) : null;
 
     // 个人咨询量
     const personalConsultCount = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
@@ -801,21 +1158,41 @@ export function WeeklyReportPage() {
       avgFirstResponseTimeMonthly: team.avgFirstResponseTimeMonthly,
       avgResponseTimeMonthly: team.avgResponseTimeMonthly,
       consultationCount: personalConsultCount,
-      returnVisitCount: Math.round((team.returnVisitCount ?? 0) / agentCnt),
+      returnVisitCount: perf?.returnVisitCount ?? Math.round((team.returnVisitCount ?? 0) / agentCnt),
       huaweiCloudUnbind: null,
       newDemands: Math.round(team.newDemands / agentCnt),
       newBugs: Math.round(team.newBugs / agentCnt),
       closedDemands: Math.round(team.closedDemands / agentCnt),
       closedBugs: Math.round(team.closedBugs / agentCnt),
       agentCount: 1,
+      activeAgentCount: 1,
       totalSessions: perf?.totalSessions ?? 0,
       totalMessages: perf?.totalMessages ?? 0,
       avgSessionDuration: sum?.avgResolutionTime ?? null,
       // 商务转化（个人按团队平均）
       opportunityCount: Math.round(team.opportunityCount / agentCnt),
       opportunityWon: Math.round(team.opportunityWon / agentCnt),
+      // 人效评估（个人按自己的出勤天数和咨询量算）
+      teamEfficiency: (() => {
+        const sessions = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
+        const perAgentReturn = perf?.returnVisitCount ?? 0;
+        // 从日评分数据中算出勤天数
+        const agentId = perf?.agentId;
+        const ratingSeries = dailyRatingStats?.series ?? [];
+        const series = agentId ? ratingSeries.find(s => s.agentId === agentId) : null;
+        const workDays = series ? series.ratings.filter(r => r !== null).length : 1;
+        // 找到该客服的提单数
+        const agentProfile = agents.find(a => a.agentId === agentId);
+        const issueRow = agentProfile
+          ? (agentOverview?.rows ?? []).find(r => r.agentName === agentProfile.displayName)
+          : undefined;
+        const issueCount = issueRow ? (issueRow.reqCreated + issueRow.bugCreated) : 0;
+        const numerator = sessions + issueCount * 2.5 + perAgentReturn * 0.25;
+        const denominator = 40 * Math.max(workDays, 1);
+        return numerator / denominator;
+      })(),
     };
-  }, [agentPerformance, agentMetricsSummary, teamMetrics]);
+  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents]);
 
 
 
@@ -860,133 +1237,253 @@ export function WeeklyReportPage() {
 
 ;
 
-  const renderMetricsSection = (metrics: WeeklyMetrics, isPersonal: boolean) => (
-    <>
-      {/* 一、闭环质量 */}
-      <Card
-        size="small"
-        title={<Text strong>📊 一、闭环质量</Text>}
-        style={{ marginBottom: 12 }}
-        extra={
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            目标: ≥95%
-          </Text>
-        }
-      >
-        <div style={{ padding: '4px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 12 }}>
-          <Row gutter={8}>
-            <Col span={6}>核心指标</Col>
-            <Col span={3}>目标值</Col>
-            <Col span={8}>本周完成值</Col>
-            <Col span={7}>状态/进展</Col>
-          </Row>
-        </div>
-        <MetricRow
-          label="总关单率"
-          value={pct(metrics.totalCloseRate)}
-          target="≥95%"
-          status={statusTag(metrics.totalCloseRate, 0.95)}
-          indicatorInfo="总关单率 = (需求闭环数 + 已拒绝需求 + Bug闭环数 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)"
-          monthlyHistory={metrics.totalCloseMonthly}
-        />
-        <MetricRow
-          label="需求关单率"
-          value={pct(metrics.demandCloseRate)}
-          target="≥95%"
-          status={statusTag(metrics.demandCloseRate, 0.95)}
-          indicatorInfo="(已闭环需求+已拒绝需求)/(总需求-长期演进需求)"
-          monthlyHistory={metrics.demandCloseMonthly}
-        />
-        <MetricRow
-          label="BUG关单率"
-          value={pct(metrics.bugCloseRate)}
-          target="≥95%"
-          status={statusTag(metrics.bugCloseRate, 0.95)}
-          indicatorInfo="(已闭环BUG+已拒绝BUG)/(总BUG-长期演进BUG)"
-          monthlyHistory={metrics.bugCloseMonthly}
-        />
-      </Card>
+  // ====== 精装数据视图 ======
+  const renderMetricsSection = (metrics: WeeklyMetrics, isPersonal: boolean) => {
+    // --- 顶部摘要 KPI 卡片 ---
+    const kpiCards = [
+      {
+        label: '总关单率',
+        value: pct(metrics.totalCloseRate),
+        target: '≥95%',
+        status: metrics.totalCloseRate != null && metrics.totalCloseRate >= 0.95 ? 'success' : 'danger',
+        icon: '📊',
+        gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      },
+      {
+        label: '满意度',
+        value: pct(metrics.satisfactionRate),
+        target: '≥95%',
+        status: metrics.satisfactionRate != null && metrics.satisfactionRate >= 0.95 ? 'success' : 'danger',
+        icon: '😊',
+        gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      },
+      {
+        label: '平均首次响应',
+        value: fmtMinutes(metrics.avgFirstResponseTime),
+        target: '≤60s',
+        status: metrics.avgFirstResponseTime != null && metrics.avgFirstResponseTime <= 60 ? 'success' : 'danger',
+        icon: '⚡',
+        gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      },
+    ];
 
-      {/* 二、体验与响应效率指标 */}
-      <Card
-        size="small"
-        title={<Text strong>💡 二、体验与响应效率指标</Text>}
-        style={{ marginBottom: 12 }}
-      >
-        {/* 2.1 体验指标 */}
-        <div style={{ marginBottom: 16 }}>
-          <Text type="secondary" style={{ fontSize: 12, fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
-            2.1 体验指标
-          </Text>
-          <div style={{ padding: '4px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 12 }}>
-            <Row gutter={8}>
-              <Col span={6}>核心指标</Col>
-              <Col span={3}>目标值</Col>
-            <Col span={8}>本周完成值</Col>
-            <Col span={7}>状态/进展</Col>
-          </Row>
-        </div>
-        <MetricRow
-          label="满意度"
-            value={pct(metrics.satisfactionRate)}
-            target="≥95%"
-            status={statusTag(metrics.satisfactionRate, 0.95)}
-            indicatorInfo="满意数量/有效参与评价总数"
-            monthlyHistory={metrics.satMonthly}
-          />
-          <MetricRow
-            label="问题解决率"
-            value={pct(metrics.problemResolutionRate)}
-            target="≥90%"
-            status={statusTag(metrics.problemResolutionRate, 0.90)}
-            indicatorInfo="已解决数量/有效参与评价总数"
-            monthlyHistory={metrics.resMonthly}
-          />
-        </div>
+    const metricColor = (status: string) =>
+      status === 'success' ? '#22c55e' : status === 'danger' ? '#ef4444' : '#3b82f6';
 
-        {/* 2.2 响应效率 */}
-        <div>
-          <Text type="secondary" style={{ fontSize: 12, fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
-            2.2 响应效率（数据源: udesk会话指标）
-          </Text>
-          <div style={{ padding: '4px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 12 }}>
-            <Row gutter={8}>
-              <Col span={6}>核心指标</Col>
+    return (
+      <>
+        {/* ── 顶部 KPI 仪表盘 ── */}
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          {kpiCards.map((card, i) => (
+            <Col span={8} key={i}>
+              <div
+                style={{
+                  background: card.gradient,
+                  borderRadius: 16,
+                  padding: '16px 18px',
+                  color: '#fff',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  transition: 'transform 0.2s',
+                  cursor: 'default',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+              >
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{card.icon}</div>
+                <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 2 }}>{card.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2 }}>{card.value}</div>
+                <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{card.target}</div>
+              </div>
+            </Col>
+          ))}
+        </Row>
+
+        {/* ── 一、闭环质量 ── */}
+        <Card
+          size="small"
+          title={
+            <Text strong id="section-quality" style={{ fontSize: 15 }}>
+              📊 一、闭环质量
+            </Text>
+          }
+          style={{ marginBottom: 14, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+          extra={
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              目标: ≥95%
+            </Text>
+          }
+        >
+          {/* 表头 */}
+          <div style={{
+            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+            borderRadius: 8,
+            padding: '8px 12px',
+            marginBottom: 4,
+            fontWeight: 600,
+            fontSize: 12,
+            color: '#475569',
+          }}>
+            <Row gutter={8} align="middle">
+              <Col span={5}>核心指标</Col>
               <Col span={3}>目标值</Col>
-            <Col span={8}>本周完成值</Col>
-            <Col span={7}>状态/进展</Col>
-          </Row>
-        </div>
-        <MetricRow
-          label="平均首次响应时长"
-            value={fmtMinutes(metrics.avgFirstResponseTime)}
-            target="≤60秒"
-            status={
-              metrics.avgFirstResponseTime !== null
-                ? (metrics.avgFirstResponseTime <= 60 ? <Tag color="success">✅ 达标</Tag> : <Tag color="error">❌ 未达标</Tag>)
-                : <Tag>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
-            }
-            indicatorInfo="首次响应时间之和/会话数"
-            monthlyHistory={metrics.avgFirstResponseTimeMonthly}
-            formatMonthlyValue={(v) => fmtMinutes(v)}
+              <Col span={5}>本周完成值</Col>
+              <Col span={5}>进度</Col>
+              <Col span={6}>状态</Col>
+            </Row>
+          </div>
+          <PolishedMetricRow
+            label="总关单率"
+            value={pct(metrics.totalCloseRate)}
+            target={0.95}
+            indicatorInfo="总关单率 = (需求闭环数 + 已拒绝需求 + Bug闭环数 + 已拒绝Bug) / (需求总数 + Bug总数 - 需求长期演进 - Bug长期演进)"
+            monthlyHistory={metrics.totalCloseMonthly}
+            rate={metrics.totalCloseRate}
           />
-          <MetricRow
-            label="平均响应时长"
-            value={fmtMinutes(metrics.avgResponseTime)}
-            target="≤120秒"
-            status={
-              metrics.avgResponseTime !== null
-                ? (metrics.avgResponseTime <= 120 ? <Tag color="success">✅ 达标</Tag> : <Tag color="error">❌ 未达标</Tag>)
-                : <Tag>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
-            }
-            indicatorInfo="总响应时长/总消息数"
-            monthlyHistory={metrics.avgResponseTimeMonthly}
-            formatMonthlyValue={(v) => fmtMinutes(v)}
+          <PolishedMetricRow
+            label="需求关单率"
+            value={pct(metrics.demandCloseRate)}
+            target={0.95}
+            indicatorInfo="(已闭环需求+已拒绝需求)/(总需求-长期演进需求)"
+            monthlyHistory={metrics.demandCloseMonthly}
+            rate={metrics.demandCloseRate}
           />
-        </div>
-      </Card>
-    </>
-  );
+          <PolishedMetricRow
+            label="BUG关单率"
+            value={pct(metrics.bugCloseRate)}
+            target={0.95}
+            indicatorInfo="(已闭环BUG+已拒绝BUG)/(总BUG-长期演进BUG)"
+            monthlyHistory={metrics.bugCloseMonthly}
+            rate={metrics.bugCloseRate}
+          />
+        </Card>
+
+        {/* ── 二、体验与响应效率指标 ── */}
+        <Card
+          size="small"
+          title={
+            <Text strong id="section-experience" style={{ fontSize: 15 }}>
+              💡 二、体验与响应效率指标
+            </Text>
+          }
+          style={{ marginBottom: 14, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+        >
+          {/* 2.1 体验指标 */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{
+              display: 'inline-block',
+              background: '#f0f9ff',
+              color: '#0369a1',
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '2px 10px',
+              borderRadius: 10,
+              marginBottom: 8,
+            }}>
+              2.1 体验指标
+            </div>
+            <div style={{
+              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              marginBottom: 4,
+              fontWeight: 600,
+              fontSize: 12,
+              color: '#475569',
+            }}>
+              <Row gutter={8} align="middle">
+                <Col span={5}>核心指标</Col>
+                <Col span={3}>目标值</Col>
+                <Col span={5}>本周完成值</Col>
+                <Col span={5}>进度</Col>
+                <Col span={6}>状态</Col>
+              </Row>
+            </div>
+            <PolishedMetricRow
+              label="满意度"
+              value={pct(metrics.satisfactionRate)}
+              target={0.95}
+              indicatorInfo="满意数量/有效参与评价总数"
+              monthlyHistory={metrics.satMonthly}
+              rate={metrics.satisfactionRate}
+            />
+            <PolishedMetricRow
+              label="问题解决率"
+              value={pct(metrics.problemResolutionRate)}
+              target={0.90}
+              indicatorInfo="已解决数量/有效参与评价总数"
+              monthlyHistory={metrics.resMonthly}
+              rate={metrics.problemResolutionRate}
+            />
+          </div>
+
+          {/* 2.2 响应效率 */}
+          <div>
+            <div style={{
+              display: 'inline-block',
+              background: '#fff7ed',
+              color: '#9a3412',
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '2px 10px',
+              borderRadius: 10,
+              marginBottom: 8,
+            }}>
+              2.2 响应效率 <Text type="secondary" style={{ fontSize: 10 }}>(数据源: udesk会话指标)</Text>
+            </div>
+            <div style={{
+              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              marginBottom: 4,
+              fontWeight: 600,
+              fontSize: 12,
+              color: '#475569',
+            }}>
+              <Row gutter={8} align="middle">
+                <Col span={5}>核心指标</Col>
+                <Col span={3}>目标值</Col>
+                <Col span={5}>本周完成值</Col>
+                <Col span={5}>进度</Col>
+                <Col span={6}>状态</Col>
+              </Row>
+            </div>
+            <PolishedMetricRow
+              label="平均首次响应时长"
+              value={fmtMinutes(metrics.avgFirstResponseTime)}
+              target={metrics.avgFirstResponseTime != null ? (metrics.avgFirstResponseTime <= 60 ? 1 : 0) : undefined}
+              indicatorInfo="首次响应时间之和/会话数"
+              monthlyHistory={metrics.avgFirstResponseTimeMonthly}
+              formatMonthlyValue={(v) => fmtMinutes(v)}
+              rate={metrics.avgFirstResponseTime != null ? (metrics.avgFirstResponseTime <= 60 ? 1 : 0) : undefined}
+              statusOverride={
+                metrics.avgFirstResponseTime !== null
+                  ? (metrics.avgFirstResponseTime <= 60
+                    ? <Tag color="success" style={{ borderRadius: 12, border: 'none' }}>✅ 达标 ≤60s</Tag>
+                    : <Tag color="error" style={{ borderRadius: 12, border: 'none' }}>❌ 未达标 {fmtMinutes(metrics.avgFirstResponseTime)}</Tag>)
+                  : <Tag style={{ borderRadius: 12, border: 'none' }}>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
+              }
+            />
+            <PolishedMetricRow
+              label="平均响应时长"
+              value={fmtMinutes(metrics.avgResponseTime)}
+              target={metrics.avgResponseTime != null ? (metrics.avgResponseTime <= 120 ? 1 : 0) : undefined}
+              indicatorInfo="各会话平均响应时间的均值"
+              monthlyHistory={metrics.avgResponseTimeMonthly}
+              formatMonthlyValue={(v) => fmtMinutes(v)}
+              rate={metrics.avgResponseTime != null ? (metrics.avgResponseTime <= 120 ? 1 : 0) : undefined}
+              statusOverride={
+                metrics.avgResponseTime !== null
+                  ? (metrics.avgResponseTime <= 120
+                    ? <Tag color="success" style={{ borderRadius: 12, border: 'none' }}>✅ 达标 ≤120s</Tag>
+                    : <Tag color="error" style={{ borderRadius: 12, border: 'none' }}>❌ 未达标 {fmtMinutes(metrics.avgResponseTime)}</Tag>)
+                  : <Tag style={{ borderRadius: 12, border: 'none' }}>{isPersonal && selectedAgentId ? '暂无数据' : '已接入'}</Tag>
+              }
+            />
+          </div>
+        </Card>
+      </>
+    );
+  };
 
   // 工时计算工具函数
   const calcConsultHours = (count: number, avgSessionSec: number | null): string => {
@@ -999,125 +1496,136 @@ export function WeeklyReportPage() {
     return ((count * minutesPerUnit) / 60).toFixed(1);
   };
 
-  const renderWorkloadSection = (metrics: WeeklyMetrics, isPersonal: boolean) => (
-    <Card
-      size="small"
-      title={<Text strong>📋 三、业务承接（基础工作量）</Text>}
-      style={{ marginBottom: 12 }}
-      extra={
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          周期: {formatDate(dateRange![0])} ~ {formatDate(dateRange![1])}
-        </Text>
-      }
-    >
-      <div style={{ padding: '6px 0', borderBottom: '2px solid #e8e8e8', fontWeight: 'bold', fontSize: 13 }}>
-        <Row gutter={8} align="middle">
-          <Col span={2}>分类</Col>
-          <Col span={3}>事项</Col>
-          <Col span={2}>本周完成值</Col>
-          <Col span={3}>工时统计(h)</Col>
-          <Col span={2}>完成状态</Col>
-          <Col span={5}>工时计算方式</Col>
-        </Row>
-      </div>
-      <WorkloadRow
-        category="咨询承接"
-        item="用户主动咨询量/次"
-        value={fmt(metrics.consultationCount)}
-        hours={calcConsultHours(metrics.consultationCount, metrics.avgSessionDuration)}
-        status="已完成"
-        calcMethod="咨询量×(平均对话时长−10min)"
-      />
-      <WorkloadRow
-        category="咨询承接"
-        item="回访次数/次"
-        value={fmt(metrics.returnVisitCount)}
-        hours={calcHours(metrics.returnVisitCount, 5)}
-        status="已完成"
-        calcMethod="回访总次数×5min"
-      />
-      {/* 专项业务 - 申请解绑华为云数量（手动录入） */}
-      <div style={{ padding: '6px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 }}>
-        <Row gutter={8} align="middle">
-          <Col span={2}>
-            <Tag>专项业务</Tag>
-          </Col>
-          <Col span={3}>
-            <Text>申请解绑华为云数量</Text>
-          </Col>
-          <Col span={2}>
-            <InputNumber
-              min={0}
-              value={huaweiCloudUnbindInput}
-              onChange={(val: number | null) => setHuaweiCloudUnbindInput(val)}
-              style={{ width: 80 }}
-              size="small"
-              placeholder="0"
-            />
-          </Col>
-          <Col span={3}>
-          <Text type="secondary">{calcHours(huaweiCloudUnbindInput, 1)}</Text>
-        </Col>
-        <Col span={2}>
-          <Tag color={huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? 'success' : 'default'}>
-            {huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? '已完成' : '待接入'}
-          </Tag>
-        </Col>
-        <Col span={5}>
-            <Text type="secondary" style={{ fontSize: 11 }}>解绑申请总数×1min</Text>
-          </Col>
-        </Row>
-      </div>
-      <WorkloadRow
-        category="问题转化"
-        item="新增需求数/个"
-        value={fmt(metrics.newDemands)}
-        hours={calcHours(metrics.newDemands, 30)}
-        status="已录入"
-        calcMethod="新增需求总数×30min"
-      />
-      <WorkloadRow
-        category="问题转化"
-        item="新增BUG数/个"
-        value={fmt(metrics.newBugs)}
-        hours={calcHours(metrics.newBugs, 30)}
-        status="已录入"
-        calcMethod="新增BUG总数×30min"
-      />
-      <WorkloadRow
-        category="问题闭环"
-        item="已闭环需求数/个"
-        value={fmt(metrics.closedDemands)}
-        hours={calcHours(metrics.closedDemands, 15)}
-        status="已闭环"
-        calcMethod="已关单需求数×15min"
-      />
-      <WorkloadRow
-        category="问题闭环"
-        item="已闭环BUG数/个"
-        value={fmt(metrics.closedBugs)}
-        hours={calcHours(metrics.closedBugs, 15)}
-        status="已闭环"
-        calcMethod="已关单BUG数×15min"
-      />
-      <WorkloadRow
-        category="商务转化"
-        item="商机转换/个"
-        value={fmt(metrics.opportunityWon)}
-        hours={calcHours(metrics.opportunityWon, 30)}
-        status="已完成"
-        calcMethod="已转换商机数×30min"
-      />
-      <WorkloadRow
-        category="人效"
-        item="人效评估"
-        value="—"
-        hours="—"
-        status="—"
-        calcMethod="总会话量/客服人数"
-      />
-    </Card>
-  );
+  const renderWorkloadSection = (metrics: WeeklyMetrics, isPersonal: boolean) => {
+    // 工时汇总统计
+    const detailRows = [
+      { category: '咨询承接', item: '用户主动咨询量/次', value: fmt(metrics.consultationCount), hours: calcConsultHours(metrics.consultationCount, metrics.avgSessionDuration), status: '已完成', calcMethod: '咨询量×(平均对话时长−10min)' },
+      { category: '咨询承接', item: '回访次数/次', value: fmt(metrics.returnVisitCount), hours: calcHours(metrics.returnVisitCount, 5), status: '已完成', calcMethod: '回访总次数×5min' },
+      { category: '专项业务', item: '申请解绑华为云数量', value: huaweiCloudUnbindInput ?? 0, hours: calcHours(huaweiCloudUnbindInput, 1), status: huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? '已完成' : '待接入', calcMethod: '解绑申请总数×1min', isInput: true },
+      { category: '问题转化', item: '新增需求数/个', value: fmt(metrics.newDemands), hours: calcHours(metrics.newDemands, 30), status: '已录入', calcMethod: '新增需求总数×30min' },
+      { category: '问题转化', item: '新增BUG数/个', value: fmt(metrics.newBugs), hours: calcHours(metrics.newBugs, 30), status: '已录入', calcMethod: '新增BUG总数×30min' },
+      { category: '问题闭环', item: '已闭环需求数/个', value: fmt(metrics.closedDemands), hours: calcHours(metrics.closedDemands, 15), status: '已闭环', calcMethod: '已关单需求数×15min' },
+      { category: '问题闭环', item: '已闭环BUG数/个', value: fmt(metrics.closedBugs), hours: calcHours(metrics.closedBugs, 15), status: '已闭环', calcMethod: '已关单BUG数×15min' },
+      { category: '商务转化', item: '商机转化', value: manualOpportunityInput ?? 0, hours: '—', status: manualOpportunityInput !== null && manualOpportunityInput > 0 ? '已完成' : '待接入', calcMethod: '商机转化（无工时）', isInput: true, inputKey: 'manualOpportunity' },
+      { category: '人效', item: '人效评估', value: metrics.teamEfficiency > 0 ? metrics.teamEfficiency.toFixed(2) : '—', hours: '—', status: metrics.teamEfficiency > 0 ? '已完成' : '—', calcMethod: '(咨询量+新增提单×2.5+回访×0.25)/(40×出勤人数)' },
+    ];
+    const statusColor: Record<string, string> = {
+      '已完成': 'success', '已闭环': 'success', '已录入': 'processing',
+      '进行中': 'processing', '待接入': 'default', '—': 'default',
+    };
+    // 汇总工时（仅统计数值行）
+    const totalHours = detailRows.reduce((acc, r) => {
+      const h = parseFloat(r.hours as string);
+      return acc + (isNaN(h) ? 0 : h);
+    }, 0);
+
+    return (
+      <Card
+        size="small"
+        title={
+          <Space>
+            <Text strong id="section-workload" style={{ fontSize: 15 }}>📋 三、业务承接（基础工作量）</Text>
+            <Tag color="blue" style={{ fontSize: 11, lineHeight: '18px' }}>
+              总工时: {totalHours > 0 ? `${totalHours.toFixed(1)}h` : '—'}
+            </Tag>
+          </Space>
+        }
+        style={{ marginBottom: 14, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+        extra={
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            周期: {formatDate(dateRange![0])} ~ {formatDate(dateRange![1])}
+          </Text>
+        }
+      >
+        {/* 表头 */}
+        <div style={{
+          background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+          borderRadius: 8,
+          padding: '8px 12px',
+          marginBottom: 2,
+          fontWeight: 600,
+          fontSize: 12,
+          color: '#334155',
+        }}>
+          <Row gutter={8} align="middle">
+            <Col span={2}>分类</Col>
+            <Col span={4}>事项</Col>
+            <Col span={3}>本周完成值</Col>
+            <Col span={3}>工时统计(h)</Col>
+            <Col span={2}>状态</Col>
+            <Col span={5}>工时计算方式</Col>
+          </Row>
+        </div>
+        {detailRows.map((r, idx) => (
+          <div
+            key={idx}
+            style={{
+              padding: '6px 12px',
+              borderBottom: '1px solid #f0f0f0',
+              fontSize: 13,
+              background: idx % 2 === 0 ? '#ffffff' : '#fafbfc',
+              borderRadius: idx === 0 ? '8px 8px 0 0' : idx === detailRows.length - 1 ? '0 0 8px 8px' : '0',
+            }}
+          >
+            <Row gutter={8} align="middle">
+              <Col span={2}>
+                <Tag style={{ fontSize: 11, lineHeight: '18px', margin: 0 }}>{r.category}</Tag>
+              </Col>
+              <Col span={4}>
+                <Text style={{ fontSize: 13, color: '#1e293b' }}>{r.item}</Text>
+              </Col>
+              <Col span={3}>
+                {r.isInput ? (
+                  r.inputKey === 'manualOpportunity' ? (
+                    <InputNumber
+                      min={0}
+                      value={manualOpportunityInput}
+                      onChange={(val: number | null) => setManualOpportunityInput(val)}
+                      style={{ width: 70 }}
+                      size="small"
+                      placeholder="0"
+                    />
+                  ) : (
+                    <InputNumber
+                      min={0}
+                      value={huaweiCloudUnbindInput}
+                      onChange={(val: number | null) => setHuaweiCloudUnbindInput(val)}
+                      style={{ width: 70 }}
+                      size="small"
+                      placeholder="0"
+                    />
+                  )
+                ) : (
+                  <Text strong style={{ fontSize: 14, color: '#0f172a' }}>{r.value}</Text>
+                )}
+              </Col>
+              <Col span={3}>
+                <div style={{
+                  display: 'inline-block',
+                  background: r.hours !== '—' && r.hours !== '—' && r.hours !== '0.0' ? '#f0fdf4' : '#f8fafc',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  fontWeight: r.hours !== '—' ? 600 : 400,
+                  fontSize: 13,
+                  color: r.hours !== '—' && r.hours !== '0.0' ? '#16a34a' : '#94a3b8',
+                }}>
+                  {r.hours}
+                </div>
+              </Col>
+              <Col span={2}>
+                <Tag color={statusColor[r.status] || 'default'} style={{ borderRadius: 10, border: 'none', margin: 0 }}>
+                  {r.status}
+                </Tag>
+              </Col>
+              <Col span={5}>
+                <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>{r.calcMethod}</Text>
+              </Col>
+            </Row>
+          </div>
+        ))}
+      </Card>
+    );
+  };
 
   // 当前指标和编辑状态
   const isPersonal = reportTab === 'personal';
@@ -1126,6 +1634,29 @@ export function WeeklyReportPage() {
   const currentEditing = isPersonal ? personalEditing : teamEditing;
   const setCurrentSections = isPersonal ? setPersonalSections : setTeamSections;
   const setCurrentEditing = isPersonal ? setPersonalEditing : setTeamEditing;
+
+  // 异常指标汇总
+  const anomalies = useMemo(() => {
+    const list: { label: string; current: string; target: string }[] = [];
+    const m = currentMetrics;
+    if (m.totalCloseRate < 0.95) list.push({ label: '总关单率', current: pct(m.totalCloseRate), target: '≥95%' });
+    if (m.demandCloseRate < 0.95) list.push({ label: '需求关单率', current: pct(m.demandCloseRate), target: '≥95%' });
+    if (m.bugCloseRate < 0.95) list.push({ label: 'BUG关单率', current: pct(m.bugCloseRate), target: '≥95%' });
+    if (m.satisfactionRate < 0.95) list.push({ label: '满意度', current: pct(m.satisfactionRate), target: '≥95%' });
+    if (m.problemResolutionRate < 0.90) list.push({ label: '问题解决率', current: pct(m.problemResolutionRate), target: '≥90%' });
+    if (m.avgFirstResponseTime !== null && m.avgFirstResponseTime > 60) list.push({ label: '平均首次响应时长', current: fmtMinutes(m.avgFirstResponseTime), target: '≤60s' });
+    if (m.avgResponseTime !== null && m.avgResponseTime > 120) list.push({ label: '平均响应时长', current: fmtMinutes(m.avgResponseTime), target: '≤120s' });
+    return list;
+  }, [currentMetrics]);
+
+  // 当前指标变化后保存到缓存
+  useEffect(() => {
+    if (!dateRange || !dateRange[0] || !dateRange[1]) return;
+    const m = currentMetrics;
+    if (m && m.totalCloseRate !== undefined && !loading) {
+      saveMetricsToCache(m, formatDate(dateRange[0]), formatDate(dateRange[1]));
+    }
+  }, [currentMetrics, loading]);
 
   return (
     <div style={{ padding: 24 }}>
@@ -1160,18 +1691,31 @@ export function WeeklyReportPage() {
           </Col>
           <Col>
             <Space>
-              <RangePicker
-                value={dateRange}
-                onChange={(dates) => {
-                  if (dates && dates[0] && dates[1]) {
-                    setDateRange([dates[0], dates[1]]);
-                  }
-                }}
-                allowClear={false}
+              {/* 固定周期：上周五 ~ 本周四（支持上/下翻页查看历史） */}
+              <Button
+                icon={<LeftOutlined />}
                 size="small"
+                disabled={weekOffset <= -52}
+                onClick={() => setWeekOffset(v => v - 1)}
               />
-              <Button icon={<ReloadOutlined />} onClick={handleRefresh} loading={loading} size="small">
-                刷新数据
+              <Tooltip title="点击回到当前周">
+                <Text
+                  strong
+                  style={{ fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', color: weekOffset === 0 ? '#1677ff' : undefined }}
+                  onClick={() => setWeekOffset(0)}
+                >
+                  {formatDate(dateRange![0])} ~ {formatDate(dateRange![1])}
+                  {weekOffset === 0 ? ' (本周)' : weekOffset === -1 ? ' (上周)' : ''}
+                </Text>
+              </Tooltip>
+              <Button
+                icon={<RightOutlined />}
+                size="small"
+                disabled={weekOffset >= 0}
+                onClick={() => setWeekOffset(v => v + 1)}
+              />
+              <Button icon={<SyncOutlined />} onClick={handleSync} loading={syncLoading} size="small">
+                同步刷新
               </Button>
               <Button
                 icon={beautifulView ? <CodeOutlined /> : <EyeOutlined />}
@@ -1240,50 +1784,130 @@ export function WeeklyReportPage() {
       </Card>
 
       {/* 页面内容区 */}
-      <Spin spinning={loading}>
-        {beautifulView ? (
-          reportTab === 'team' ? (
-            <TeamReportView
-              metrics={currentMetrics}
-              dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
-              sections={currentSections}
-              teamEditable={teamEditable}
-              onUpdateRisks={(risks) => setTeamEditable(prev => ({ ...prev, risks }))}
-              onUpdateSuggestions={(suggestions) => setTeamEditable(prev => ({ ...prev, suggestions }))}
-              onUpdateNextPlan={(nextPlan) => setCurrentSections((prev: any) => ({ ...prev, nextPlan }))}
-            />
+      {/* ⚠️ 异常指标汇总 */}
+      {anomalies.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={<Text strong>⚠️ 以下指标未达标，需要关注</Text>}
+          description={
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 4 }}>
+              {anomalies.map((a, i) => (
+                <Tag key={i} color="error" style={{ fontSize: 12, lineHeight: '22px', margin: 0 }}>
+                  {a.label}: {a.current}（目标 {a.target}）
+                </Tag>
+              ))}
+            </div>
+          }
+          style={{ marginBottom: 16 }}
+          closable
+        />
+      )}
+
+
+
+      {/* 页面主布局：左侧内容 + 右侧浮动导航 */}
+      <div style={{ display: 'flex', gap: 20, position: 'relative' }}>
+        {/* 左侧主内容区 */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {loading ? (
+            <div>
+              <Skeleton active paragraph={{ rows: 2 }} />
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} style={{ flex: 1, minWidth: 180, height: 120, background: '#f5f5f5', borderRadius: 16 }} />
+                ))}
+              </div>
+              <Skeleton active paragraph={{ rows: 6 }} />
+            </div>
+          ) : beautifulView ? (
+            reportTab === 'team' ? (
+              <TeamReportView
+                metrics={currentMetrics}
+                dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
+                sections={currentSections}
+                teamEditable={teamEditable}
+                onUpdateRisks={(risks) => setTeamEditable(prev => ({ ...prev, risks }))}
+                onUpdateSuggestions={(suggestions) => setTeamEditable(prev => ({ ...prev, suggestions }))}
+                onUpdateNextPlan={(nextPlan) => setCurrentSections((prev: any) => ({ ...prev, nextPlan }))}
+              />
+            ) : (
+              <PersonalReportView
+                metrics={currentMetrics}
+                dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
+                sections={currentSections}
+                agentName={agents.find(a => a.agentId === selectedAgentId)?.displayName}
+                huaweiCloudUnbindInput={huaweiCloudUnbindInput}
+                manualOpportunityInput={manualOpportunityInput}
+              />
+            )
           ) : (
-            <PersonalReportView
-              metrics={currentMetrics}
-              dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
-              sections={currentSections}
-              agentName={agents.find(a => a.agentId === selectedAgentId)?.displayName}
-              huaweiCloudUnbindInput={huaweiCloudUnbindInput}
-            />
-          )
-        ) : (
-          <>
-            {/* 闭环质量 */}
-            {renderMetricsSection(currentMetrics, isPersonal)}
-
-            {/* 业务承接 */}
-            {renderWorkloadSection(currentMetrics, isPersonal)}
-
-            {/* 四、高频问题TOP5 */}
-            <TopQuestionsSection questions={editableState.topQuestions} />
-
-            {/* 五、下周工作计划 */}
-            <EditableSection
-              title="🎯 五、下周工作计划"
-              content={currentSections.nextPlan}
-              onChange={(val: string) => setCurrentSections((prev: any) => ({ ...prev, nextPlan: val }))}
-              isEditing={currentEditing.nextPlan ?? false}
-              onToggleEdit={() => setCurrentEditing((prev: any) => ({ ...prev, nextPlan: !prev.nextPlan }))}
-            />
-          </>
+            <>
+              {/* 闭环质量 */}
+              {renderMetricsSection(currentMetrics, isPersonal)}
+              {/* 业务承接 */}
+              {renderWorkloadSection(currentMetrics, isPersonal)}
+              {/* 四、高频问题TOP5（仅团队周报展示） */}
+              {!isPersonal && <TopQuestionsSection questions={editableState.topQuestions} />}
+              {/* 五、下周工作计划 */}
+              <EditableSection
+                title={<Text strong id="section-plan">🎯 五、下周工作计划</Text>}
+                content={currentSections.nextPlan}
+                onChange={(val: string) => setCurrentSections((prev: any) => ({ ...prev, nextPlan: val }))}
+                isEditing={currentEditing.nextPlan ?? false}
+                onToggleEdit={() => setCurrentEditing((prev: any) => ({ ...prev, nextPlan: !prev.nextPlan }))}
+              />
+            </>
+          )}
+        </div>{/* 左侧主内容区结束 */}
+        {!beautifulView && !loading && (
+          <div style={{
+            width: 140,
+            flexShrink: 0,
+            position: 'sticky' as const,
+            top: 80,
+            alignSelf: 'flex-start',
+            background: 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: 12,
+            padding: '12px 0',
+            border: '1px solid rgba(0,0,0,0.06)',
+            maxHeight: 'calc(100vh - 120px)',
+            overflowY: 'auto' as const,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', padding: '0 16px 8px', textTransform: 'uppercase', letterSpacing: 1 }}>
+              目录导航
+            </div>
+            {[
+              { key: 'quality', label: '闭环质量', icon: '📊' },
+              { key: 'experience', label: '体验与响应', icon: '💡' },
+              { key: 'workload', label: '业务承接', icon: '📋' },
+              { key: 'topquestions', label: '高频问题', icon: '🔥' },
+              { key: 'plan', label: '下周计划', icon: '🎯' },
+            ].filter(({ key }) => !(key === 'topquestions' && isPersonal)).map(({ key, label, icon }) => (
+              <div
+                key={key}
+                onClick={() => {
+                  const el = document.getElementById(`section-${key}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                style={{
+                  padding: '6px 16px',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: '#475569',
+                  transition: 'all 0.15s',
+                  borderLeft: '2px solid transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.borderLeftColor = '#1677ff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderLeftColor = 'transparent'; }}
+              >
+                {icon} {label}
+              </div>
+            ))}
+          </div>
         )}
-
-      </Spin>
+      </div>{/* flex 容器结束 */}
 
       {/* 精美 HTML 预览弹窗 */}
       <Modal
