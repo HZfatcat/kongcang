@@ -99,19 +99,22 @@ export class KpiService {
     };
   }
 
-  async getDemandOverview(startDate?: string, endDate?: string) {
+  async getDemandOverview(startDate?: string, endDate?: string, agentName?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
-    const baseWhere = {
+    const baseWhere: any = {
       createdAtSource: {
         gte: start,
         lte: end,
       },
     };
+    const agentFilter = agentName ? Prisma.sql`AND r."createdByName" = ${agentName}` : Prisma.empty;
+    const agentPrismaFilter = agentName ? { createdByName: agentName } : {};
 
     // 需求总数（含长期演进，排除 Bug）
     const totalWithLongTerm = await this.prisma.zouwuRequirement.count({
       where: {
         ...baseWhere,
+        ...agentPrismaFilter,
         OR: [
           { issueType: { not: 1 } },
           { issueType: null },
@@ -125,6 +128,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             OR: [
               { issueType: { not: 1 } },
               { issueType: null },
@@ -136,6 +140,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             isLongTerm: false,
             OR: [
               { issueType: { not: 1 } },
@@ -147,6 +152,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             sourceSessionId: { not: null },
           },
         }),
@@ -154,6 +160,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             issueType: 1,
           },
         }),
@@ -161,6 +168,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             isLongTerm: false,
             issueType: 1,
             status: { in: [RequirementStatus.CLOSED, RequirementStatus.DONE] },
@@ -170,6 +178,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             isLongTerm: false,
             issueType: 1,
             status: RequirementStatus.REJECTED,
@@ -179,19 +188,21 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             issueType: 1,
             isLongTerm: true,
           },
         }),
         this.prisma.zouwuRequirement.groupBy({
           by: ['status'],
-          where: baseWhere,
+          where: { ...baseWhere, ...agentPrismaFilter },
           _count: { id: true },
         }),
         // 长期演进数量（排除 Bug）
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             isLongTerm: true,
             OR: [
               { issueType: { not: 1 } },
@@ -203,6 +214,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             isLongTerm: false,
             OR: [
               { issueType: { not: 1 } },
@@ -215,6 +227,7 @@ export class KpiService {
         this.prisma.zouwuRequirement.count({
           where: {
             ...baseWhere,
+            ...agentPrismaFilter,
             isLongTerm: false,
             issueType: 1,
             status: { in: [RequirementStatus.OPEN, RequirementStatus.IN_PROGRESS, RequirementStatus.DONE] },
@@ -228,6 +241,7 @@ export class KpiService {
       SELECT DATE_TRUNC('day', r."createdAtSource") AS day, COUNT(*)::bigint AS count
       FROM "ZouwuRequirement" r
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
+        ${agentFilter}
       GROUP BY DATE_TRUNC('day', r."createdAtSource")
       ORDER BY day ASC
     `;
@@ -240,6 +254,7 @@ export class KpiService {
       WHERE r."completedAtSource" IS NOT NULL
         AND r."completedAtSource" >= ${start}
         AND r."completedAtSource" <= ${end}
+        ${agentFilter}
       GROUP BY DATE_TRUNC('day', r."completedAtSource")
       ORDER BY day ASC
     `;
@@ -252,6 +267,7 @@ export class KpiService {
       FROM "ZouwuRequirement" r
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -265,6 +281,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r.status IN ('CLOSED', 'DONE')
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -279,6 +296,7 @@ export class KpiService {
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r."isLongTerm" = false
         AND r.status = 'REJECTED'
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -292,6 +310,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r."isLongTerm" = true
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -305,6 +324,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND r."issueType" = 1
         AND r."isLongTerm" = true
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -317,6 +337,7 @@ export class KpiService {
       FROM "ZouwuRequirement" r
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND r."issueType" = 1
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -331,6 +352,7 @@ export class KpiService {
         AND r."issueType" = 1
         AND r."isLongTerm" = false
         AND r.status IN ('CLOSED', 'DONE')
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
@@ -345,12 +367,13 @@ export class KpiService {
         AND r."issueType" = 1
         AND r."isLongTerm" = false
         AND r.status = 'REJECTED'
+        ${agentFilter}
       GROUP BY DATE_TRUNC('month', r."createdAtSource")
       ORDER BY month ASC
     `;
 
     const recentRequirements = await this.prisma.zouwuRequirement.findMany({
-      where: baseWhere,
+      where: { ...baseWhere, ...agentPrismaFilter },
       orderBy: [{ updatedAtSource: 'desc' }, { createdAtSource: 'desc' }],
       select: {
         id: true,
@@ -530,8 +553,9 @@ export class KpiService {
   }
 
   // ===== 按客服汇总 =====
-  async getAgentOverview(startDate?: string, endDate?: string) {
+  async getAgentOverview(startDate?: string, endDate?: string, agentName?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
+    const agentFilter = agentName ? Prisma.sql`AND r."createdByName" = ${agentName}` : Prisma.empty;
 
     // 需求按客服统计（不含 bug，即 issueType != 1，包含长期演进）
     const agentRequirementCreatedRows = await this.prisma.$queryRaw<
@@ -541,6 +565,7 @@ export class KpiService {
       FROM "ZouwuRequirement" r
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -554,6 +579,7 @@ export class KpiService {
       WHERE r."completedAtSource" >= ${start} AND r."completedAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r.status IN ('CLOSED', 'DONE')
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -568,6 +594,7 @@ export class KpiService {
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r."isLongTerm" = false
         AND r.status = 'REJECTED'
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -581,6 +608,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND (r."issueType" IS NULL OR r."issueType" != 1)
         AND r."isLongTerm" = true
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -593,6 +621,7 @@ export class KpiService {
       FROM "ZouwuRequirement" r
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND r."issueType" = 1
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -607,6 +636,7 @@ export class KpiService {
         AND r."issueType" = 1
         AND r."isLongTerm" = false
         AND r.status IN ('CLOSED', 'DONE')
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -621,6 +651,7 @@ export class KpiService {
         AND r."issueType" = 1
         AND r."isLongTerm" = false
         AND r.status = 'REJECTED'
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -634,6 +665,7 @@ export class KpiService {
       WHERE r."createdAtSource" >= ${start} AND r."createdAtSource" <= ${end}
         AND r."issueType" = 1
         AND r."isLongTerm" = true
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -650,6 +682,7 @@ export class KpiService {
         AND r."isLongTerm" = false
         AND r.status = 'OPEN'
         AND r."createdAtSource" < ${sevenDaysAgo}
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -666,6 +699,7 @@ export class KpiService {
         AND r."isLongTerm" = false
         AND r.status IN ('IN_PROGRESS', 'DONE')
         AND r."createdAtSource" < ${thirtyDaysAgo}
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;
@@ -681,6 +715,7 @@ export class KpiService {
         AND r."isLongTerm" = false
         AND r.status IN ('IN_PROGRESS', 'DONE')
         AND r."createdAtSource" < ${thirtyDaysAgo}
+        ${agentFilter}
       GROUP BY r."createdByName"
       ORDER BY count DESC
     `;

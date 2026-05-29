@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, DatePicker, Space, Tag, Tooltip, Tabs, Table } from 'antd';
+import { Card, Row, Col, Typography, DatePicker, Space, Tag, Tabs, Select, Spin } from 'antd';
 import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../api/kpi';
 import type { ProductModuleDistribution, AgentOverview } from '../types/kpi';
 import { ResizableTable } from '../components/ResizableTable';
@@ -39,7 +39,7 @@ interface MonthlyRow {
 }
 
 export function BugDetailPage() {
-  const { demandOverview, demandLoading, dateRange, setDateRange } = useKpi();
+  const { demandOverview, demandLoading, dateRange, setDateRange, agentName, setAgentName } = useKpi();
   const [productModuleData, setProductModuleData] = React.useState<ProductModuleDistribution | null>(null);
   const [agentOverview, setAgentOverview] = React.useState<AgentOverview | null>(null);
   const [agentLoading, setAgentLoading] = React.useState(false);
@@ -65,6 +65,7 @@ export function BugDetailPage() {
     fetchAgentOverview({
       startDate: dateRange[0].format('YYYY-MM-DD'),
       endDate: dateRange[1].format('YYYY-MM-DD'),
+      agentName,
     }).then((data) => {
       if (!cancelled) {
         setAgentOverview(data);
@@ -217,101 +218,135 @@ export function BugDetailPage() {
     },
   ];
 
+  const pageBg = 'linear-gradient(135deg, #f6f8fc 0%, #eef1f6 100%)';
+
+  const cardStyle: React.CSSProperties = {
+    borderRadius: 16,
+    padding: '24px 28px',
+    background: 'rgba(255,255,255,0.78)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255,255,255,0.5)',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9)',
+    position: 'relative',
+    overflow: 'hidden',
+  };
+
+  const glassCard: React.CSSProperties = {
+    borderRadius: 16,
+    background: 'rgba(255,255,255,0.85)',
+    backdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,0.4)',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+  };
+
+  const metricLabel: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.8px',
+    textTransform: 'uppercase',
+  };
+
+  const metricValue: React.CSSProperties = {
+    fontSize: 22,
+    fontWeight: 700,
+    color: '#0f172a',
+    lineHeight: 1.1,
+    letterSpacing: '-0.4px',
+  };
+
+  const ProgressBar = ({ rate, accent }: { rate: number; accent?: string }) => (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ height: 5, borderRadius: 3, background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          borderRadius: 3,
+          background: accent || 'linear-gradient(90deg, #667eea, #764ba2)',
+          width: `${Math.min(rate * 100, 100)}%`,
+          transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+        }} />
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ padding: 24, background: '#f5f5f5', minHeight: 'calc(100vh - 64px)' }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Bug 详情</Typography.Title>
-        <Space>
-          <span style={{ color: '#666' }}>日期范围：</span>
-          <RangePicker
-            value={dateRange}
-            onChange={(dates) => dates && setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
-            format="YYYY-MM-DD"
-          />
-        </Space>
-      </Row>
+    <div style={{ padding: 24, background: pageBg, minHeight: 'calc(100vh - 64px)' }}>
+      {/* 头部筛选栏 */}
+      <div style={{ marginBottom: 24, padding: '16px 24px', borderRadius: 16, background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', boxShadow: '0 8px 32px rgba(26,26,46,0.15)' }}>
+        <Row justify="space-between" align="middle">
+          <Typography.Title level={4} style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#fff', letterSpacing: '1px' }}>
+            <span style={{ background: 'linear-gradient(90deg, #667eea, #764ba2)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginRight: 8 }}>◆</span>
+            Bug 详情
+          </Typography.Title>
+          <Space size="middle">
+            <Space size={4}>
+              <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>客服</span>
+              <Select allowClear placeholder="全部客服" style={{ width: 140 }} value={agentName} onChange={(value) => setAgentName(value ?? undefined)} options={[]} />
+            </Space>
+            <Space size={4}>
+              <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>日期</span>
+              <RangePicker value={dateRange} onChange={(dates) => dates && setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])} format="YYYY-MM-DD" />
+            </Space>
+          </Space>
+        </Row>
+      </div>
 
-      <Row gutter={16}>
-        <Col span={4}>
-          <Card 
-            loading={demandLoading} 
-            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 16px' }}
-          >
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>Bug 总数</span>} 
-              value={demandOverview?.bugCount ?? 0}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card 
-            loading={demandLoading} 
-            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 16px' }}
-          >
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>已闭环 Bug 数</span>} 
-              value={demandOverview?.bugCompletedCount ?? 0}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card 
-            loading={demandLoading} 
-            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 16px' }}
-          >
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>已拒绝 Bug 数</span>} 
-              value={demandOverview?.bugRejectedCount ?? 0}
-              valueStyle={{ color: '#ff4d4f' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card 
-            loading={demandLoading} 
-            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 16px' }}
-          >
-            <Statistic 
-              title={<span style={{ color: '#666', fontSize: 13 }}>长期演进 Bug 数</span>} 
-              value={demandOverview?.bugLongTermCount ?? 0}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card 
-            loading={demandLoading} 
-            style={{ height: 120, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
-            bodyStyle={{ padding: '20px 24px' }}
-          >
-            <span style={{ position: 'absolute', top: 8, right: 8, cursor: 'help', color: '#999', zIndex: 1 }}>
-              <Tooltip title="关单率 = (已闭环 + 已拒绝) / (总数 - 长期演进单)">
-                <svg viewBox="64 64 896 896" focusable="false" style={{ width: 16, height: 16 }} data-icon="exclamation-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"></path>
-                  <path d="M464 688a48 48 0 1096 0 48 48 0 10-96 0zm24-112h48c4.4 0 8-3.6 8-8V296c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8z"></path>
-                </svg>
-              </Tooltip>
-            </span>
-            <Statistic
-              title={<span style={{ color: '#666' }}>Bug关单率</span>}
-              value={Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(2))}
-              suffix="%"
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
+      {/* 核心指标卡片 */}
+      <Spin spinning={demandLoading} size="large">
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={24}>
+          <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <div style={{ ...metricLabel, fontSize: 13, color: '#e11d48' }}>Bug 总览</div>
+                  <div style={{ ...metricValue, fontSize: 34 }}>
+                    {demandOverview?.bugCount ?? 0}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                {[
+                  { label: '已闭环', value: demandOverview?.bugCompletedCount ?? 0 },
+                  { label: '已拒绝', value: demandOverview?.bugRejectedCount ?? 0 },
+                  { label: '长期演进', value: demandOverview?.bugLongTermCount ?? 0 },
+                  { label: '跟进中', value: demandOverview?.bugFollowUpCount ?? 0 },
+                ].map(item => (
+                  <div key={item.label} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.04)' }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{item.label}</span>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: '#e11d48', fontWeight: 600, letterSpacing: '0.3px' }}>关单率</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                  {Number(((demandOverview?.bugCompletionRate ?? 0) * 100).toFixed(1))}<span style={{ fontSize: 11, fontWeight: 400, color: '#94a3b8' }}>%</span>
+                </span>
+              </div>
+              <ProgressBar
+                rate={demandOverview?.bugCompletionRate ?? 0}
+                accent="linear-gradient(90deg, #e11d48, #be123c)"
+              />
+            </div>
+          </div>
         </Col>
       </Row>
+      </Spin>
 
-      <Card 
-        title={<span style={{ fontWeight: 600 }}>汇总数据</span>}
+      {/* 汇总数据 */}
+      <Card
+        title={
+          <Space>
+            <span style={{ display: 'inline-block', width: 3, height: 16, background: 'linear-gradient(180deg, #667eea, #764ba2)', borderRadius: 2 }} />
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e' }}>汇总数据</span>
+          </Space>
+        }
         extra={<Tag color="blue">已剔除长期演进</Tag>}
-        style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+        style={{ marginTop: 16, ...glassCard }}
+        bodyStyle={{ padding: '16px 24px' }}
       >
         <Tabs defaultActiveKey="monthly" items={[
           {
@@ -328,49 +363,19 @@ export function BugDetailPage() {
               />
             ),
           },
-          {
-            key: 'agent',
-            label: '按客服汇总',
-            children: (
-              <ResizableTable<{ agentName: string; created: number; completed: number; rejectedCount: number; longTermCount: number; completionRate: number; over30NotClosedBug: number }>
-                rowKey="agentName"
-                dataSource={(agentOverview?.rows ?? []).map(r => ({
-                  agentName: r.agentName,
-                  created: r.bugCreated,
-                  completed: r.bugCompleted,
-                  rejectedCount: r.bugRejected,
-                  longTermCount: r.bugLongTerm,
-                  completionRate: r.bugCompletionRate,
-                  over30NotClosedBug: r.over30NotClosedBug,
-                }))}
-                pagination={false}
-                size="middle"
-                columns={[
-                  { title: '客服名称', dataIndex: 'agentName', key: 'agentName', sorter: (a, b) => a.agentName.localeCompare(b.agentName), width: 100 },
-                  { title: 'Bug 总数', dataIndex: 'created', key: 'created', sorter: (a, b) => a.created - b.created, width: 100 },
-                  { title: '闭环数', dataIndex: 'completed', key: 'completed', sorter: (a, b) => a.completed - b.completed, width: 90 },
-                  { title: '已拒绝', dataIndex: 'rejectedCount', key: 'rejectedCount', sorter: (a, b) => a.rejectedCount - b.rejectedCount, width: 80 },
-                  { title: '长期演进', dataIndex: 'longTermCount', key: 'longTermCount', sorter: (a, b) => a.longTermCount - b.longTermCount, width: 100 },
-                  {
-                    title: '关单率',
-                    dataIndex: 'completionRate',
-                    key: 'completionRate',
-                    sorter: (a, b) => a.completionRate - b.completionRate,
-                    render: (value: number) => `${(value * 100).toFixed(2)}%`,
-                    width: 100,
-                  },
-                  { title: '超30天未闭环Bug', key: 'over30NotClosedBug', render: (_: unknown, record: { over30NotClosedBug?: number }) => record.over30NotClosedBug ?? 0, sorter: (a, b) => (a.over30NotClosedBug ?? 0) - (b.over30NotClosedBug ?? 0), width: 150 },
-                ]}
-                loading={agentLoading}
-              />
-            ),
-          },
         ]} />
       </Card>
 
-      <Card 
-        title={<span style={{ fontWeight: 600 }}>Bug 明细</span>}
-        style={{ marginTop: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+      {/* Bug 明细 */}
+      <Card
+        title={
+          <Space>
+            <span style={{ display: 'inline-block', width: 3, height: 16, background: 'linear-gradient(180deg, #667eea, #764ba2)', borderRadius: 2 }} />
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e' }}>Bug 明细</span>
+          </Space>
+        }
+        style={{ marginTop: 16, ...glassCard }}
+        bodyStyle={{ padding: '16px 24px' }}
       >
         <ResizableTable<BugRow>
           rowKey="id"
@@ -388,11 +393,19 @@ export function BugDetailPage() {
           loading={demandLoading}
         />
       </Card>
-      <ProductModuleChart
-        data={productModuleData}
-        loading={demandLoading}
-        title="产品模块分布"
-      />
+
+      {/* 产品模块分布 */}
+      <div style={{ marginTop: 16 }}>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 3, height: 18, background: 'linear-gradient(180deg, #667eea, #764ba2)', borderRadius: 2 }} />
+              <span style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', letterSpacing: '0.3px' }}>产品模块分布</span>
+            </div>
+          </div>
+          <ProductModuleChart data={productModuleData} loading={demandLoading} title="" colorScheme="red" />
+        </div>
+      </div>
     </div>
   );
 }

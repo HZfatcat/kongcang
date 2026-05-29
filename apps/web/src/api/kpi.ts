@@ -15,12 +15,12 @@ export async function fetchOverview(params: { startDate?: string; endDate?: stri
   return resp.data;
 }
 
-export async function fetchDemandOverview(params: { startDate?: string; endDate?: string }) {
+export async function fetchDemandOverview(params: { startDate?: string; endDate?: string; agentName?: string }) {
   const resp = await apiClient.get<DemandOverview>('/kpi/demand', { params });
   return resp.data;
 }
 
-export async function fetchAgentOverview(params: { startDate?: string; endDate?: string }) {
+export async function fetchAgentOverview(params: { startDate?: string; endDate?: string; agentName?: string }) {
   const resp = await apiClient.get<AgentOverview>('/kpi/demand/agent', { params });
   return resp.data;
 }
@@ -74,6 +74,7 @@ export function useKpi() {
     const start = dayjs('2026-01-01');
     return [start.startOf('day'), end.endOf('day')];
   });
+  const [agentName, setAgentName] = useState<string | undefined>(undefined);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [demandLoading, setDemandLoading] = useState(false);
 
@@ -83,6 +84,7 @@ export function useKpi() {
       const data = await fetchDemandOverview({
         startDate: dateRange[0].format('YYYY-MM-DD'),
         endDate: dateRange[1].format('YYYY-MM-DD'),
+        agentName,
       });
       setDemandOverview(data);
     } catch (error) {
@@ -90,7 +92,7 @@ export function useKpi() {
     } finally {
       setDemandLoading(false);
     }
-  }, [dateRange]);
+  }, [dateRange, agentName]);
 
   useEffect(() => {
     loadDemandOverview();
@@ -99,6 +101,8 @@ export function useKpi() {
   return {
     dateRange,
     setDateRange,
+    agentName,
+    setAgentName,
     demandOverview,
     demandLoading,
     refresh: loadDemandOverview,

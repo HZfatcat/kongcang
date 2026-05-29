@@ -18,12 +18,12 @@ export class KpiController {
 
   @Get('demand')
   async getDemand(@Query() query: DateRangeQueryDto) {
-    return this.kpiService.getDemandOverview(query.startDate, query.endDate);
+    return this.kpiService.getDemandOverview(query.startDate, query.endDate, query.agentName);
   }
 
   @Get('demand/agent')
   async getAgentDemand(@Query() query: DateRangeQueryDto) {
-    return this.kpiService.getAgentOverview(query.startDate, query.endDate);
+    return this.kpiService.getAgentOverview(query.startDate, query.endDate, query.agentName);
   }
 
   @Get('monthly-satisfaction')
