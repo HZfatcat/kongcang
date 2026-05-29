@@ -20,8 +20,6 @@ const TicketsPage = React.lazy(() => import('./pages/TicketsPage').then(m => ({ 
 const HeatmapPage = React.lazy(() => import('./pages/HeatmapPage').then(m => ({ default: m.HeatmapPage })));
 const MetricsPage = React.lazy(() => import('./pages/MetricsPage').then(m => ({ default: m.MetricsPage })));
 const SessionDetailPage = React.lazy(() => import('./pages/SessionDetailPage').then(m => ({ default: m.SessionDetailPage })));
-const CallCenterPage = React.lazy(() => import('./pages/CallCenterPage').then(m => ({ default: m.CallCenterPage })));
-const NotesPage = React.lazy(() => import('./pages/NotesPage').then(m => ({ default: m.NotesPage })));
 const AccessControlPage = React.lazy(() => import('./pages/AccessControlPage').then(m => ({ default: m.AccessControlPage })));
 const RoleManagePage = React.lazy(() => import('./pages/RoleManagePage').then(m => ({ default: m.RoleManagePage })));
 import { getToken, getLoginUser, clearSession } from './auth/session';
@@ -82,8 +80,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         { key: '/udesc/tickets', label: '工单分析' },
         { key: '/udesc/heatmap', label: '时段热力图' },
         { key: '/udesc/sessions', label: '咨询详情' },
-        { key: '/udesc/call-center', label: '呼叫中心' },
-        { key: '/udesc/notes', label: '业务记录' },
       ],
     },
     {
@@ -245,8 +241,6 @@ function AppRoutes() {
         <Route path="/udesc/tickets" element={<AppLayout><TicketsPage /></AppLayout>} />
         <Route path="/udesc/heatmap" element={<AppLayout><HeatmapPage /></AppLayout>} />
         <Route path="/udesc/sessions" element={<AppLayout><SessionDetailPage /></AppLayout>} />
-        <Route path="/udesc/call-center" element={<AppLayout><CallCenterPage /></AppLayout>} />
-        <Route path="/udesc/notes" element={<AppLayout><NotesPage /></AppLayout>} />
         <Route path="/demand" element={<AppLayout><DemandSummaryPage /></AppLayout>} />
         <Route path="/demand/requirements" element={<AppLayout><RequirementDetailPage /></AppLayout>} />
         <Route path="/demand/bugs" element={<AppLayout><BugDetailPage /></AppLayout>} />
