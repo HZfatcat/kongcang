@@ -682,4 +682,135 @@ export class UdescClient {
       return { records: [], hasMore: false };
     }
   }
+
+  // ========== 呼叫中心 · 通话记录 ==========
+
+  async fetchCallLogs(params: {
+    startTime: string;
+    endTime?: string;
+    page?: number;
+    pageSize?: number;
+    customerPhone?: string;
+  }): Promise<{ records: Record<string, unknown>[]; total: number }> {
+    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+      return { records: [], total: 0 };
+    }
+
+    const allItems: Record<string, unknown>[] = [];
+    let page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 100;
+
+    try {
+      while (true) {
+        const resp = await this.openApiGet('callcenter/calllogs', {
+          start_time: params.startTime,
+          ...(params.endTime ? { end_time: params.endTime } : {}),
+          ...(params.customerPhone ? { customer_phone: params.customerPhone } : {}),
+          page: String(page),
+          page_size: String(pageSize),
+        });
+        const data = (resp.data ?? {}) as Record<string, unknown>;
+        if (data.code !== 1000) {
+          this.logger.warn(`callcenter/calllogs API 返回异常: ${JSON.stringify(data)}`);
+          break;
+        }
+        const items = Array.isArray(data.items) ? data.items as Record<string, unknown>[] : [];
+        if (items.length === 0) break;
+        allItems.push(...items);
+        const total = this.toNumber(data.total) ?? 0;
+        if (allItems.length >= total) break;
+        page++;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Failed to fetch call logs: ${msg}`);
+    }
+
+    return { records: allItems, total: allItems.length };
+  }
+
+  // ========== 业务记录 ==========
+
+  async fetchBusinessNotes(params: {
+    startDate?: string;
+    endDate?: string;
+    category?: string;
+    page?: number;
+    perPage?: number;
+  }): Promise<{ records: Record<string, unknown>[]; meta?: Record<string, unknown> }> {
+    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+      return { records: [], meta: {} };
+    }
+
+    try {
+      const resp = await this.openApiGet('notes', {
+        ...(params.startDate ? { start_date: params.startDate } : {}),
+        ...(params.endDate ? { end_date: params.endDate } : {}),
+        ...(params.category ? { category: params.category } : {}),
+        page: String(params.page ?? 1),
+        per_page: String(params.perPage ?? 50),
+      });
+      const data = (resp.data ?? {}) as Record<string, unknown>;
+      if (data.code !== 1000) {
+        this.logger.warn(`notes API 返回异常: ${JSON.stringify(data)}`);
+        return { records: [], meta: {} };
+      }
+      const records = Array.isArray(data.note_record) ? data.note_record as Record<string, unknown>[] : [];
+      const meta = data.meta as Record<string, unknown> | undefined;
+      return { records, meta };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Failed to fetch business notes: ${msg}`);
+      return { records: [], meta: {} };
+    }
+  }
+
+  // ========== 自定义字段选项树（级联字段解析用） ==========
+
+  async fetchFieldOptions(fieldId: string): Promise<Record<string, unknown>[]> {
+    if (!process.env.UDESC_BASE_URL || process.env.UDESC_BASE_URL.includes('example.com')) {
+      return [];
+    }
+
+    try {
+      const resp = await this.openApiGet(`custom_fields/${fieldId}`, {});
+      const data = (resp.data ?? {}) as Record<string, unknown>;
+      if (data.code !== 1000) return [];
+      const field = (data.field ?? (Array.isArray(data.fields) ? (data.fields as Record<string, unknown>[])[0] : undefined)) as Record<string, unknown> | undefined;
+      return (field?.options as Record<string, unknown>[]) ?? [];
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Failed to fetch field options for ${fieldId}: ${msg}`);
+      return [];
+    }
+  }
+
+  // ========== 级联字段解析 ==========
+
+  parseCascade(valueStr: string, tree: Record<string, unknown>[]): string[] {
+    if (!valueStr) return [];
+    const parts = valueStr.split(',').map(p => p.trim());
+    const result: string[] = [];
+    let level: Record<string, unknown>[] = tree;
+    for (const part of parts) {
+      if (!level || level.length === 0) {
+        result.push(`[${part}]`);
+        continue;
+      }
+      let found = false;
+      for (const opt of level) {
+        if (String(opt.value ?? '') === part) {
+          result.push(String(opt.title ?? `[${part}]`));
+          level = (opt.subs as Record<string, unknown>[]) ?? [];
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        result.push(`[${part}]`);
+        level = [];
+      }
+    }
+    return result;
+  }
 }

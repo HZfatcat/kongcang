@@ -194,3 +194,31 @@ export class UdescHeatmapQueryDto extends UdescDateRangeDto {
   type?: 'session' | 'ticket'; // 会话或工单
 }
 
+// ========== 呼叫中心 ==========
+
+export class UdescCallCenterQueryDto extends UdescDateRangeDto {
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+}
+
+// ========== 业务记录 ==========
+
+export class UdescNotesQueryDto extends UdescDateRangeDto {
+  @IsOptional()
+  @IsString()
+  category?: 'im' | 'call';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  perPage?: number;
+}
