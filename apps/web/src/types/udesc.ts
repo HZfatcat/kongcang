@@ -234,10 +234,13 @@ export interface UdescAgentPerformance {
   dateRange: { startDate: string; endDate: string };
   totalSessions: number;
   avgRating: number | null;
+  satisfactionRate: number | null;
+  ratedSessions: number;
   avgFirstResponseTime: number | null;
   avgResolutionTime: number | null;
   totalMessages: number;
   avgMessagesPerSession: number;
+  returnVisitCount: number;
   dailyStats: Array<{
     date: string;
     sessions: number;

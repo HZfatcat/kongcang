@@ -694,6 +694,7 @@ export class UdescService {
               firstAgentReplyTime = new Date(agentMsgs[0].sentAt).getTime();
             }
             let agentIdx = 0;
+            const pairResponseTimes: number[] = [];
             for (let ci = 0; ci < customerMsgs.length && agentIdx < agentMsgs.length; ci++) {
               const custTime = new Date(customerMsgs[ci].sentAt).getTime();
               if (custTime < firstAgentReplyTime) continue;
@@ -703,12 +704,16 @@ export class UdescService {
               if (agentIdx < agentMsgs.length) {
                 const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
                 if (diff > 0) {
-                  bucket.responseTimes.push(Math.min(Math.round(diff / 1000), 3600));
+                  pairResponseTimes.push(Math.min(Math.round(diff / 1000), 3600));
                 } else {
-                  bucket.responseTimes.push(0);
+                  pairResponseTimes.push(0);
                 }
                 agentIdx++;
               }
+            }
+            // 每个会话的响应时间取均值再参与团队平均，保持各会话权重一致
+            if (pairResponseTimes.length > 0) {
+              bucket.responseTimes.push(Math.round(pairResponseTimes.reduce((a, b) => a + b, 0) / pairResponseTimes.length));
             }
           }
         }
@@ -1574,6 +1579,7 @@ export class UdescService {
               firstAgentReplyTime = new Date(agentMsgs[0].sentAt).getTime();
             }
             let agentIdx = 0;
+            const pairResponseTimes: number[] = [];
             for (let ci = 0; ci < customerMsgs.length && agentIdx < agentMsgs.length; ci++) {
               const custTime = new Date(customerMsgs[ci].sentAt).getTime();
               if (custTime < firstAgentReplyTime) continue;
@@ -1583,12 +1589,16 @@ export class UdescService {
               if (agentIdx < agentMsgs.length) {
                 const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
                 if (diff > 0) {
-                  responseTimes.push(Math.min(Math.round(diff / 1000), 3600));
+                  pairResponseTimes.push(Math.min(Math.round(diff / 1000), 3600));
                 } else {
-                  responseTimes.push(0);
+                  pairResponseTimes.push(0);
                 }
                 agentIdx++;
               }
+            }
+            // 每个会话的响应时间取均值再参与团队平均，保持各会话权重一致
+            if (pairResponseTimes.length > 0) {
+              responseTimes.push(Math.round(pairResponseTimes.reduce((a, b) => a + b, 0) / pairResponseTimes.length));
             }
           }
         }
@@ -1731,6 +1741,7 @@ export class UdescService {
           firstAgentReplyTime = new Date(agentMsgs[0].sentAt).getTime();
         }
         let agentIdx = 0;
+        const pairResponseTimes: number[] = [];
         for (let ci = 0; ci < customerMsgs.length && agentIdx < agentMsgs.length; ci++) {
           const custTime = new Date(customerMsgs[ci].sentAt).getTime();
           // 跳过客服接入前的客户消息（留言等），不计入平均响应
@@ -1741,12 +1752,16 @@ export class UdescService {
           if (agentIdx < agentMsgs.length) {
             const diff = new Date(agentMsgs[agentIdx].sentAt).getTime() - custTime;
             if (diff > 0) {
-              stat.responseTimes.push(Math.min(Math.round(diff / 1000), 3600));
+              pairResponseTimes.push(Math.min(Math.round(diff / 1000), 3600));
             } else {
-              stat.responseTimes.push(0);
+              pairResponseTimes.push(0);
             }
             agentIdx++;
           }
+        }
+        // 每个会话的响应时间取均值再参与统计，保持各会话权重一致
+        if (pairResponseTimes.length > 0) {
+          stat.responseTimes.push(Math.round(pairResponseTimes.reduce((a, b) => a + b, 0) / pairResponseTimes.length));
         }
       }
 

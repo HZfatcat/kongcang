@@ -53,6 +53,7 @@ interface Props {
   sections: Record<string, string>;
   agentName?: string;
   huaweiCloudUnbindInput: number | null;
+  manualOpportunityInput: number | null;
 }
 
 function statusBadge(label: string, pass: boolean): React.ReactNode {
@@ -71,16 +72,18 @@ function statusBadge(label: string, pass: boolean): React.ReactNode {
   );
 }
 
-export function PersonalReportView({ metrics, dateRange, sections, agentName, huaweiCloudUnbindInput }: Props) {
+export function PersonalReportView({ metrics, dateRange, sections, agentName, huaweiCloudUnbindInput, manualOpportunityInput }: Props) {
   const [start, end] = dateRange;
 
-  // 计算人效
+  // 计算人效：人效 = (咨询量 + (新增需求+新增BUG)×2.5 + 回访×0.25) / (40 × 出勤人数)
   const efficiency = useMemo(() => {
-    if (metrics.agentCount <= 0 || metrics.totalSessions <= 0) return '—';
-    const avgSessions = metrics.totalSessions / metrics.agentCount;
-    if (avgSessions <= 0) return '—';
-    const eff = (metrics.consultationCount / avgSessions) * 100;
-    return `${eff.toFixed(2)}%`;
+    if (metrics.agentCount <= 0) return '—';
+    const numerator = metrics.consultationCount
+      + (metrics.newDemands + metrics.newBugs) * 2.5
+      + (metrics.returnVisitCount ?? 0) * 0.25;
+    const denominator = 40 * metrics.agentCount;
+    if (denominator <= 0) return '—';
+    return (numerator / denominator).toFixed(2);
   }, [metrics]);
 
   return (
@@ -104,7 +107,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
         <div style={styles.sumCard}>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>总工时</div>
           <div style={{ fontSize: 26, fontWeight: 700, color: '#1e293b' }}>
-            {calcTotalHours(metrics)}<span style={{ fontSize: 14, fontWeight: 400, color: '#94a3b8', marginLeft: 2 }}>h</span>
+            {calcTotalHours(metrics, huaweiCloudUnbindInput)}<span style={{ fontSize: 14, fontWeight: 400, color: '#94a3b8', marginLeft: 2 }}>h</span>
           </div>
         </div>
         <div style={styles.sumCard}>
@@ -254,6 +257,17 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
               </td>
             </tr>
             <tr style={{ borderTop: '1px solid #e2e8f0' }}>
+              <td style={{ padding: '6px 4px', color: '#8b5cf6', fontWeight: 500 }}>专项业务</td>
+              <td style={{ padding: '6px 4px', color: '#334155' }}>手工录入商机数</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{manualOpportunityInput ?? 0}</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600, color: '#94a3b8' }}>—</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                <span style={{ fontSize: 10, padding: '1px 8px', borderRadius: 8, background: manualOpportunityInput ? '#f0fdf4' : '#f1f5f9', color: manualOpportunityInput ? '#16a34a' : '#94a3b8', fontWeight: 500 }}>
+                  {manualOpportunityInput ? '✅ 已完成' : '待接入'}
+                </span>
+              </td>
+            </tr>
+            <tr style={{ borderTop: '1px solid #e2e8f0' }}>
               <td style={{ padding: '6px 4px', color: '#d97706', fontWeight: 500 }}>问题转化</td>
               <td style={{ padding: '6px 4px', color: '#334155' }}>新增需求数/个</td>
               <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{metrics.newDemands}</td>
@@ -377,7 +391,7 @@ function calcConsultHours(count: number, avgSessionSec: number | null): string {
   return hours.toFixed(1);
 }
 
-function calcTotalHours(metrics: WeeklyMetrics): string {
+function calcTotalHours(metrics: WeeklyMetrics, huaweiCloudUnbindInput: number | null): string {
   let total = 0;
   // 咨询工时
   if (metrics.consultationCount && metrics.avgSessionDuration && metrics.avgSessionDuration > 600) {
@@ -391,5 +405,7 @@ function calcTotalHours(metrics: WeeklyMetrics): string {
   total += (metrics.closedDemands + metrics.closedBugs) * 0.25;
   // 商机 (30min 每个)
   total += metrics.opportunityWon * 0.5;
+  // 华为云解绑 (1min 每个)
+  if (huaweiCloudUnbindInput) total += huaweiCloudUnbindInput * 1 / 60;
   return total.toFixed(1);
 }
