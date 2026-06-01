@@ -837,7 +837,7 @@ export class UdescService {
     });
     const agentSessionIds = agentSessions.map((s) => s.id);
 
-    const [sessionStats, ratingStats, messageStats, returnVisitVotes] = await Promise.all([
+    const [sessionStats, messageStats, returnVisitVotes, agentVotes] = await Promise.all([
       this.prisma.udescSession.groupBy({
         by: ['agentId'],
         where: {
@@ -845,15 +845,6 @@ export class UdescService {
           startedAt: { gte: start, lte: end },
         },
         _count: { id: true },
-      }),
-      this.prisma.udescSession.aggregate({
-        where: {
-          agentId,
-          startedAt: { gte: start, lte: end },
-          rating: { not: null },
-        },
-        _avg: { rating: true },
-        _count: { rating: true },
       }),
       this.prisma.udescSessionMessage.aggregate({
         where: {
@@ -871,7 +862,29 @@ export class UdescService {
           select: { sessionId: true },
         })
         .then((votes) => new Set(votes.map((v) => v.sessionId)).size),
+      // 获取所有评价数据，用于统计满意度
+      this.prisma.udescSessionVote.findMany({
+        where: { sessionId: { in: agentSessionIds } },
+        select: { rating: true, rawPayload: true },
+      }),
     ]);
+
+    // 满意度统计：1=不满意, 5=满意，只统计有明确 1 或 5 的评价
+    let count1 = 0, count5 = 0;
+    for (const vote of agentVotes) {
+      let r = vote.rating;
+      if (r === null && vote.rawPayload) {
+        r = this.inferRatingFromRawPayload(vote.rawPayload as Record<string, unknown>) ?? undefined;
+      }
+      if (r === 1) count1++;
+      else if (r === 5) count5++;
+    }
+    const totalVotes = count1 + count5;
+    const satisfactionRate = totalVotes > 0 ? count5 / totalVotes : null;
+    // ratedCount = count1 + count5 → 有效评价总数
+    const ratedCount = totalVotes;
+    // avgRating 改为基于 vote 的评分（1或5的均值）
+    const avgRatingVote = totalVotes > 0 ? (count1 * 1 + count5 * 5) / totalVotes : null;
 
     // 按天统计
     const dailySessions = await this.prisma.udescSession.groupBy({
@@ -910,7 +923,9 @@ export class UdescService {
       agentId,
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       totalSessions: sessionStats[0]?._count.id ?? 0,
-      avgRating: ratingStats._avg.rating ?? null,
+      avgRating: avgRatingVote,
+      satisfactionRate,
+      ratedSessions: ratedCount,
       avgFirstResponseTime: null,
       avgResolutionTime: null,
       totalMessages: messageStats._count.id,

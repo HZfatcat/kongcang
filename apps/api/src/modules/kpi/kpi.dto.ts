@@ -8,6 +8,9 @@ export class DateRangeQueryDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  agentName?: string;
 }
 
 export class FunnelQueryDto extends DateRangeQueryDto {
