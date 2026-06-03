@@ -930,6 +930,34 @@ export class SyncService {
                 },
               });
               ticketSynced += 1;
+              // 同时将工单写入业务记录表，统一展示三类业务记录
+              try {
+                await this.prisma.udescBusinessNote.upsert({
+                  where: { id: `ticket_${ticket.id}` },
+                  create: {
+                    id: `ticket_${ticket.id}`,
+                    agentNickName: ticket.assigneeName ?? null,
+                    customerNickName: ticket.userName ?? null,
+                    createdAt: this.asDateOrNull(ticket.createdAt),
+                    problemType1: ticket.source ?? '',
+                    problemType2: ticket.priority ?? '',
+                    problemType3: ticket.subject ?? '',
+                    rawPayload: this.asJson(ticket.rawPayload),
+                  },
+                  update: {
+                    agentNickName: ticket.assigneeName ?? null,
+                    customerNickName: ticket.userName ?? null,
+                    createdAt: this.asDateOrNull(ticket.createdAt),
+                    problemType1: ticket.source ?? '',
+                    problemType2: ticket.priority ?? '',
+                    problemType3: ticket.subject ?? '',
+                    rawPayload: this.asJson(ticket.rawPayload),
+                    syncedAt: new Date(),
+                  },
+                });
+              } catch (e) {
+                // ignore individual errors
+              }
             } catch (e) {
               // ignore individual ticket errors
             }
@@ -999,28 +1027,30 @@ export class SyncService {
         this.logger.error(`call log sync failed: ${msg}`);
       }
 
-      // 同步业务记录
+      // 同步业务记录（分三类：im 会话、call 通话、ticket 工单）
       this.progress.note = '同步业务记录';
       try {
         const now = syncStartedAt;
-        // 如果有手动指定日期范围，使用手动范围；否则只同步最近 30 天
         const noteStart = manualStartDate ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const noteEnd = manualEndDate ?? now;
-        let notePage = 1;
-        let noteHasMore = true;
-        while (noteHasMore) {
-          const noteResp = await this.withRetry('udesc.fetchBusinessNotes', () =>
-            this.udescClient.fetchBusinessNotes({
-              startDate: noteStart.toISOString().slice(0, 19).replace('T', ' '),
-              endDate: noteEnd.toISOString().slice(0, 19).replace('T', ' '),
-              page: notePage,
-              perPage: 100,
-            }),
-          );
-          for (const raw of noteResp.records) {
-            const mapped = await this.udescClient.mapBusinessNote(raw);
-            if (!mapped.id) continue;
-            try {
+        const noteCategories = ['im', 'call', 'ticket'];
+        for (const category of noteCategories) {
+          let notePage = 1;
+          let noteHasMore = true;
+          while (noteHasMore) {
+            const noteResp = await this.withRetry('udesc.fetchBusinessNotes', () =>
+              this.udescClient.fetchBusinessNotes({
+                startDate: noteStart.toISOString().slice(0, 19).replace('T', ' '),
+                endDate: noteEnd.toISOString().slice(0, 19).replace('T', ' '),
+                category,
+                page: notePage,
+                perPage: 50,
+              }),
+            );
+            for (const raw of noteResp.records) {
+              const mapped = await this.udescClient.mapBusinessNote(raw);
+              if (!mapped.id) continue;
+              try {
               await this.prisma.udescBusinessNote.upsert({
                 where: { id: mapped.id },
                 create: {
