@@ -1085,6 +1085,7 @@ export class SyncService {
           noteHasMore = notePage <= totalPages;
         }
         this.progress.businessNoteSynced = businessNoteSynced;
+      }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         this.logger.error(`business note sync failed: ${msg}`);
