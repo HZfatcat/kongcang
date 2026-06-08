@@ -25,8 +25,9 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { fetchCallCenterData } from '../api/udesc';
+import { fetchCallCenterData, fetchUdescAgents } from '../api/udesc';
 import type { CallCenterStats } from '../api/udesc';
+import type { UdescAgentDetail } from '../types/udesc';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -97,6 +98,7 @@ function calcStatsFromRecords(records: CallCenterStats['records']) {
       satisfied: allSat,
       unsatisfied: allUnsat,
       participationRate: pct(allRated, allTotal),
+      satisfaction: allSat > 0 || allUnsat > 0 ? pct(allSat, allSat + allUnsat) : 'N/A',
     },
     inbound: inStats,
     outbound: outStats,
@@ -140,6 +142,7 @@ export function CallCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CallCenterStats | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | undefined>(undefined);
+  const [agents, setAgents] = useState<UdescAgentDetail[]>([]);
   // 默认最近一个月
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
     dayjs().subtract(30, 'day'),
@@ -163,6 +166,13 @@ export function CallCenterPage() {
   };
   useEffect(() => { loadData(); }, [dateRange]);
 
+  // 加载客服列表
+  useEffect(() => {
+    fetchUdescAgents({ enabled: true })
+      .then((res) => setAgents(res.records || []))
+      .catch(() => { /* ignore */ });
+  }, []);
+
   // ---- 客服筛选 ----
   const filteredRecords = useMemo(() => {
     if (!data) return [];
@@ -175,10 +185,14 @@ export function CallCenterPage() {
 
   // ---- 客服选项 ----
   const agentOptions = useMemo(() => {
-    if (!data) return [];
-    const names = new Set(data.records.map((r) => r.agentName).filter(Boolean));
+    // 优先用 UdescAgents API 返回的名字，再从 records 提取补充
+    const names = new Set<string>();
+    agents.forEach((a) => { if (a.name) names.add(a.name); });
+    if (data) {
+      data.records.forEach((r) => { if (r.agentName) names.add(r.agentName); });
+    }
     return Array.from(names).sort();
-  }, [data]);
+  }, [agents, data]);
 
   // ---- 趋势图 ----
   const trend = useMemo(() => buildTrendData(filteredRecords), [filteredRecords]);
@@ -319,12 +333,12 @@ export function CallCenterPage() {
               <Col span={5}><Statistic title="接通率" value={stats.overview.connectionRate} valueStyle={{ color: '#722ed1' }} /></Col>
               <Col span={5}><Statistic title="通话总时长" value={secToHms(stats.overview.totalDuration)} prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 18 }} /></Col>
               <Col span={5}><Statistic title="平均通话时长" value={secToHms(stats.overview.avgDuration)} prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 18 }} /></Col>
-              {/* 第二行 4 个 + 1 空位 */}
+              {/* 第二行 5 个 */}
               <Col span={4}><Statistic title="总评价数" value={stats.overview.totalRated} prefix={<SmileOutlined />} valueStyle={{ color: '#eb2f96' }} /></Col>
               <Col span={5}><Statistic title="满意数" value={stats.overview.satisfied} prefix={<SmileOutlined />} valueStyle={{ color: '#52c41a' }} /></Col>
               <Col span={5}><Statistic title="不满意数" value={stats.overview.unsatisfied} prefix={<FrownOutlined />} valueStyle={{ color: '#ff4d4f' }} /></Col>
+              <Col span={5}><Statistic title="满意度" value={stats.overview.satisfaction} prefix={<SmileOutlined />} valueStyle={{ color: '#722ed1' }} /></Col>
               <Col span={5}><Statistic title="满意度参评率" value={stats.overview.participationRate} valueStyle={{ color: '#722ed1' }} /></Col>
-              <Col span={5} />
             </Row>
           </Card>
 
