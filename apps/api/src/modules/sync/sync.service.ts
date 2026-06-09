@@ -1433,7 +1433,13 @@ export class SyncService {
       return await this.zouwuClient.getFeedbackStatistics(params);
     } catch (error) {
       const message = error instanceof Error ? error.message : '获取驺吾统计失败';
-      throw new BadRequestException(message);
+      this.logger.warn(`getZouwuFeedbackStatistics failed: ${message}, returning empty stats`);
+      return {
+        bug: { total: 0, closedOrRejected: 0, excludedByLongTermAccepted: 0, denominator: 0, closeRate: null },
+        feature: { total: 0, closedOrRejected: 0, excludedByLongTermAccepted: 0, denominator: 0, closeRate: null },
+        overall: { total: 0, closedOrRejected: 0, excludedByLongTermAccepted: 0, denominator: 0, closeRate: null },
+        byProductModule: [],
+      };
     }
   }
 

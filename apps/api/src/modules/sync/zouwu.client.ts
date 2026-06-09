@@ -102,7 +102,8 @@ export class ZouwuClient implements OnModuleInit {
     try {
       return await this.httpWithProxy.get(path, config);
     } catch (err) {
-      console.log('[ZouwuClient] httpWithProxy failed, trying httpDirect:', err);
+      const errMsg = axios.isAxiosError(err) ? `status=${err.response?.status}, data=${JSON.stringify(err.response?.data).slice(0, 300)}` : String(err);
+      console.log('[ZouwuClient] httpWithProxy failed, trying httpDirect:', errMsg);
       return this.httpDirect.get(path, config);
     }
   }
@@ -126,19 +127,18 @@ export class ZouwuClient implements OnModuleInit {
         try {
           return await this.requestWithNetworkFallback(path, params);
         } catch (fallbackError) {
-          if (axios.isAxiosError(fallbackError)) {
-            throw new Error(
-              `${path} 请求失败（cookie=${error.response?.status}, no-cookie=${fallbackError.response?.status ?? 'NA'}）`,
-            );
-          }
-          throw fallbackError;
+          const fallbackStatus = axios.isAxiosError(fallbackError) ? (fallbackError.response?.status ?? 'NA') : 'NA';
+          const fallbackData = axios.isAxiosError(fallbackError) ? JSON.stringify(fallbackError.response?.data) : 'NA';
+          throw new Error(
+            `${path} 请求失败（cookie=${error.response?.status}, no-cookie=${fallbackStatus}）响应=${fallbackData}`,
+          );
         }
       }
       if (axios.isAxiosError(error)) {
         const status = error.response?.status ?? 'NA';
-        const errMsg = error.message ?? 'unknown';
+        const data = error.response?.data ? JSON.stringify(error.response.data).slice(0, 500) : 'NA';
         const url = error.config?.url ?? this.baseUrl + path;
-        throw new Error(`${path} 请求失败（status=${status}, message=${errMsg}, url=${url}）`);
+        throw new Error(`${path} 请求失败（status=${status}, data=${data}, url=${url}）`);
       }
       throw error;
     }
@@ -238,32 +238,40 @@ export class ZouwuClient implements OnModuleInit {
   }
 
   private async fetchLongTermLabelId(tokenOverride?: string) {
-    const payload = await this.getWithOptionalCookie(
-      '/api/v1/label/list',
-      { labelType: 4 },
-      tokenOverride,
-    );
-    const body = payload.data as Record<string, unknown>;
-    const code = body.code;
-    if (code !== undefined && code !== null && code !== 0 && code !== 200) {
-      const message = String(body.msg ?? body.message ?? 'unknown');
-      throw new Error(`label/list: API code=${String(code)}, msg=${message}`);
-    }
-    const rows = Array.isArray(body.data) ? body.data : [];
-    for (const row of rows) {
-      if (!row || typeof row !== 'object') {
-        continue;
+    try {
+      const payload = await this.getWithOptionalCookie(
+        '/api/v1/label/list',
+        { labelType: 4 },
+        tokenOverride,
+      );
+      const body = payload.data as Record<string, unknown>;
+      const code = body.code;
+      if (code !== undefined && code !== null && code !== 0 && code !== 200) {
+        const message = String(body.msg ?? body.message ?? 'unknown');
+        console.warn(`[ZouwuClient] label/list: API code=${String(code)}, msg=${message}, fallback to 0`);
+        return 0;
       }
-      const item = row as Record<string, unknown>;
-      const name = String(item.label_name ?? item.labelName ?? '');
-      if (name === this.defaultLongTermLabelName) {
-        const id = Number(item.id);
-        if (Number.isFinite(id)) {
-          return id;
+      const rows = Array.isArray(body.data) ? body.data : [];
+      for (const row of rows) {
+        if (!row || typeof row !== 'object') {
+          continue;
+        }
+        const item = row as Record<string, unknown>;
+        const name = String(item.label_name ?? item.labelName ?? '');
+        if (name === this.defaultLongTermLabelName) {
+          const id = Number(item.id);
+          if (Number.isFinite(id)) {
+            return id;
+          }
         }
       }
+      console.warn(`[ZouwuClient] 未找到长期演进标签: ${this.defaultLongTermLabelName}, fallback to 0`);
+      return 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      console.warn(`[ZouwuClient] fetchLongTermLabelId failed: ${message}, fallback to 0`);
+      return 0;
     }
-    throw new Error(`未找到长期演进标签: ${this.defaultLongTermLabelName}`);
   }
 
   async fetchRequirements(params: {
@@ -359,27 +367,35 @@ export class ZouwuClient implements OnModuleInit {
     const labelId = await this.fetchLongTermLabelId(params.tokenOverride);
 
     const buildRate = async (issueType: '0' | '1' | null, scope: ZouwuCloseRateStat['scope']) => {
-      const total = await this.feedbackTotal({
-        startCreatedTime: params.startCreatedTime,
-        endCreatedTime: params.endCreatedTime,
-        issueType: issueType ?? undefined,
-        tokenOverride: params.tokenOverride,
-      });
-      const excludedByLongTermAccepted = await this.feedbackTotal({
-        startCreatedTime: params.startCreatedTime,
-        endCreatedTime: params.endCreatedTime,
-        issueType: issueType ?? undefined,
-        status: '1',
-        labels: String(labelId),
-        tokenOverride: params.tokenOverride,
-      });
-      const closedOrRejected = await this.feedbackTotal({
-        startCreatedTime: params.startCreatedTime,
-        endCreatedTime: params.endCreatedTime,
-        issueType: issueType ?? undefined,
-        status: '4,5',
-        tokenOverride: params.tokenOverride,
-      });
+      let total = 0;
+      let excludedByLongTermAccepted = 0;
+      let closedOrRejected = 0;
+      try {
+        total = await this.feedbackTotal({
+          startCreatedTime: params.startCreatedTime,
+          endCreatedTime: params.endCreatedTime,
+          issueType: issueType ?? undefined,
+          tokenOverride: params.tokenOverride,
+        });
+        excludedByLongTermAccepted = await this.feedbackTotal({
+          startCreatedTime: params.startCreatedTime,
+          endCreatedTime: params.endCreatedTime,
+          issueType: issueType ?? undefined,
+          status: '1',
+          labels: String(labelId),
+          tokenOverride: params.tokenOverride,
+        });
+        closedOrRejected = await this.feedbackTotal({
+          startCreatedTime: params.startCreatedTime,
+          endCreatedTime: params.endCreatedTime,
+          issueType: issueType ?? undefined,
+          status: '4,5',
+          tokenOverride: params.tokenOverride,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'unknown error';
+        console.warn(`[ZouwuClient] buildRate(issueType=${issueType}, scope=${scope}) failed: ${message}, return zero stats`);
+      }
       const denominator = total - excludedByLongTermAccepted;
       return {
         scope,
