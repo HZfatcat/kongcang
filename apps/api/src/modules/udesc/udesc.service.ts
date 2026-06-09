@@ -2215,36 +2215,45 @@ export class UdescService {
 
   // ========== 呼叫中心 ==========
 
-  async getCallCenterStats(startDate?: string, endDate?: string) {
+  async getCallCenterStats(startDate?: string, endDate?: string, agentName?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
 
+    const where: any = {
+      startTime: { gte: start, lte: end },
+    };
+    if (agentName) {
+      where.agentName = { contains: agentName, mode: 'insensitive' };
+    }
+
     const records = await this.prisma.udescCallLog.findMany({
-      where: {
-        startTime: { gte: start, lte: end },
-      },
+      where,
       orderBy: { startTime: 'desc' },
     });
 
     const inbound = records.filter((x) => x.callType === '呼入');
     const outbound = records.filter((x) => x.callType === '呼出');
+    // 振铃 = 实际到达客服/客户端的通话（有接听或未接听结果）
+    const inRing = inbound.filter((x) => x.callResult === '客服接听' || x.callResult === '未接听');
+    const outRing = outbound.filter((x) => x.callResult === '客户接听' || x.callResult === '未接听');
     const inConnected = inbound.filter((x) => x.callResult === '客服接听');
     const outConnected = outbound.filter((x) => x.callResult === '客户接听');
 
-    const calcStats = (items: typeof records, connected: typeof records) => {
+    const calcStats = (items: typeof records, ringItems: typeof records, connected: typeof records) => {
       const cnt = items.length;
+      const ringCnt = ringItems.length;
       const connCnt = connected.length;
       const totalDuration = connected.reduce((s, x) => s + (x.callTime || 0), 0);
       const avgDuration = connCnt > 0 ? Math.round((totalDuration / connCnt) * 10) / 10 : 0;
       const rated = items.filter((x) => x.satisfaction && x.satisfaction !== '未评');
       const sat = rated.filter((x) => x.satisfaction === '满意');
       const satRate = rated.length > 0 ? `${Math.round((sat.length / rated.length) * 1000) / 10}%` : 'N/A';
-      return { total: cnt, connected: connCnt, totalDuration, avgDuration, rated: rated.length, satisfaction: satRate };
+      return { total: cnt, ringCount: ringCnt, connected: connCnt, totalDuration, avgDuration, rated: rated.length, satisfaction: satRate };
     };
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
-      inbound: calcStats(inbound, inConnected),
-      outbound: calcStats(outbound, outConnected),
+      inbound: calcStats(inbound, inRing, inConnected),
+      outbound: calcStats(outbound, outRing, outConnected),
       totalCalls: records.length,
       records: records.map((item) => ({
         id: item.id,
@@ -2265,6 +2274,7 @@ export class UdescService {
     startDate?: string;
     endDate?: string;
     category?: 'im' | 'call';
+    keyword?: string;
     page?: number;
     perPage?: number;
   }) {
@@ -2275,6 +2285,13 @@ export class UdescService {
     const where: Record<string, unknown> = {
       createdAt: { gte: start, lte: end },
     };
+
+    if (params.keyword) {
+      where.OR = [
+        { agentNickName: { contains: params.keyword, mode: 'insensitive' } },
+        { customerNickName: { contains: params.keyword, mode: 'insensitive' } },
+      ];
+    }
 
     const [records, total] = await Promise.all([
       this.prisma.udescBusinessNote.findMany({
@@ -2288,15 +2305,22 @@ export class UdescService {
       }),
     ]);
 
-    const items = records.map((rec) => ({
-      id: rec.id,
-      time: rec.createdAt ? toLocalISOString(rec.createdAt) : '',
-      agent: rec.agentNickName ?? '',
-      customer: rec.customerNickName ?? '',
-      problemType1: rec.problemType1 ?? '',
-      problemType2: rec.problemType2 ?? '',
-      problemType3: rec.problemType3 ?? '',
-    }));
+    const items = records.map((rec) => {
+      // 从 id 推断来源
+      let source = 'im';
+      if (rec.id.startsWith('ticket_')) source = 'ticket';
+      else if (rec.id.startsWith('call_')) source = 'call';
+      return {
+        id: rec.id,
+        time: rec.createdAt ? toLocalISOString(rec.createdAt) : '',
+        agent: rec.agentNickName ?? '',
+        customer: rec.customerNickName ?? '',
+        problemType1: rec.problemType1 ?? '',
+        problemType2: rec.problemType2 ?? '',
+        problemType3: rec.problemType3 ?? '',
+        source,
+      };
+    });
 
     return {
       records: items,

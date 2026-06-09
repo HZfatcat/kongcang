@@ -719,8 +719,9 @@ export class UdescClient {
         const items = Array.isArray(data.items) ? data.items as Record<string, unknown>[] : [];
         if (items.length === 0) break;
         allItems.push(...items);
-        const total = this.toNumber(data.total) ?? 0;
-        if (allItems.length >= total) break;
+        const total = this.toNumber(data.total);
+        if (total !== undefined && allItems.length >= total) break;
+        if (items.length < pageSize) break;
         page++;
       }
     } catch (e) {
@@ -803,8 +804,8 @@ export class UdescClient {
       id: this.pickString(item, ['id']) ?? '',
       callType: this.pickString(item, ['call_type', 'callType']),
       callResult: this.pickString(item, ['call_result', 'callResult']),
-      customerPhone: this.pickString(item, ['call_number', 'customer_phone', 'customerPhone']),
-      agentName: this.pickString(item, ['agent_nick_name', 'agent_name', 'agentName']),
+      customerPhone: this.pickString(item, ['call_number', 'customer_phone', 'customerPhone', 'customer_phone_number', 'phone', 'customerPhoneNumber']),
+      agentName: this.pickString(item, ['agent_nick_name', 'agent_name', 'agentName', 'agent', 'agent_nickname']),
       callTime: this.toNumber(this.pickString(item, ['call_time', 'callTime'])),
       startTime,
       survey,

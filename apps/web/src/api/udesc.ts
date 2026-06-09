@@ -380,6 +380,7 @@ export interface CallCenterStats {
   dateRange: { startDate: string; endDate: string };
   inbound: {
     total: number;
+    ringCount: number;
     connected: number;
     totalDuration: number;
     avgDuration: number;
@@ -388,6 +389,7 @@ export interface CallCenterStats {
   };
   outbound: {
     total: number;
+    ringCount: number;
     connected: number;
     totalDuration: number;
     avgDuration: number;
@@ -410,6 +412,8 @@ export interface CallCenterStats {
 export async function fetchCallCenterData(params: {
   startDate?: string;
   endDate?: string;
+  agentName?: string;
+  customerPhone?: string;
 }): Promise<CallCenterStats> {
   const resp = await apiClient.get<CallCenterStats>('/udesc/call-center', { params });
   return resp.data;
@@ -418,13 +422,15 @@ export async function fetchCallCenterData(params: {
 // ========== 业务记录 ==========
 
 export interface NoteRecord {
-  id: number;
+  id: string;
   time: string;
   agent: string;
   customer: string;
   problemType1: string;
   problemType2: string;
   problemType3: string;
+  /** 来源标识: im | call | ticket */
+  source?: string;
 }
 
 export interface NotesResponse {
@@ -437,7 +443,8 @@ export interface NotesResponse {
 export async function fetchNotesData(params: {
   startDate?: string;
   endDate?: string;
-  category?: 'im' | 'call';
+  category?: 'im' | 'call' | 'ticket';
+  keyword?: string;
   page?: number;
   perPage?: number;
 }): Promise<NotesResponse> {

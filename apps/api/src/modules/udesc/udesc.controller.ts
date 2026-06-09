@@ -191,7 +191,11 @@ export class UdescController {
 
   @Get('call-center')
   getCallCenter(@Query() query: UdescCallCenterQueryDto) {
-    return this.udescService.getCallCenterStats(query.startDate, query.endDate);
+    return this.udescService.getCallCenterStats(
+      query.startDate,
+      query.endDate,
+      query.agentName,
+    );
   }
 
   // ========== 业务记录 ==========
@@ -202,6 +206,7 @@ export class UdescController {
       startDate: query.startDate,
       endDate: query.endDate,
       category: query.category,
+      keyword: query.keyword,
       page: query.page,
       perPage: query.perPage,
     });

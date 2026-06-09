@@ -931,6 +931,20 @@ export class SyncService {
               });
               ticketSynced += 1;
               // 同时将工单写入业务记录表，统一展示三类业务记录
+              // 使用与IM业务记录相同的 mapBusinessNote 解析级联问题类型
+              let ticketPt1 = ticket.source ?? '';
+              let ticketPt2 = ticket.priority ?? '';
+              let ticketPt3 = ticket.subject ?? '';
+              try {
+                if (ticket.rawPayload) {
+                  const mapped = await this.udescClient.mapBusinessNote(ticket.rawPayload);
+                  if (mapped.problemType1) ticketPt1 = mapped.problemType1;
+                  if (mapped.problemType2) ticketPt2 = mapped.problemType2;
+                  if (mapped.problemType3) ticketPt3 = mapped.problemType3;
+                }
+              } catch {
+                // 级联解析失败则降级
+              }
               try {
                 await this.prisma.udescBusinessNote.upsert({
                   where: { id: `ticket_${ticket.id}` },
@@ -939,18 +953,18 @@ export class SyncService {
                     agentNickName: ticket.assigneeName ?? null,
                     customerNickName: ticket.userName ?? null,
                     createdAt: this.asDateOrNull(ticket.createdAt),
-                    problemType1: ticket.source ?? '',
-                    problemType2: ticket.priority ?? '',
-                    problemType3: ticket.subject ?? '',
+                    problemType1: ticketPt1,
+                    problemType2: ticketPt2,
+                    problemType3: ticketPt3,
                     rawPayload: this.asJson(ticket.rawPayload),
                   },
                   update: {
                     agentNickName: ticket.assigneeName ?? null,
                     customerNickName: ticket.userName ?? null,
                     createdAt: this.asDateOrNull(ticket.createdAt),
-                    problemType1: ticket.source ?? '',
-                    problemType2: ticket.priority ?? '',
-                    problemType3: ticket.subject ?? '',
+                    problemType1: ticketPt1,
+                    problemType2: ticketPt2,
+                    problemType3: ticketPt3,
                     rawPayload: this.asJson(ticket.rawPayload),
                     syncedAt: new Date(),
                   },
@@ -1017,6 +1031,33 @@ export class SyncService {
               },
             });
             callLogSynced += 1;
+            // 同时写入业务记录表（Notes API 不过滤 category，需自行写入）
+            try {
+              const callStart = mapped.startTime ? new Date(mapped.startTime) : null;
+              await this.prisma.udescBusinessNote.upsert({
+                where: { id: `call_${mapped.id}` },
+                create: {
+                  id: `call_${mapped.id}`,
+                  agentNickName: mapped.agentName ?? null,
+                  customerNickName: mapped.customerPhone ?? null,
+                  createdAt: callStart,
+                  problemType1: '',
+                  problemType2: '',
+                  problemType3: '',
+                  rawPayload: this.asJson(mapped.rawPayload),
+                },
+                update: {
+                  agentNickName: mapped.agentName ?? null,
+                  customerNickName: mapped.customerPhone ?? null,
+                  createdAt: callStart,
+                  problemType1: '',
+                  problemType2: '',
+                  problemType3: '',
+                  rawPayload: this.asJson(mapped.rawPayload),
+                  syncedAt: new Date(),
+                },
+              });
+            } catch { /* ignore */ }
           } catch (e) {
             // ignore individual errors
           }
