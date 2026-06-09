@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, message, Rate, Select, Space, Input } from 'antd';
+import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, message, Space, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -19,8 +19,7 @@ export function VotesPage() {
   });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [minRating, setMinRating] = useState<number | undefined>();
-  const [maxRating, setMaxRating] = useState<number | undefined>();
+  const [ratingFilter, setRatingFilter] = useState<number | undefined>();
   const [sortBy, setSortBy] = useState<string | undefined>();
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | undefined>();
   const [sessionIdSearch, setSessionIdSearch] = useState<string | undefined>();
@@ -39,8 +38,8 @@ export function VotesPage() {
       const resp = await fetchUdescVotes({
         startDate: apiRange.startDateIso,
         endDate: apiRange.endDateIso,
-        minRating,
-        maxRating,
+        minRating: ratingFilter,
+        maxRating: ratingFilter,
         sortBy,
         sortOrder,
         page,
@@ -57,7 +56,7 @@ export function VotesPage() {
 
   useEffect(() => {
     loadData();
-  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, minRating, maxRating, sortBy, sortOrder, sessionIdSearch]);
+  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, ratingFilter, sortBy, sortOrder, sessionIdSearch]);
 
   const columns: ColumnsType<UdescSessionVote> = [
     {
@@ -119,15 +118,6 @@ export function VotesPage() {
     },
   ];
 
-  const ratingOptions = [
-    { label: '全部', value: undefined },
-    { label: '1星', value: 1 },
-    { label: '2星', value: 2 },
-    { label: '3星', value: 3 },
-    { label: '4星', value: 4 },
-    { label: '5星', value: 5 },
-  ];
-
   return (
     <div style={{ padding: 24 }}>
       <Typography.Title level={4}>评价分析</Typography.Title>
@@ -141,22 +131,6 @@ export function VotesPage() {
               { label: '近7天', value: () => [dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day')] as [dayjs.Dayjs, dayjs.Dayjs] },
               { label: '近30天', value: () => [dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day')] as [dayjs.Dayjs, dayjs.Dayjs] },
             ]}
-          />
-          <Select
-            placeholder="最低评分"
-            options={ratingOptions}
-            value={minRating}
-            onChange={setMinRating}
-            style={{ width: 100 }}
-            allowClear
-          />
-          <Select
-            placeholder="最高评分"
-            options={ratingOptions}
-            value={maxRating}
-            onChange={setMaxRating}
-            style={{ width: 100 }}
-            allowClear
           />
           <Input.Search
             placeholder="搜索会话ID"
@@ -225,14 +199,8 @@ export function VotesPage() {
             }}
             onChange={(pagination, filters, sorter) => {
               // 处理评分筛选（表头列筛选）
-              const ratingFilter = filters.rating as number[] | null | undefined;
-              if (ratingFilter && ratingFilter.length > 0) {
-                setMinRating(ratingFilter[0]);
-                setMaxRating(ratingFilter[0]);
-              } else {
-                setMinRating(undefined);
-                setMaxRating(undefined);
-              }
+              const ratingFilterVal = filters.rating as number[] | null | undefined;
+              setRatingFilter(ratingFilterVal && ratingFilterVal.length > 0 ? ratingFilterVal[0] : undefined);
               // 筛选变化时回到第一页
               setPage(1);
               // 处理排序
