@@ -187,11 +187,21 @@ export class UdescClient {
       return undefined;
     };
 
+    // 优先级1：通过 survey_option_id 映射（客户满意度评价选项）- 最可靠
+    const surveyOptionId = this.toNumber(item.survey_option_id);
+    if (surveyOptionId !== undefined) {
+      if (surveyOptionId === 20979) return 5;  // 满意
+      if (surveyOptionId === 20981) return 1;  // 不满意
+    }
+
+    // 优先级2：显式评分字段
     const direct = this.toNumber(item.rating ?? item.score ?? item.vote_score ?? item.satisfaction_level);
     const normalizedDirect = normalize(direct);
     if (normalizedDirect !== undefined) {
       return normalizedDirect;
     }
+
+    // 优先级3：嵌套 vote 对象
     const vote = item.vote;
     if (vote && typeof vote === 'object') {
       const nested = vote as Record<string, unknown>;
@@ -199,14 +209,6 @@ export class UdescClient {
         this.toNumber(nested.rating ?? nested.score ?? nested.vote_score ?? nested.satisfaction_level),
       );
     }
-    // 优先级3：通过 survey_option_id 映射（客户满意度评价选项）
-    const surveyOptionId = this.toNumber(item.survey_option_id);
-    if (surveyOptionId !== undefined) {
-      if (surveyOptionId === 20979) return 5;  // 满意
-      if (surveyOptionId === 20981) return 1;  // 不满意
-    }
-    // 注意：resolved_state 表示"是否已解决"，不等于"满意度"，
-    // 评分应仅从显式评分字段（rating/score/satisfaction_level等）或 survey_option_id 提取
     return undefined;
   }
 

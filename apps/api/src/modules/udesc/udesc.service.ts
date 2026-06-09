@@ -1085,9 +1085,16 @@ export class UdescService {
       if (vote.rawPayload) {
         const inferred = this.inferRatingFromRawPayload(vote.rawPayload as Record<string, unknown>);
         if (inferred !== undefined) {
-          ratingDistribution[inferred] = (ratingDistribution[inferred] ?? 0) + 1;
-          sumRating += inferred;
-          countRated++;
+          // 对推断的评分也应用评分筛选（最高/最低评分筛选）
+          const matchesFilter = (
+            (params.minRating === undefined || inferred >= params.minRating) &&
+            (params.maxRating === undefined || inferred <= params.maxRating)
+          );
+          if (matchesFilter) {
+            ratingDistribution[inferred] = (ratingDistribution[inferred] ?? 0) + 1;
+            sumRating += inferred;
+            countRated++;
+          }
         }
       }
     }
@@ -1116,7 +1123,7 @@ export class UdescService {
     return {
       page,
       pageSize,
-      total,
+      total: countRated, // 总评价数 = 非 null 评分 + 从 rawPayload 成功推断的记录
       totalSessions,
       records,
       avgRating: countRated > 0 ? Number((sumRating / countRated).toFixed(2)) : null,
@@ -1143,7 +1150,14 @@ export class UdescService {
       return undefined;
     };
 
-    // 优先级1：显式评分字段
+    // 优先级1：通过 survey_option_id 映射（客户满意度评价选项）- 最可靠
+    const surveyOptionId = toNumber(rawPayload.survey_option_id);
+    if (surveyOptionId !== undefined) {
+      if (surveyOptionId === 20979) return 5;  // 满意
+      if (surveyOptionId === 20981) return 1;  // 不满意
+    }
+
+    // 优先级2：显式评分字段
     const direct = toNumber(
       rawPayload.rating ?? rawPayload.score ?? rawPayload.vote_score ?? rawPayload.satisfaction_level
         ?? rawPayload.survey_score ?? rawPayload.satisfaction_score ?? rawPayload.feedback_rating
@@ -1152,7 +1166,7 @@ export class UdescService {
     const normalizedDirect = normalize(direct);
     if (normalizedDirect !== undefined) return normalizedDirect;
 
-    // 优先级2：嵌套 vote 对象
+    // 优先级3：嵌套 vote 对象
     const vote = rawPayload.vote;
     if (vote && typeof vote === 'object') {
       const nested = vote as Record<string, unknown>;
@@ -1163,13 +1177,6 @@ export class UdescService {
             ?? nested.customer_satisfaction ?? nested.satisfaction ?? nested.evaluation ?? nested.rate,
         ),
       );
-    }
-
-    // 优先级3：通过 survey_option_id 映射（客户满意度评价选项）
-    const surveyOptionId = toNumber(rawPayload.survey_option_id);
-    if (surveyOptionId !== undefined) {
-      if (surveyOptionId === 20979) return 5;  // 满意
-      if (surveyOptionId === 20981) return 1;  // 不满意
     }
 
     // 注意：resolved_state 表示"是否已解决"，不等于"满意度"，
