@@ -370,22 +370,37 @@ export class UdescService {
       page,
       pageSize,
       total,
-      records: rows.map((item) => ({
-        id: item.id,
-        agentId: item.agentId,
-        startedAt: toLocalISOString(item.startedAt),
-        endedAt: item.endedAt ? toLocalISOString(item.endedAt) : null,
-        rating: item.rating,
-        isConsultToDemand: item.isConsultToDemand,
-        messageCount: countNonSystemMessages(item.messages),
-        messages: item.messages.map((msg) => ({
-          id: msg.id,
-          sentAt: toLocalISOString(msg.sentAt),
-          senderType: normalizeSenderType(msg),
-          senderId: msg.senderId,
-          content: msg.content,
-        })),
-      })),
+      records: rows.map((item) => {
+        // 从 rawPayload 中提取用户名（兼容多种字段名）
+        const rawPayload = item.rawPayload as Record<string, unknown> | null;
+        const userName =
+          (rawPayload?.['customer_name'] as string) ??
+          (rawPayload?.['user_name'] as string) ??
+          (rawPayload?.['nick_name'] as string) ??
+          (rawPayload?.['customer_nick_name'] as string) ??
+          (rawPayload?.['client_name'] as string) ??
+          (rawPayload?.['name'] as string) ??
+          (rawPayload?.['customerName'] as string) ??
+          '';
+
+        return {
+          id: item.id,
+          agentId: item.agentId,
+          userName,
+          startedAt: toLocalISOString(item.startedAt),
+          endedAt: item.endedAt ? toLocalISOString(item.endedAt) : null,
+          rating: item.rating,
+          isConsultToDemand: item.isConsultToDemand,
+          messageCount: countNonSystemMessages(item.messages),
+          messages: item.messages.map((msg) => ({
+            id: msg.id,
+            sentAt: toLocalISOString(msg.sentAt),
+            senderType: normalizeSenderType(msg),
+            senderId: msg.senderId,
+            content: msg.content,
+          })),
+        };
+      }),
     };
   }
 

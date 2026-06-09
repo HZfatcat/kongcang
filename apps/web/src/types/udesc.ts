@@ -35,6 +35,7 @@ export interface UdescSessionMessage {
 export interface UdescSessionRecord {
   id: string;
   agentId?: string;
+  userName?: string;
   startedAt: string;
   endedAt?: string;
   rating: number | null;

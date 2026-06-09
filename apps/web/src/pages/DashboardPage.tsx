@@ -513,6 +513,12 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
         render: (value?: string) => getAgentLabel(value),
       },
       {
+        title: '用户名',
+        dataIndex: 'userName',
+        key: 'userName',
+        render: (value?: string) => value || '-',
+      },
+      {
         title: '咨询开始',
         dataIndex: 'startedAt',
         key: 'startedAt',
