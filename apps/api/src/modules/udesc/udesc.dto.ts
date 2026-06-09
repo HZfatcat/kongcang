@@ -200,6 +200,10 @@ export class UdescCallCenterQueryDto extends UdescDateRangeDto {
   @IsOptional()
   @IsString()
   customerPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  agentName?: string;
 }
 
 // ========== 业务记录 ==========
@@ -208,6 +212,10 @@ export class UdescNotesQueryDto extends UdescDateRangeDto {
   @IsOptional()
   @IsString()
   category?: 'im' | 'call';
+
+  @IsOptional()
+  @IsString()
+  keyword?: string;
 
   @IsOptional()
   @Type(() => Number)
