@@ -7,24 +7,24 @@ import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin, ConfigProvider
 import zhCN from 'antd/locale/zh_CN';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const DemandSummaryPage = React.lazy(() => import('./pages/DemandSummaryPage').then(m => ({ default: m.DemandSummaryPage })));
-const RequirementDetailPage = React.lazy(() => import('./pages/RequirementDetailPage').then(m => ({ default: m.RequirementDetailPage })));
-const BugDetailPage = React.lazy(() => import('./pages/BugDetailPage').then(m => ({ default: m.BugDetailPage })));
-const WeeklyReportPage = React.lazy(() => import('./pages/WeeklyReportPage').then(m => ({ default: m.WeeklyReportPage })));
-const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
-const LoginVerifyPage = React.lazy(() => import('./pages/LoginVerifyPage').then(m => ({ default: m.LoginVerifyPage })));
-const UsersPage = React.lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
-const LogsPage = React.lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })));
-const VotesPage = React.lazy(() => import('./pages/VotesPage').then(m => ({ default: m.VotesPage })));
-const TicketsPage = React.lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
-const HeatmapPage = React.lazy(() => import('./pages/HeatmapPage').then(m => ({ default: m.HeatmapPage })));
-const MetricsPage = React.lazy(() => import('./pages/MetricsPage').then(m => ({ default: m.MetricsPage })));
-const SessionDetailPage = React.lazy(() => import('./pages/SessionDetailPage').then(m => ({ default: m.SessionDetailPage })));
-const CallCenterPage = React.lazy(() => import('./pages/CallCenterPage').then(m => ({ default: m.CallCenterPage })));
-const NotesPage = React.lazy(() => import('./pages/NotesPage').then(m => ({ default: m.NotesPage })));
-const AccessControlPage = React.lazy(() => import('./pages/AccessControlPage').then(m => ({ default: m.AccessControlPage })));
-const RoleManagePage = React.lazy(() => import('./pages/RoleManagePage').then(m => ({ default: m.RoleManagePage })));
+const DashboardPage = React.lazy(() => import('./pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const DemandSummaryPage = React.lazy(() => import('./pages/demand/DemandSummaryPage').then(m => ({ default: m.DemandSummaryPage })));
+const RequirementDetailPage = React.lazy(() => import('./pages/demand/RequirementDetailPage').then(m => ({ default: m.RequirementDetailPage })));
+const BugDetailPage = React.lazy(() => import('./pages/demand/BugDetailPage').then(m => ({ default: m.BugDetailPage })));
+const WeeklyReportPage = React.lazy(() => import('./pages/weekly-report/WeeklyReportPage').then(m => ({ default: m.WeeklyReportPage })));
+const LoginPage = React.lazy(() => import('./pages/auth/LoginPage').then(m => ({ default: m.LoginPage })));
+const LoginVerifyPage = React.lazy(() => import('./pages/auth/LoginVerifyPage').then(m => ({ default: m.LoginVerifyPage })));
+const UsersPage = React.lazy(() => import('./pages/system/UsersPage').then(m => ({ default: m.UsersPage })));
+const LogsPage = React.lazy(() => import('./pages/system/LogsPage').then(m => ({ default: m.LogsPage })));
+const VotesPage = React.lazy(() => import('./pages/udesc/VotesPage').then(m => ({ default: m.VotesPage })));
+const TicketsPage = React.lazy(() => import('./pages/udesc/TicketsPage').then(m => ({ default: m.TicketsPage })));
+const HeatmapPage = React.lazy(() => import('./pages/udesc/HeatmapPage').then(m => ({ default: m.HeatmapPage })));
+const MetricsPage = React.lazy(() => import('./pages/udesc/MetricsPage').then(m => ({ default: m.MetricsPage })));
+const SessionDetailPage = React.lazy(() => import('./pages/udesc/SessionDetailPage').then(m => ({ default: m.SessionDetailPage })));
+const CallCenterPage = React.lazy(() => import('./pages/udesc/CallCenterPage').then(m => ({ default: m.CallCenterPage })));
+const NotesPage = React.lazy(() => import('./pages/udesc/NotesPage').then(m => ({ default: m.NotesPage })));
+const AccessControlPage = React.lazy(() => import('./pages/permission/AccessControlPage').then(m => ({ default: m.AccessControlPage })));
+const RoleManagePage = React.lazy(() => import('./pages/permission/RoleManagePage').then(m => ({ default: m.RoleManagePage })));
 import { getToken, getLoginUser, clearSession } from './auth/session';
 import {
   HomeOutlined,

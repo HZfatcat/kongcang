@@ -2,7 +2,7 @@
  * 周报 AI 生成工具（前端规则引擎）
  * 基于业务指标数据自动分析问题、建议和计划
  */
-import type { WeeklyMetrics } from '../pages/WeeklyReportPage';
+import type { WeeklyMetrics } from '../pages/weekly-report/WeeklyReportPage';
 
 /** 根据指标数据生成问题与阻碍列表 */
 export function generateRisks(metrics: WeeklyMetrics): string[] {
