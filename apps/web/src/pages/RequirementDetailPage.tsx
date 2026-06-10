@@ -79,6 +79,12 @@ export function RequirementDetailPage() {
     return (demandOverview?.recentRequirements ?? []).filter(r => r.issueType !== 1);
   }, [demandOverview]);
 
+  // 提取客服名称列表供筛选
+  const agentOptions = React.useMemo(() => {
+    const names = Array.from(new Set((agentOverview?.rows ?? []).map(r => r.agentName))).filter(Boolean);
+    return names.sort().map(name => ({ label: name, value: name }));
+  }, [agentOverview]);
+
   const columns = [
     { 
       title: 'ID', 
@@ -289,7 +295,7 @@ export function RequirementDetailPage() {
           <Space size="middle">
             <Space size={4}>
               <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>客服</span>
-              <Select allowClear placeholder="全部客服" style={{ width: 140 }} value={agentName} onChange={(value) => setAgentName(value ?? undefined)} options={[]} />
+              <Select allowClear placeholder="全部客服" style={{ width: 140 }} value={agentName} onChange={(value) => setAgentName(value ?? undefined)} options={agentOptions} />
             </Space>
             <Space size={4}>
               <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>日期</span>
