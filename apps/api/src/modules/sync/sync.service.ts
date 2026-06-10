@@ -1349,13 +1349,13 @@ export class SyncService {
         const agentMsgNum = extractNumber(rawPayload.agent_msg_num);
         const customerMsgNum = extractNumber(rawPayload.customer_msg_num);
 
-        // 本地计算结果优先(更准确，过滤了自动消息)，rawPayload 作为 fallback
-        // 仅当本地无法计算且 rawPayload 有值时，才使用 rawPayload
-        if (firstResponseTime === null && respSeconds !== null && respSeconds >= 0) {
-          firstResponseTime = respSeconds;
-        }
-        if (avgResponseTime === null && avgRespSeconds !== null && avgRespSeconds >= 0) {
+        // Udesk API 的 avg_resp_seconds 优先使用（与对话报表口径一致）
+        // 本地计算仅作为 fallback
+        if (avgRespSeconds !== null && avgRespSeconds >= 0) {
           avgResponseTime = avgRespSeconds;
+        }
+        if (respSeconds !== null && respSeconds >= 0) {
+          firstResponseTime = respSeconds;
         }
         // 注意：resolutionTime（平均对话时长）不使用上游 sustain_seconds，
         // 而是统一用 endedAt - startedAt 计算，确保与"开始到结束间隔"定义一致

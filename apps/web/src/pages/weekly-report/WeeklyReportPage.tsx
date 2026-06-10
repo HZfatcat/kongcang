@@ -40,8 +40,8 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchReportData } from '../../api/report';
-import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview } from '../../api/kpi';
+import { fetchReportData } from '../api/report';
+import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview, fetchOverview } from '../api/kpi';
 import {
   fetchUdescOverview as fetchUdeskOverview,
   fetchUdescDailyRatingStats as fetchUdeskDailyRatingStats,
@@ -55,11 +55,12 @@ import {
   runSync,
   runZouwuSync,
   fetchSyncProgress,
-} from '../../api/udesc';
-import { fetchOpportunitySummary } from '../../api/opportunity';
-import { sendReport, previewReport } from '../../api/weekly-report';
-import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../../types/kpi';
-import type { AgentProfile, UdescMetricsSummary } from '../../types/udesc';
+} from '../api/udesc';
+import { fetchOpportunitySummary } from '../api/opportunity';
+import { sendReport, previewReport } from '../api/weekly-report';
+import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../types/kpi';
+import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
+import { fetchTopProblems } from '../api/udesc';
 import { TeamReportView } from './TeamReportView';
 import { PersonalReportView } from './PersonalReportView';
 
@@ -79,15 +80,15 @@ function formatDate(d: dayjs.Dayjs | null | undefined): string {
  */
 function getWeekRange(weekOffset: number = 0): [dayjs.Dayjs, dayjs.Dayjs] {
   const today = dayjs();
-  // dayjs 中周日=0, 周一=1, ..., 周四=4, 周五=5, 周六=6
-  const thisThursday = today.day(4);
-  // 如果本周四还没到（周日~周三），取上周四作为当前周期结束日
-  const endDay = thisThursday.isAfter(today)
-    ? thisThursday.subtract(7, 'day')
-    : thisThursday;
-  const targetEnd = endDay.add(weekOffset * 7, 'day');
-  const startDay = targetEnd.subtract(6, 'day'); // 上周五
-  return [startDay, targetEnd];
+  // 上周五 = 今天往前推到最近一个周五（dayjs: 周日=0, 周五=5）
+  const dayOfWeek = today.day();
+  let daysSinceFriday = dayOfWeek - 5;
+  if (daysSinceFriday < 0) daysSinceFriday += 7; // 周四(4)→6, 周三(3)→5, ...
+  const lastFriday = today.subtract(daysSinceFriday, 'day').startOf('day');
+  // 加上周偏移
+  const startDay = lastFriday.add(weekOffset * 7, 'day');
+  const endDay = startDay.add(6, 'day').endOf('day'); // 到下周四
+  return [startDay, endDay];
 }
 
 /** 将比率 clamp 到 0~1 区间 */
@@ -581,6 +582,7 @@ export function WeeklyReportPage() {
   const [kpiOverview, setKpiOverview] = useState<KpiOverview | null>(null);
   const [demandOverview, setDemandOverview] = useState<DemandOverview | null>(null);
   const [annualDemandOverview, setAnnualDemandOverview] = useState<DemandOverview | null>(null);
+  const [annualKpiOverview, setAnnualKpiOverview] = useState<KpiOverview | null>(null);
   const [funnel, setFunnel] = useState<ConsultationFunnelOverview | null>(null);
   const [udescOverview, setUdeskOverview] = useState<Awaited<ReturnType<typeof fetchUdeskOverview>> | null>(null);
   const [dailyRatingStats, setDailyRatingStats] = useState<Awaited<ReturnType<typeof fetchUdeskDailyRatingStats>> | null>(null);
@@ -613,9 +615,9 @@ export function WeeklyReportPage() {
   const [htmlPreviewContent, setHtmlPreviewContent] = useState('');
   const [htmlPreviewLoading, setHtmlPreviewLoading] = useState(false);
 
-  // 新增编辑字段
+  // 新增编辑字段 — topQuestions 自动从数据源获取
   const [teamEditable, setTeamEditable] = useState({
-    topQuestions: [{ name: '项目相关', count: 228, pct: 54 }],
+    topQuestions: [] as { name: string; count: number; pct: number }[],
     risks: ['需求闭环滞后 — 当前部分需求因排期紧张未能及时关闭'],
     suggestions: ['优化平台自助帮助中心，引导用户自助解决常见问题'],
   });
@@ -786,11 +788,12 @@ export function WeeklyReportPage() {
     const end = formatDate(dateRange[1]);
     const annualStart = `${new Date().getFullYear()}-01-01`;
     try {
-      const [report, udeskOv, ratingStats, annualDemand, metricsSum, votes, ticketSummary, oppSummary, monthlyVotes, monthlyMets, monthlySat, agentCompletion] = await Promise.all([
+      const [report, udeskOv, ratingStats, annualDemand, annualKpi, metricsSum, votes, ticketSummary, oppSummary, monthlyVotes, monthlyMets, monthlySat, agentCompletion] = await Promise.all([
         fetchReportData(start, end).catch(() => null),
         fetchUdeskOverview({ startDate: start, endDate: end }).catch(() => null),
         fetchUdeskDailyRatingStats({ startDate: start, endDate: end }).catch(() => null),
         fetchDemandOverview({ startDate: annualStart, endDate: end }).catch(() => null),
+        fetchOverview({ startDate: annualStart, endDate: end }).catch(() => null),
         fetchUdeskMetricsSummary({ startDate: start, endDate: end }).catch(() => null),
         fetchUdeskVotes({ startDate: start, endDate: end, pageSize: 1 }).catch(() => null),
         fetchUdeskTicketSummary({ startDate: start, endDate: end }).catch(() => null),
@@ -803,6 +806,7 @@ export function WeeklyReportPage() {
       setKpiOverview(report?.kpiOverview ?? null);
       setDemandOverview(report?.demandOverview ?? null);
       setAnnualDemandOverview(annualDemand);
+      setAnnualKpiOverview(annualKpi);
       setFunnel(report?.funnel ?? null);
       setUdeskOverview(udeskOv);
       setDailyRatingStats(ratingStats);
@@ -844,6 +848,25 @@ export function WeeklyReportPage() {
     await Promise.all([loadTeamData(), loadPersonalData()]);
     setLoading(false);
   }, [loadTeamData, loadPersonalData]);
+
+  // 页面打开时自动加载数据（不再需要手动点击"同步刷新"）
+  useEffect(() => {
+    handleRefresh();
+  }, [dateRange, reportTab]);
+
+  // 自动加载高频问题TOP5
+  useEffect(() => {
+    if (!dateRange || !dateRange[0] || !dateRange[1]) return;
+    const start = formatDate(dateRange[0]);
+    const end = formatDate(dateRange[1]);
+    fetchTopProblems({ startDate: start, endDate: end })
+      .then((data) => {
+        setTeamEditable((prev) => ({ ...prev, topQuestions: data.topQuestions }));
+      })
+      .catch((err) => {
+        console.warn('获取高频问题TOP5失败:', err);
+      });
+  }, [dateRange]);
 
   // 同步 + 刷新（合并为一个按钮）
   const handleSync = useCallback(async () => {
@@ -919,26 +942,27 @@ export function WeeklyReportPage() {
     const w = demandOverview;
     // 年度累计数据（当年 1 月 1 日至周期结束，用于本周完成值 和 月度趋势）
     const ad = annualDemandOverview;
+    const ak = annualKpiOverview; // 年度 KPI 概览（满意度等）
     const f = funnel;
     const u = udescOverview;
     const ms = teamMetricsSummary;
     const mvs = monthlyVoteStats; // 月度投票统计
     const mm = monthlyMetrics; // 月度响应指标
 
-    // === 修改点4：本周完成值 = 2026-01-01 至报告周期结束的累计值 ===
-    // 需求关单率（年度累计）
+    // === 本周完成值 = 2026-01-01 至报告周期结束的年度累计值 ===
+    // 需求关单率（年度累计）。注意后端 totalIdentifiedCount 已排除长期演进
     const demandNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0);
-    const demandDenominator = (ad?.totalIdentifiedCount ?? 0) - (ad?.longTermCount ?? 0);
+    const demandDenominator = (ad?.totalIdentifiedCount ?? 0);
     const annualDemandCloseRate = demandDenominator > 0 ? demandNumerator / demandDenominator : 0;
 
-    // BUG关单率（年度累计）
+    // BUG关单率（年度累计）。bugCount 含长期演进，需减去
     const bugNumerator = (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
     const bugDenominator = (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
     const annualBugCloseRate = bugDenominator > 0 ? bugNumerator / bugDenominator : 0;
 
-    // 总关单率（年度累计）
-    const totalNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0) + (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
-    const totalDenominator = (ad?.totalIdentifiedCount ?? 0) - (ad?.longTermCount ?? 0) + (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
+    // 总关单率（年度累计）= 需求分母 + BUG分母
+    const totalNumerator = demandNumerator + bugNumerator;
+    const totalDenominator = (ad?.totalIdentifiedCount ?? 0) + (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
     const annualTotalCloseRate = totalDenominator > 0 ? totalNumerator / totalDenominator : 0;
 
     // 关单率全部 clamp 到 0~1
@@ -946,31 +970,34 @@ export function WeeklyReportPage() {
     const annualBugCloseRateClamped = clampRate(annualBugCloseRate);
     const annualTotalCloseRateClamped = clampRate(annualTotalCloseRate);
 
-    // 月度累计趋势（与主指标"截止当前完成值"口径一致）
-    let satisfactionRate = 0;
-    let problemResolutionRate = 0;
+    // 满意度 & 问题解决率：使用年度累计 KPI 数据
+    const annualSatisfactionRate = clampRate(ak?.satisfactionRate ?? 0);
+    const annualRatedSessions = ak?.ratedSessions ?? 0;
+
+    // 问题解决率：从月度投票统计数据计算累计值（已解决数 / 总投票数）
+    const mvsTotalVotes = mvs?.reduce((sum, m) => sum + m.totalVotes, 0) ?? 0;
+    const mvsTotalResolved = mvs?.reduce((sum, m) => sum + m.resolvedCount, 0) ?? 0;
+    const annualProblemResolutionRate = mvsTotalVotes > 0
+      ? clampRate(mvsTotalResolved / mvsTotalVotes)
+      : clampRate(ak?.satisfactionRate ?? 0); // 降级：使用满意度近似
+
+    // 月度趋势（按月独立统计，1-3月无数据时显示为0保持x轴连续）
     const satMonthly: { month: string; value: number }[] = [];
     const resMonthly: { month: string; value: number }[] = [];
 
-    // 使用月度累计满意度端点数据
     const msat = monthlySatisfaction;
     if (msat && msat.length > 0) {
-      // 主值：累计到最新月份 = getOverview 同口径
-      const last = msat[msat.length - 1];
-      satisfactionRate = clampRate(last.satisfactionRate);
-      problemResolutionRate = clampRate(last.problemResolutionRate);
-
       for (const m of msat) {
-        satMonthly.push({ month: m.month, value: clampRate(m.satisfactionRate) });
-        resMonthly.push({ month: m.month, value: clampRate(m.problemResolutionRate) });
+        satMonthly.push({ month: m.month, value: clampRate(m.satisfactionRate ?? 0) });
+        resMonthly.push({ month: m.month, value: clampRate(m.problemResolutionRate ?? 0) });
       }
     } else if (mvs && mvs.length > 0) {
       // 降级：使用月度投票统计数据（当月口径）
       const totalVotes = mvs.reduce((sum, m) => sum + m.totalVotes, 0);
       const totalSatisfied = mvs.reduce((sum, m) => sum + m.satisfiedCount, 0);
       const totalResolved = mvs.reduce((sum, m) => sum + m.resolvedCount, 0);
-      satisfactionRate = totalVotes > 0 ? clampRate(totalSatisfied / totalVotes) : 0;
-      problemResolutionRate = totalVotes > 0 ? clampRate(totalResolved / totalVotes) : 0;
+      const fallbackAnnualSatisfactionRate = totalVotes > 0 ? clampRate(totalSatisfied / totalVotes) : 0;
+      const fallbackAnnualProblemResolutionRate = totalVotes > 0 ? clampRate(totalResolved / totalVotes) : 0;
 
       for (const m of mvs.sort((a, b) => a.month.localeCompare(b.month))) {
         satMonthly.push({
@@ -984,8 +1011,8 @@ export function WeeklyReportPage() {
       }
     } else {
       // 降级：使用 KPI overview 数据
-      satisfactionRate = clampRate(s?.satisfactionRate ?? 0);
-      problemResolutionRate = clampRate(s?.satisfactionRate ?? 0);
+      const fallbackAnnualSatisfactionRate = clampRate(s?.satisfactionRate ?? 0);
+      const fallbackAnnualProblemResolutionRate = clampRate(s?.satisfactionRate ?? 0);
     }
 
     // === 修改点1：响应效率月度数据 ===
@@ -1029,9 +1056,13 @@ export function WeeklyReportPage() {
     // 咨询量
     const consultationCount = f?.periods?.reduce((sum, p) => sum + (p.consultationCount ?? 0), 0) ?? 0;
 
-    // 响应时长 - 使用 UdeskMetricsSummary 数据（本周完成值也用年度累计）
-    const avgFirstResponseTime: number | null = ms?.avgFirstResponseTime ?? null;
-    const avgResponseTime: number | null = ms?.avgResponseTime ?? null;
+    // 响应时长 - 从月度指标计算年度累计平均值
+    const avgFirstResponseTime: number | null = mm && mm.length > 0
+      ? Math.round(mm.filter(m => m.avgFirstResponseTime !== null).reduce((sum, m) => sum + (m.avgFirstResponseTime ?? 0), 0) / mm.filter(m => m.avgFirstResponseTime !== null).length) || null
+      : (ms?.avgFirstResponseTime ?? null);
+    const avgResponseTime: number | null = mm && mm.length > 0
+      ? Math.round(mm.filter(m => m.avgResponseTime !== null).reduce((sum, m) => sum + (m.avgResponseTime ?? 0), 0) / mm.filter(m => m.avgResponseTime !== null).length) || null
+      : (ms?.avgResponseTime ?? null);
     // 平均对话时长
     const avgSessionDuration: number | null = ms?.avgResolutionTime ?? null;
     // 实际出勤人数：按 topAgents 中实际有工作量的客服数（过滤掉零星会话）
@@ -1048,10 +1079,10 @@ export function WeeklyReportPage() {
       totalCloseMonthly,
       demandCloseMonthly,
       bugCloseMonthly,
-      // 修改点2：满意度 & 问题解决率使用修正后逻辑
-      satisfactionRate,
-      satisfactionRated: u?.ratedCount ?? s?.ratedSessions ?? 0,
-      problemResolutionRate,
+      // 满意度 & 问题解决率：使用年度累计值
+      satisfactionRate: annualSatisfactionRate,
+      satisfactionRated: annualRatedSessions,
+      problemResolutionRate: annualProblemResolutionRate,
       satMonthly,
       resMonthly,
       // 修改点1：添加响应效率月度数据
@@ -1062,10 +1093,10 @@ export function WeeklyReportPage() {
       consultationCount,
       returnVisitCount: u?.returnVisitCount ?? null,
       huaweiCloudUnbind: null,
-      newDemands: (w?.totalIdentifiedCount ?? 0) - (w?.longTermCount ?? 0),
-      newBugs: (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0),
-      closedDemands: (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0),
-      closedBugs: (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0),
+      newDemands: (ad?.totalIdentifiedCount ?? 0),
+      newBugs: (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0),
+      closedDemands: (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0),
+      closedBugs: (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0),
       activeAgentCount,
       agentCount: u?.agentCount ?? 0,
       totalSessions: u?.totalSessions ?? consultationCount,
@@ -1113,7 +1144,7 @@ export function WeeklyReportPage() {
         return efficiencies.reduce((sum, e) => sum + e, 0) / efficiencies.length;
       })(),
     };
-  }, [kpiOverview, demandOverview, annualDemandOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary, monthlyVoteStats, monthlyMetrics, monthlySatisfaction, agentOverview, agents]);
+  }, [kpiOverview, demandOverview, annualDemandOverview, annualKpiOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary, monthlyVoteStats, monthlyMetrics, monthlySatisfaction, agentOverview, agents]);
 
   // 团队数据就绪后计算环比
   useEffect(() => {

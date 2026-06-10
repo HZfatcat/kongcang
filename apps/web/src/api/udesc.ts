@@ -450,3 +450,17 @@ export async function fetchNotesData(params: {
   const resp = await apiClient.get<NotesResponse>('/udesc/notes', { params });
   return resp.data;
 }
+
+/** 获取高频问题TOP5 */
+export interface TopProblemsResponse {
+  topQuestions: { name: string; count: number; pct: number }[];
+  total: number;
+}
+
+export async function fetchTopProblems(params: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<TopProblemsResponse> {
+  const resp = await apiClient.get<TopProblemsResponse>('/udesc/notes/top-problems', { params });
+  return resp.data;
+}

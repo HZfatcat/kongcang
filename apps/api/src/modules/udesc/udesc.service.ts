@@ -661,25 +661,33 @@ export class UdescService {
       }
       const bucket = monthMap.get(monthKey)!;
 
-      // 优先级1：使用预计算指标表（由 sync 服务计算，最准确）
-      if (s.metrics?.firstResponseTime != null) {
+      // 优先级1：使用 rawPayload 的上游数据（与对话报表一致）
+      const raw = s.rawPayload as Record<string, unknown> | null;
+      const rawFrt = raw ? extractNum(raw.resp_seconds) : null;
+      const rawAvg = raw ? extractNum(raw.avg_resp_seconds) : null;
+
+      let hasFrtFromPayload = false;
+      let hasAvgFromPayload = false;
+
+      if (rawFrt !== null) {
+        bucket.firstResponseTimes.push(rawFrt);
+        hasFrtFromPayload = true;
+      }
+      if (rawAvg !== null) {
+        bucket.responseTimes.push(rawAvg);
+        hasAvgFromPayload = true;
+      }
+
+      // 优先级2：使用预计算指标表（本地计算值作为 fallback）
+      if (!hasFrtFromPayload && s.metrics?.firstResponseTime != null) {
         bucket.firstResponseTimes.push(s.metrics.firstResponseTime);
       }
-      if (s.metrics?.avgResponseTime != null && s.metrics.avgResponseTime > 0) {
+      if (!hasAvgFromPayload && s.metrics?.avgResponseTime != null && s.metrics.avgResponseTime > 0) {
         bucket.responseTimes.push(s.metrics.avgResponseTime);
       }
 
-      // 优先级2：如果 metrics 表缺失，尝试从 session.rawPayload 读取
-      if (!s.metrics) {
-        const raw = s.rawPayload as Record<string, unknown> | null;
-        const rawFrt = raw ? extractNum(raw.resp_seconds) : null;
-        const rawAvg = raw ? extractNum(raw.avg_resp_seconds) : null;
-
-        if (rawFrt !== null) bucket.firstResponseTimes.push(rawFrt);
-        if (rawAvg !== null) bucket.responseTimes.push(rawAvg);
-
-        // 优先级3：rawPayload 也缺失时，回退到消息时间戳计算
-        if (rawFrt === null || rawAvg === null) {
+      // 优先级3：rawPayload 也缺失时，回退到消息时间戳计算
+      if (!hasFrtFromPayload && !hasAvgFromPayload && !s.metrics) {
           const agentMsgs = s.messages.filter((m) =>
             !isSystemMessage(m.content) && (
               isAgentSenderType(m.senderType) ||
@@ -731,7 +739,6 @@ export class UdescService {
               bucket.responseTimes.push(Math.round(pairResponseTimes.reduce((a, b) => a + b, 0) / pairResponseTimes.length));
             }
           }
-        }
       }
     }
 
@@ -2367,5 +2374,40 @@ export class UdescService {
       page,
       totalPages: Math.ceil(total / perPage),
     };
+  }
+
+  /** 获取问题类型TOP5（按 problemType1 统计） */
+  async getTopProblems(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const records = await this.prisma.udescBusinessNote.findMany({
+      where: {
+        createdAt: { gte: start, lte: end },
+        problemType1: { not: null },
+      },
+      select: { problemType1: true },
+    });
+
+    // 按 problemType1 分组统计
+    const countMap = new Map<string, number>();
+    for (const r of records) {
+      const key = r.problemType1?.trim() || '';
+      if (key) {
+        countMap.set(key, (countMap.get(key) ?? 0) + 1);
+      }
+    }
+
+    // 排序取 TOP5
+    const total = records.length;
+    const top5 = Array.from(countMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({
+        name,
+        count,
+        pct: total > 0 ? Math.round((count / total) * 100) : 0,
+      }));
+
+    return { topQuestions: top5, total };
   }
 }

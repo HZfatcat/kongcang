@@ -47,8 +47,8 @@ export async function fetchProductModuleDistribution(params: {
 
 export interface MonthlySatisfactionItem {
   month: string;
-  satisfactionRate: number;
-  problemResolutionRate: number;
+  satisfactionRate: number | null;
+  problemResolutionRate: number | null;
 }
 
 /** 月度累计满意度 & 问题解决率趋势（与主指标"截止当前完成值"口径一致） */

@@ -210,4 +210,9 @@ export class UdescController {
       perPage: query.perPage,
     });
   }
+
+  @Get('notes/top-problems')
+  getTopProblems(@Query() query: UdescDateRangeDto) {
+    return this.udescService.getTopProblems(query.startDate, query.endDate);
+  }
 }
