@@ -953,6 +953,8 @@ export function DashboardPage({ initialMenuKey = 'satisfaction' }: { initialMenu
                 current: page,
                 pageSize,
                 total,
+                showSizeChanger: true,
+                showTotal: (t) => `共 ${t} 条`,
                 onChange: (nextPageNumber, nextPageSizeNumber) => {
                   void reload(nextPageNumber, nextPageSizeNumber, sessionAgentFilters);
                 },
