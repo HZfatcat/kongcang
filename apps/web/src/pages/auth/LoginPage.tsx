@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Card, Space, Typography } from 'antd';
-import { accountGetState } from '../api/account';
-import { setLoginUser } from '../auth/session';
+import { accountGetState } from '../../api/account';
+import { setLoginUser } from '../../auth/session';
 
 const DEFAULT_CORP: 'corp' | 'csdn' = 'corp';
 

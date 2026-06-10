@@ -2295,7 +2295,7 @@ export class UdescService {
   async getNotes(params: {
     startDate?: string;
     endDate?: string;
-    category?: 'im' | 'call';
+    category?: 'im' | 'call' | 'ticket';
     keyword?: string;
     page?: number;
     perPage?: number;
@@ -2307,6 +2307,23 @@ export class UdescService {
     const where: Record<string, unknown> = {
       createdAt: { gte: start, lte: end },
     };
+
+    // 根据来源分类过滤（通过 ID 前缀判断）
+    if (params.category) {
+      if (params.category === 'im') {
+        where.id = { startsWith: 'note_im_' };
+      } else if (params.category === 'call') {
+        where.OR = [
+          { id: { startsWith: 'note_call_' } },
+          { id: { startsWith: 'call_' } },
+        ];
+      } else if (params.category === 'ticket') {
+        where.OR = [
+          { id: { startsWith: 'note_ticket_' } },
+          { id: { startsWith: 'ticket_' } },
+        ];
+      }
+    }
 
     if (params.keyword) {
       where.OR = [
@@ -2328,10 +2345,10 @@ export class UdescService {
     ]);
 
     const items = records.map((rec) => {
-      // 从 id 推断来源
+      // 从 id 推断来源：支持 note_ 前缀和直接前缀两种格式
       let source = 'im';
-      if (rec.id.startsWith('ticket_')) source = 'ticket';
-      else if (rec.id.startsWith('call_')) source = 'call';
+      if (rec.id.startsWith('note_ticket_') || rec.id.startsWith('ticket_')) source = 'ticket';
+      else if (rec.id.startsWith('note_call_') || rec.id.startsWith('call_')) source = 'call';
       return {
         id: rec.id,
         time: rec.createdAt ? toLocalISOString(rec.createdAt) : '',

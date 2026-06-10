@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Table, Typography, Tag, Space, Button, Switch, message, DatePicker, Row, Col, Statistic, Spin, Rate, Modal, Form, Input, Select, Popconfirm } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../api/client';
-import { ResizableTable } from '../components/ResizableTable';
-import { fetchUdescAgents, fetchUdescAgentPerformance, fetchAgents, fetchUdescAgentIds, upsertAgent, deleteAgent, upsertWecomEmployee, deleteWecomEmployee } from '../api/udesc';
-import type { UdescAgentDetail, UdescAgentPerformance, AgentProfile } from '../types/udesc';
+import { apiClient } from '../../api/client';
+import { ResizableTable } from '../../components/ResizableTable';
+import { fetchUdescAgents, fetchUdescAgentPerformance, fetchAgents, fetchUdescAgentIds, upsertAgent, deleteAgent, upsertWecomEmployee, deleteWecomEmployee } from '../../api/udesc';
+import type { UdescAgentDetail, UdescAgentPerformance, AgentProfile } from '../../types/udesc';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
 

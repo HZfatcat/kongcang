@@ -13,8 +13,8 @@ import {
   type UdescTicketListResp,
   type UdescTicketSummary,
   type UdescTicketDailyStats,
-} from '../api/udesc';
-import type { AgentProfile } from '../types/udesc';
+} from '../../api/udesc';
+import type { AgentProfile } from '../../types/udesc';
 
 const { RangePicker } = DatePicker;
 

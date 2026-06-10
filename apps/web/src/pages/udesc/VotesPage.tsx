@@ -3,8 +3,8 @@ import { Card, DatePicker, Row, Col, Statistic, Table, Tag, Typography, Spin, me
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
-import { fetchUdescVotes } from '../api/udesc';
-import type { UdescSessionVote, UdescVoteListResp } from '../types/udesc';
+import { fetchUdescVotes } from '../../api/udesc';
+import type { UdescSessionVote, UdescVoteListResp } from '../../types/udesc';
 
 const { RangePicker } = DatePicker;
 

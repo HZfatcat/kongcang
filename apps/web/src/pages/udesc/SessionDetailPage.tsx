@@ -27,15 +27,15 @@ import {
   fetchUdescSessions,
   fetchAgents,
   fetchUdescDailyRatingStats,
-} from '../api/udesc';
+} from '../../api/udesc';
 import type {
   AgentProfile,
   UdescSessionRecord,
   UdescTreeNode,
   UdescOverview,
   UdescDailyRatingStats,
-} from '../types/udesc';
-import { fetchOpportunityList, upsertOpportunity } from '../api/opportunity';
+} from '../../types/udesc';
+import { fetchOpportunityList, upsertOpportunity } from '../../api/opportunity';
 
 const { RangePicker } = DatePicker;
 

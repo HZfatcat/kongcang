@@ -932,9 +932,9 @@ export class SyncService {
               ticketSynced += 1;
               // 同时将工单写入业务记录表，统一展示三类业务记录
               // 使用与IM业务记录相同的 mapBusinessNote 解析级联问题类型
-              let ticketPt1 = ticket.source ?? '';
-              let ticketPt2 = ticket.priority ?? '';
-              let ticketPt3 = ticket.subject ?? '';
+              let ticketPt1 = '';
+              let ticketPt2 = '';
+              let ticketPt3 = '';
               try {
                 if (ticket.rawPayload) {
                   const mapped = await this.udescClient.mapBusinessNote(ticket.rawPayload);
@@ -943,7 +943,7 @@ export class SyncService {
                   if (mapped.problemType3) ticketPt3 = mapped.problemType3;
                 }
               } catch {
-                // 级联解析失败则降级
+                // 级联解析失败，分类字段保持空
               }
               try {
                 await this.prisma.udescBusinessNote.upsert({
@@ -1091,11 +1091,13 @@ export class SyncService {
             for (const raw of noteResp.records) {
               const mapped = await this.udescClient.mapBusinessNote(raw);
               if (!mapped.id) continue;
+              // 给 ID 加上来源前缀，便于前端分类展示
+              const notePrefixedId = `note_${category}_${mapped.id}`;
               try {
               await this.prisma.udescBusinessNote.upsert({
-                where: { id: mapped.id },
+                where: { id: notePrefixedId },
                 create: {
-                  id: mapped.id,
+                  id: notePrefixedId,
                   agentNickName: mapped.agentNickName ?? null,
                   customerNickName: mapped.customerNickName ?? null,
                   createdAt: this.asDateOrNull(mapped.createdAt),
@@ -1126,6 +1128,26 @@ export class SyncService {
           noteHasMore = notePage <= totalPages;
         }
         this.progress.businessNoteSynced = businessNoteSynced;
+
+        // 清理旧的无前缀记录（来自旧版同步），避免脏数据影响来源统计
+        try {
+          const cleaned = await this.prisma.udescBusinessNote.deleteMany({
+            where: {
+              NOT: {
+                OR: [
+                  { id: { startsWith: 'note_' } },
+                  { id: { startsWith: 'call_' } },
+                  { id: { startsWith: 'ticket_' } },
+                ],
+              },
+            },
+          });
+          if (cleaned.count > 0) {
+            this.logger.log(`已清理 ${cleaned.count} 条旧版无前缀业务记录`);
+          }
+        } catch (e) {
+          this.logger.warn(`清理旧业务记录失败: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, Space, Spin, Typography } from 'antd';
 import { AxiosError } from 'axios';
-import { accountWxLogin } from '../api/account';
-import { setLoginUser } from '../auth/session';
+import { accountWxLogin } from '../../api/account';
+import { setLoginUser } from '../../auth/session';
 
 function getQueryValue(key: string) {
   const params = new URLSearchParams(window.location.search);

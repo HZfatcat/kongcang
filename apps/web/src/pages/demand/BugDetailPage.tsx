@@ -1,9 +1,9 @@
 import React from 'react';
 import { Card, Row, Col, Typography, DatePicker, Space, Tag, Tabs, Select, Spin } from 'antd';
-import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../api/kpi';
-import type { ProductModuleDistribution, AgentOverview } from '../types/kpi';
-import { ResizableTable } from '../components/ResizableTable';
-import { ProductModuleChart } from '../components/ProductModuleChart';
+import { useKpi, fetchProductModuleDistribution, fetchAgentOverview } from '../../api/kpi';
+import type { ProductModuleDistribution, AgentOverview } from '../../types/kpi';
+import { ResizableTable } from '../../components/ResizableTable';
+import { ProductModuleChart } from '../../components/ProductModuleChart';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;

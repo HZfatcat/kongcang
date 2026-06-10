@@ -3,7 +3,7 @@ import {
   Card, Table, Tag, Space, Button, message, Modal, Form, Select, Typography, Popconfirm, Input
 } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUserPermissionList, bindUserRoles, clearUserRoles, fetchUserAuthDetail, UserPermission } from '../api/permission';
+import { fetchUserPermissionList, bindUserRoles, clearUserRoles, fetchUserAuthDetail, UserPermission } from '../../api/permission';
 
 const { Text } = Typography;
 const { Option } = Select;

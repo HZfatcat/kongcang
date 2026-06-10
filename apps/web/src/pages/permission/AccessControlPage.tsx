@@ -11,7 +11,7 @@ import {
   fetchRoleList,
   UserPermission,
   RoleItem,
-} from '../api/permission';
+} from '../../api/permission';
 
 const { Text } = Typography;
 const { Option } = Select;

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Table, Tag, Space, Button, message, Modal, Select, Typography, message as antdMessage, Input } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchUserPermissionList, saveDataScope, fetchUserDataScope, UserPermission } from '../api/permission';
+import { fetchUserPermissionList, saveDataScope, fetchUserDataScope, UserPermission } from '../../api/permission';
 
 const { Text } = Typography;
 const { Option } = Select;

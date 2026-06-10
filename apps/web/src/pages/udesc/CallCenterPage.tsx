@@ -34,9 +34,9 @@ import {
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import ReactECharts from 'echarts-for-react';
-import { fetchCallCenterData, fetchUdescAgents } from '../api/udesc';
-import type { CallCenterStats } from '../api/udesc';
-import type { UdescAgentDetail } from '../types/udesc';
+import { fetchCallCenterData, fetchUdescAgents } from '../../api/udesc';
+import type { CallCenterStats } from '../../api/udesc';
+import type { UdescAgentDetail } from '../../types/udesc';
 
 dayjs.extend(weekOfYear);
 

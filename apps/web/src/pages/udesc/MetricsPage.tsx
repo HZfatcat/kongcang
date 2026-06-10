@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, DatePicker, Table, Typography, Spin, message, Select, Space, Button } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, fetchUdescMetricsSummary, type AgentMetricsSummary } from '../api/udesc';
-import type { UdescSessionMetrics, AgentProfile, UdescMetricsSummary } from '../types/udesc';
+import { fetchUdescMetrics, fetchAgents, fetchUdescAgentMetricsSummary, fetchUdescMetricsSummary, type AgentMetricsSummary } from '../../api/udesc';
+import type { UdescSessionMetrics, AgentProfile, UdescMetricsSummary } from '../../types/udesc';
 
 const { RangePicker } = DatePicker;
 

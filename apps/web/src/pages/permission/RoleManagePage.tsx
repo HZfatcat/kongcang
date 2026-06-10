@@ -11,7 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchRoleList, addRole, editRole, deleteRole, fetchRoleUsers,
   fetchRolePagePerms, saveRolePagePerms, RoleItem, PagePerm,
-} from '../api/permission';
+} from '../../api/permission';
 
 const { Text } = Typography;
 

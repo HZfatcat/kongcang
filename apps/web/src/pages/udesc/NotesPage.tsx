@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, DatePicker, Table, Typography, Spin, Alert, Row, Col, Statistic, Tag, Button } from 'antd';
 import { DownloadOutlined, FileTextOutlined, MessageOutlined, PhoneOutlined, SendOutlined, BarChartOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { FilterValue, SorterResult } from 'antd/es/table/interface';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { fetchNotesData, NoteRecord } from '../api/udesc';
+import { fetchNotesData, NoteRecord } from '../../api/udesc';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -49,11 +50,26 @@ export function NotesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [error, setError] = useState<string | null>(null);
-  // 当前表格展示的数据（经客户端筛选后）
-  const [tableData, setTableData] = useState<NoteRecord[]>([]);
+  // 服务端筛选状态
+  const [filters, setFilters] = useState<Record<string, FilterValue | null>>({});
+  const [category, setCategory] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
     dayjs().subtract(30, 'day'), dayjs(),
   ]);
+
+  // 根据当前筛选条件计算展示数据
+  const filteredData = useMemo(() => {
+    let result = data;
+    for (const [key, value] of Object.entries(filters)) {
+      if (value && value.length > 0) {
+        result = result.filter((r) => {
+          const recordVal = (r as any)[key];
+          return value.includes(recordVal);
+        });
+      }
+    }
+    return result;
+  }, [data, filters]);
 
   // 提取各列的筛选选项
   const distinctSources = useMemo(() =>
@@ -77,7 +93,6 @@ export function NotesPage() {
     {
       title: '来源', dataIndex: 'source', key: 'source', width: 100,
       filters: distinctSources.map((s) => ({ text: sourceLabels[s] || s, value: s })),
-      onFilter: (value, record) => record.source === value,
       render: (v: string) => (
         <Tag icon={sourceIcons[v] || null} color={sourceColors[v] || 'default'}>
           {sourceLabels[v] || v || '--'}
@@ -123,25 +138,25 @@ export function NotesPage() {
       const result = await fetchNotesData({
         startDate: dateRange[0].format('YYYY-MM-DD'),
         endDate: dateRange[1].format('YYYY-MM-DD'),
+        category: category as any,
         page, perPage: pageSize,
       });
       setData(result.records);
-      setTableData(result.records);
       setTotal(result.total);
     } catch (err: any) {
       setError(err.message || '加载数据失败');
     } finally {
       setLoading(false);
     }
-  }, [dateRange, page, pageSize]);
+  }, [dateRange, category, page, pageSize]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // 统计摘要 — 基于当前表格展示数据（含客户端筛选）
+  // 统计摘要 — 基于当前筛选后的数据
   const { p1Dist, p2Dist } = useMemo(() => {
     const p1 = new Map<string, number>();
     const p2 = new Map<string, number>();
-    for (const r of tableData) {
+    for (const r of filteredData) {
       const p1k = r.problemType1 || '未分类';
       p1.set(p1k, (p1.get(p1k) || 0) + 1);
       if (r.problemType2) p2.set(r.problemType2, (p2.get(r.problemType2) || 0) + 1);
@@ -149,7 +164,7 @@ export function NotesPage() {
     const sort = (m: Map<string, number>) =>
       Array.from(m.entries()).sort((a, b) => b[1] - a[1]).slice(0, 12);
     return { p1Dist: sort(p1), p2Dist: sort(p2) };
-  }, [tableData]);
+  }, [filteredData]);
 
   const barOption1 = useMemo(() => ({
     tooltip: { trigger: 'axis' as const, axisPointer: { type: 'shadow' as const } },
@@ -187,19 +202,19 @@ export function NotesPage() {
             />
           </Col>
           <Col flex="none">
-            <Button icon={<DownloadOutlined />} onClick={() => exportNotesCsv(tableData)} disabled={tableData.length === 0}>
+            <Button icon={<DownloadOutlined />} onClick={() => exportNotesCsv(filteredData)} disabled={filteredData.length === 0}>
               导出CSV
             </Button>
           </Col>
         </Row>
       </Card>
 
-      {/* 统计摘要 — 条形图分布（基于当前筛选结果） */}
-      {!loading && !error && tableData.length > 0 && (
+      {/* 统计摘要 — 基于服务端筛选结果（总数来自服务端） */}
+      {!loading && !error && total > 0 && (
         <Card size="small" style={{ marginBottom: 16 }}>
           <Row gutter={16}>
             <Col span={4}>
-              <Statistic title="记录总数" value={tableData.length} prefix={<FileTextOutlined />} valueStyle={{ color: '#1890ff' }} />
+              <Statistic title="记录总数" value={total} prefix={<FileTextOutlined />} valueStyle={{ color: '#1890ff' }} />
             </Col>
             <Col span={10}>
               <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}><BarChartOutlined /> 一级分类分布</div>
@@ -227,14 +242,20 @@ export function NotesPage() {
           dataSource={data}
           rowKey="id"
           scroll={{ x: 1300 }}
-          onChange={(pagination, filters, sorter, extra) => {
-            setTableData(extra.currentDataSource);
+          onChange={(pagination, tableFilters, sorter, extra) => {
+            // 更新分页
+            if (pagination.current) setPage(pagination.current);
+            if (pagination.pageSize) setPageSize(pagination.pageSize);
+            setFilters(tableFilters);
+            // 更新来源筛选（触发服务端重新加载）
+            const srcFilter = (tableFilters as any)?.source;
+            const newCategory = srcFilter?.length === 1 ? srcFilter[0] : undefined;
+            setCategory(newCategory || undefined);
           }}
           pagination={{
             current: page, pageSize, total,
             showSizeChanger: true,
             showTotal: (t) => `共 ${t} 条`,
-            onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           }}
           size="small"
         />

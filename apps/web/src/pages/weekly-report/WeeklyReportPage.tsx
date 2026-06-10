@@ -40,8 +40,8 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchReportData } from '../api/report';
-import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview } from '../api/kpi';
+import { fetchReportData } from '../../api/report';
+import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview } from '../../api/kpi';
 import {
   fetchUdescOverview as fetchUdeskOverview,
   fetchUdescDailyRatingStats as fetchUdeskDailyRatingStats,
@@ -55,11 +55,11 @@ import {
   runSync,
   runZouwuSync,
   fetchSyncProgress,
-} from '../api/udesc';
-import { fetchOpportunitySummary } from '../api/opportunity';
-import { sendReport, previewReport } from '../api/weekly-report';
-import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../types/kpi';
-import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
+} from '../../api/udesc';
+import { fetchOpportunitySummary } from '../../api/opportunity';
+import { sendReport, previewReport } from '../../api/weekly-report';
+import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../../types/kpi';
+import type { AgentProfile, UdescMetricsSummary } from '../../types/udesc';
 import { TeamReportView } from './TeamReportView';
 import { PersonalReportView } from './PersonalReportView';
 

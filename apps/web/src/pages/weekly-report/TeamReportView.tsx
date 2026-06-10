@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import type { WeeklyMetrics } from './WeeklyReportPage';
-import { generateRisks, generateSuggestions, generateNextPlan } from '../utils/reportAI';
+import { generateRisks, generateSuggestions, generateNextPlan } from '../../utils/reportAI';
 
 // ====== 工具样式 ======
 const styles = {

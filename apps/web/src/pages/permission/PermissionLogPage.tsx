@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Table, Tag, Space, Button, DatePicker, Select, Typography, Input } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPermissionLogs, exportPermissionLogs, PermissionLogItem } from '../api/permission';
+import { fetchPermissionLogs, exportPermissionLogs, PermissionLogItem } from '../../api/permission';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;

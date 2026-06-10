@@ -34,8 +34,8 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
 import ReactECharts from 'echarts-for-react';
-import { ProductModuleChart } from '../components/ProductModuleChart';
-import { fetchConsultationFunnel, fetchDemandOverview, fetchAgentOverview, fetchProductModuleDistribution } from '../api/kpi';
+import { ProductModuleChart } from '../../components/ProductModuleChart';
+import { fetchConsultationFunnel, fetchDemandOverview, fetchAgentOverview, fetchProductModuleDistribution } from '../../api/kpi';
 import {
   deleteOpportunity,
   fetchOpportunityList,
@@ -43,7 +43,7 @@ import {
   importOpportunitiesFromCsv,
   updateOpportunityStatus,
   upsertOpportunity,
-} from '../api/opportunity';
+} from '../../api/opportunity';
 import {
   deleteAgent,
   fetchZouwuFeedbackStats,
@@ -70,7 +70,7 @@ import {
   deleteWecomEmployee,
   clearUdescData,
   smartFix,
-} from '../api/udesc';
+} from '../../api/udesc';
 import type {
   AgentProfile,
   WecomEmployee,
@@ -84,10 +84,10 @@ import type {
   UdescSessionRecord,
   UdescTreeNode,
   ZouwuFeedbackStatistics,
-} from '../types/udesc';
-import type { ConsultationFunnelOverview, DemandOverview, AgentOverview, ProductModuleDistribution } from '../types/kpi';
-import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../types/opportunity';
-import { clearSession, getLoginUser } from '../auth/session';
+} from '../../types/udesc';
+import type { ConsultationFunnelOverview, DemandOverview, AgentOverview, ProductModuleDistribution } from '../../types/kpi';
+import type { OpportunityRecord, OpportunitySourceType, OpportunityStatus, OpportunitySummary } from '../../types/opportunity';
+import { clearSession, getLoginUser } from '../../auth/session';
 
 const { RangePicker } = DatePicker;
 

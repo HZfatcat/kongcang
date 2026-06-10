@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Table, Tag, Space, Button, message, Modal, Tree, Typography, Spin, Select } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchRoleList, fetchMenuTree, fetchRoleMenus, saveRoleMenus, RoleItem, MenuTreeItem } from '../api/permission';
+import { fetchRoleList, fetchMenuTree, fetchRoleMenus, saveRoleMenus, RoleItem, MenuTreeItem } from '../../api/permission';
 
 const { Text } = Typography;
 const { Option } = Select;
