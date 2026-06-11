@@ -160,10 +160,6 @@ export class UdescTicketQueryDto extends UdescDateRangeDto {
 
   @IsOptional()
   @IsString()
-  priority?: string;
-
-  @IsOptional()
-  @IsString()
   sortBy?: string;
 
   @IsOptional()

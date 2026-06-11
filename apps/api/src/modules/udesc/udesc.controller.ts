@@ -150,7 +150,6 @@ export class UdescController {
       endDate: query.endDate,
       status: query.status,
       assigneeId: query.assigneeId,
-      priority: query.priority,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       page: query.page,

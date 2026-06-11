@@ -38,7 +38,6 @@ export function TicketsPage() {
   });
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
   const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -51,8 +50,8 @@ export function TicketsPage() {
   const [page, setPageState] = useState(pageFromUrl);
   const [pageSize, setPageSizeState] = useState(pageSizeFromUrl);
 
-  const stateRef = useRef({ page, pageSize, sortBy, sortOrder, statusFilter, priorityFilter, assigneeFilter, range });
-  stateRef.current = { page, pageSize, sortBy, sortOrder, statusFilter, priorityFilter, assigneeFilter, range };
+  const stateRef = useRef({ page, pageSize, sortBy, sortOrder, statusFilter, assigneeFilter, range });
+  stateRef.current = { page, pageSize, sortBy, sortOrder, statusFilter, assigneeFilter, range };
 
   const setPage = useCallback((p: number) => {
     setPageState(p);
@@ -93,14 +92,13 @@ export function TicketsPage() {
 
   // 加载工单列表
   const loadData = useCallback(async (p: number, ps: number) => {
-    const { sortBy, sortOrder, statusFilter, priorityFilter, assigneeFilter, range } = stateRef.current;
+    const { sortBy, sortOrder, statusFilter, assigneeFilter, range } = stateRef.current;
     setLoading(true);
     try {
       const resp = await fetchUdescTickets({
         startDate: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         endDate: range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
         status: statusFilter,
-        priority: priorityFilter,
         assigneeId: assigneeFilter,
         sortBy,
         sortOrder,
@@ -152,7 +150,7 @@ export function TicketsPage() {
     loadData(page, pageSize);
     loadSummary();
     loadDailyStats();
-  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, sortBy, sortOrder, statusFilter, priorityFilter, assigneeFilter]);
+  }, [apiRange.startDateIso, apiRange.endDateIso, page, pageSize, sortBy, sortOrder, statusFilter, assigneeFilter]);
 
   // 表格分页/排序/筛选变化
   const handleTableChange = (pagination: TablePaginationConfig, filters: any, sorter: any) => {
@@ -168,11 +166,6 @@ export function TicketsPage() {
     } else {
       setStatusFilter(undefined);
     }
-    if (filters.priority) {
-      setPriorityFilter(filters.priority[0]);
-    } else {
-      setPriorityFilter(undefined);
-    }
     if (filters.assigneeName) {
       setAssigneeFilter(filters.assigneeName[0]);
     } else {
@@ -182,18 +175,12 @@ export function TicketsPage() {
 
   // 状态映射
   const statusColorMap: Record<string, string> = {
-    '新工单': 'blue',
-    '受理中': 'processing',
-    '等待回复': 'orange',
+    '开启': 'blue',
+    '解决中': 'processing',
     '已解决': 'green',
     '已关闭': 'default',
   };
 
-  const priorityColorMap: Record<string, string> = {
-    '高': 'red',
-    '中': 'orange',
-    '低': 'green',
-  };
 
   // 列定义
   const columns: ColumnsType<UdescTicket> = [
@@ -223,19 +210,6 @@ export function TicketsPage() {
       ],
       filteredValue: statusFilter ? [statusFilter] : null,
       render: (v: string) => v ? <Tag color={statusColorMap[v] || 'default'}>{v}</Tag> : '-',
-    },
-    {
-      title: '优先级',
-      dataIndex: 'priority',
-      width: 80,
-      sorter: true,
-      filters: [
-        { text: '高', value: '高' },
-        { text: '标准', value: '标准' },
-        { text: '低', value: '低' },
-      ],
-      filteredValue: priorityFilter ? [priorityFilter] : null,
-      render: (v: string) => v ? <Tag color={priorityColorMap[v] || 'default'}>{v}</Tag> : '-',
     },
     {
       title: '受理人',
@@ -320,23 +294,10 @@ export function TicketsPage() {
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { label: '新工单', value: '新工单' },
-              { label: '受理中', value: '受理中' },
-              { label: '等待回复', value: '等待回复' },
+              { label: '开启', value: '开启' },
+              { label: '解决中', value: '解决中' },
               { label: '已解决', value: '已解决' },
               { label: '已关闭', value: '已关闭' },
-            ]}
-          />
-          <Select
-            placeholder="优先级筛选"
-            allowClear
-            style={{ width: 100 }}
-            value={priorityFilter}
-            onChange={setPriorityFilter}
-            options={[
-              { label: '高', value: '高' },
-              { label: '中', value: '中' },
-              { label: '低', value: '低' },
             ]}
           />
           <Select
@@ -471,9 +432,6 @@ export function TicketsPage() {
             <Descriptions.Item label="主题" span={2}>{selectedTicket.subject || '-'}</Descriptions.Item>
             <Descriptions.Item label="状态">
               {selectedTicket.status ? <Tag color={statusColorMap[selectedTicket.status] || 'default'}>{selectedTicket.status}</Tag> : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="优先级">
-              {selectedTicket.priority ? <Tag color={priorityColorMap[selectedTicket.priority] || 'default'}>{selectedTicket.priority}</Tag> : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="受理人">{selectedTicket.assigneeName || '-'}</Descriptions.Item>
             <Descriptions.Item label="用户">{selectedTicket.userName || '-'}</Descriptions.Item>

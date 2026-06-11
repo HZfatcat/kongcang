@@ -1912,7 +1912,6 @@ export class UdescService {
     endDate?: string;
     status?: string;
     assigneeId?: string;
-    priority?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     page?: number;
@@ -1933,10 +1932,6 @@ export class UdescService {
     if (params.assigneeId) {
       where.assigneeId = params.assigneeId;
     }
-    if (params.priority) {
-      where.priority = params.priority;
-    }
-
     const orderBy: any = {};
     orderBy[sortBy] = sortOrder;
 

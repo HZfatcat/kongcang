@@ -323,7 +323,6 @@ export async function fetchUdescTickets(params: {
   endDate?: string;
   status?: string;
   assigneeId?: string;
-  priority?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   page?: number;
