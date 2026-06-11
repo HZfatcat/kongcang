@@ -988,7 +988,7 @@ export class SyncService {
       // 同步通话记录
       this.progress.note = '同步通话记录';
       try {
-        const now = syncStartedAt;
+        const now = new Date(); // 使用当前时间而非 syncStartedAt，确保涵盖最新数据
         // 如果有手动指定日期范围，使用手动范围；否则只同步最近 30 天
         const callLogStart = manualStartDate ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const callLogEnd = manualEndDate ?? now;
@@ -1071,7 +1071,7 @@ export class SyncService {
       // 同步业务记录（分三类：im 会话、call 通话、ticket 工单）
       this.progress.note = '同步业务记录';
       try {
-        const now = syncStartedAt;
+        const now = new Date();
         const noteStart = manualStartDate ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const noteEnd = manualEndDate ?? now;
         const noteCategories = ['im', 'call', 'ticket'];

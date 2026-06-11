@@ -2261,10 +2261,15 @@ export class UdescService {
       const connCnt = connected.length;
       const totalDuration = connected.reduce((s, x) => s + (x.callTime || 0), 0);
       const avgDuration = connCnt > 0 ? Math.round((totalDuration / connCnt) * 10) / 10 : 0;
-      const rated = items.filter((x) => x.satisfaction && x.satisfaction !== '未评');
+      // 参评数：已评价且非"无需评价"（从接通中统计）
+      const rated = connected.filter((x) => x.satisfaction && x.satisfaction !== '未评' && x.satisfaction !== '无需评价');
+      const noEval = connected.filter((x) => x.satisfaction === '无需评价').length;
       const sat = rated.filter((x) => x.satisfaction === '满意');
-      const satRate = rated.length > 0 ? `${Math.round((sat.length / rated.length) * 1000) / 10}%` : 'N/A';
-      return { total: cnt, ringCount: ringCnt, connected: connCnt, totalDuration, avgDuration, rated: rated.length, satisfaction: satRate };
+      const satRate = rated.length > 0 ? `${((sat.length / rated.length) * 100).toFixed(2)}%` : 'N/A';
+      // 参评率 = 参评数 / (接通数 - 接通中无需评价数)
+      const evalBase = connCnt - noEval;
+      const participationRate = evalBase > 0 ? `${((rated.length / evalBase) * 100).toFixed(2)}%` : 'N/A';
+      return { total: cnt, ringCount: ringCnt, connected: connCnt, totalDuration, avgDuration, rated: rated.length, noEval, satisfaction: satRate, participationRate };
     };
 
     return {

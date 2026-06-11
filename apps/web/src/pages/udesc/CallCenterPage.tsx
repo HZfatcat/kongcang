@@ -54,10 +54,10 @@ function secToHms(s: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
-/** 百分比 (保留 1 位小数) */
+/** 百分比 (保留 2 位小数) */
 function pct(part: number, total: number): string {
-  if (!total) return '0.0%';
-  return `${Math.round((part / total) * 1000) / 10}%`;
+  if (!total) return '0.00%';
+  return `${((part / total) * 100).toFixed(2)}%`;
 }
 
 /** 手机号脱敏：13800138000 → 138****8000 */
@@ -81,7 +81,9 @@ function calcStatsFromRecords(records: CallCenterStats['records']) {
     const connCnt = connected.length;
     const totalDuration = connected.reduce((s, x) => s + (x.callTime || 0), 0);
     const avgDuration = connCnt > 0 ? Math.round(totalDuration / connCnt) : 0;
-    const rated = items.filter((x) => x.satisfaction && x.satisfaction !== '未评');
+    // 参评 = 有评价且非"未评"且非"无需评价"（从接通中统计）
+    const rated = connected.filter((x) => x.satisfaction && x.satisfaction !== '未评' && x.satisfaction !== '无需评价');
+    const noEval = connected.filter((x) => x.satisfaction === '无需评价').length;
     const sat = rated.filter((x) => x.satisfaction === '满意');
     const unsat = rated.filter((x) => x.satisfaction !== '满意');
     return {
@@ -91,6 +93,7 @@ function calcStatsFromRecords(records: CallCenterStats['records']) {
       totalDuration,
       avgDuration,
       rated: rated.length,
+      noEval,
       satisfied: sat.length,
       unsatisfied: unsat.length,
     };
@@ -105,8 +108,11 @@ function calcStatsFromRecords(records: CallCenterStats['records']) {
   const allDuration = inStats.totalDuration + outStats.totalDuration;
   const allAvg = allConn > 0 ? Math.round(allDuration / allConn) : 0;
   const allRated = inStats.rated + outStats.rated;
+  const allNoEval = inStats.noEval + outStats.noEval;
   const allSat = inStats.satisfied + outStats.satisfied;
   const allUnsat = inStats.unsatisfied + outStats.unsatisfied;
+  // 参评率 = 参评数 / (接通数 - 无需评价数)
+  const evalBase = allConn - allNoEval;
 
   return {
     overview: {
@@ -118,7 +124,7 @@ function calcStatsFromRecords(records: CallCenterStats['records']) {
       totalRated: allRated,
       satisfied: allSat,
       unsatisfied: allUnsat,
-      participationRate: pct(allRated, allTotal),
+      participationRate: evalBase > 0 ? pct(allRated, evalBase) : 'N/A',
       satisfaction: allSat > 0 || allUnsat > 0 ? pct(allSat, allSat + allUnsat) : 'N/A',
     },
     inbound: inStats,
@@ -162,35 +168,55 @@ function buildTrendData(records: CallCenterStats['records'], mode: TrendMode = '
 
 /** 按客服聚合 */
 function buildAgentSummary(records: CallCenterStats['records']) {
-  const map = new Map<string, { total: number; inbound: number; outbound: number; connected: number; duration: number; rated: number; satisfied: number }>();
+  const map = new Map<string, {
+    total: number; inbound: number; outbound: number;
+    inConnected: number; outConnected: number;
+    duration: number; rated: number; satisfied: number; noEval: number;
+  }>();
   for (const r of records) {
     const name = r.agentName || '未知';
-    if (!map.has(name)) map.set(name, { total: 0, inbound: 0, outbound: 0, connected: 0, duration: 0, rated: 0, satisfied: 0 });
+    // 未知客服：只有呼入，不可能接通
+    if (name === '未知') {
+      if (r.callType === '呼出') continue; // 忽略异常的呼出未知记录
+      if (r.callResult === '客服接听' || r.callResult === '客户接听') continue; // 忽略异常的接通未知记录
+    }
+    if (!map.has(name)) {
+      map.set(name, { total: 0, inbound: 0, outbound: 0, inConnected: 0, outConnected: 0, duration: 0, rated: 0, satisfied: 0, noEval: 0 });
+    }
     const d = map.get(name)!;
     d.total++;
     if (r.callType === '呼入') d.inbound++;
     else if (r.callType === '呼出') d.outbound++;
-    if (r.callResult === '客服接听' || r.callResult === '客户接听') {
-      d.connected++;
+    if (r.callResult === '客服接听') {
+      d.inConnected++;
+      d.duration += r.callTime || 0;
+    } else if (r.callResult === '客户接听') {
+      d.outConnected++;
       d.duration += r.callTime || 0;
     }
-    if (r.satisfaction && r.satisfaction !== '未评') {
+    if (r.satisfaction && r.satisfaction !== '未评' && r.satisfaction !== '无需评价') {
       d.rated++;
       if (r.satisfaction === '满意') d.satisfied++;
+    } else if (r.satisfaction === '无需评价') {
+      d.noEval++;
     }
   }
   return Array.from(map.entries())
-    .map(([name, v]) => ({
-      agent: name,
-      total: v.total,
-      inbound: v.inbound,
-      outbound: v.outbound,
-      connected: v.connected,
-      connectionRate: pct(v.connected, v.total),
-      avgDuration: v.connected > 0 ? secToHms(Math.round(v.duration / v.connected)) : '-',
-      rated: v.rated,
-      satisfaction: v.rated > 0 ? pct(v.satisfied, v.rated) : 'N/A',
-    }))
+    .map(([name, v]) => {
+      const totalConnected = v.inConnected + v.outConnected;
+      const evalBase = totalConnected - v.noEval;
+      return {
+        agent: name,
+        total: v.total,
+        inbound: v.inbound,
+        outbound: v.outbound,
+        connected: totalConnected,
+        connectionRate: pct(totalConnected, v.total),
+        avgDuration: totalConnected > 0 ? secToHms(Math.round(v.duration / totalConnected)) : '-',
+        rated: v.rated,
+        satisfaction: v.rated > 0 ? pct(v.satisfied, v.rated) : '-',
+      };
+    })
     .sort((a, b) => b.total - a.total);
 }
 
@@ -229,6 +255,7 @@ const satisfactionColor: Record<string, string> = {
   '满意': 'green',
   '一般': 'orange',
   '不满意': 'red',
+  '无需评价': 'default',
   '未评': 'default',
 };
 
@@ -518,7 +545,7 @@ export function CallCenterPage() {
                   <Col span={6}><Statistic title="总评价数" value={stats.inbound.rated} prefix={<SmileOutlined />} /></Col>
                   <Col span={6}><Statistic title="满意数" value={stats.inbound.satisfied} prefix={<SmileOutlined />} valueStyle={{ color: '#52c41a' }} /></Col>
                   <Col span={6}><Statistic title="不满意数" value={stats.inbound.unsatisfied} prefix={<FrownOutlined />} valueStyle={{ color: '#ff4d4f' }} /></Col>
-                  <Col span={6}><Statistic title="满意度参评率" value={pct(stats.inbound.rated, stats.inbound.total)} valueStyle={{ color: '#722ed1' }} /></Col>
+                  <Col span={6}><Statistic title="满意度参评率" value={stats.inbound.connected > stats.inbound.noEval ? pct(stats.inbound.rated, stats.inbound.connected - stats.inbound.noEval) : 'N/A'} valueStyle={{ color: '#722ed1' }} /></Col>
                 </Row>
               </Card>
             </Col>
@@ -533,7 +560,7 @@ export function CallCenterPage() {
                   <Col span={8}><Statistic title="总评价数" value={stats.outbound.rated} prefix={<SmileOutlined />} /></Col>
                   <Col span={8}><Statistic title="满意数" value={stats.outbound.satisfied} prefix={<SmileOutlined />} valueStyle={{ color: '#52c41a' }} /></Col>
                   <Col span={8}><Statistic title="不满意数" value={stats.outbound.unsatisfied} prefix={<FrownOutlined />} valueStyle={{ color: '#ff4d4f' }} /></Col>
-                  <Col span={8}><Statistic title="满意度参评率" value={pct(stats.outbound.rated, stats.outbound.total)} valueStyle={{ color: '#722ed1' }} /></Col>
+                  <Col span={8}><Statistic title="满意度参评率" value={stats.outbound.connected > stats.outbound.noEval ? pct(stats.outbound.rated, stats.outbound.connected - stats.outbound.noEval) : 'N/A'} valueStyle={{ color: '#722ed1' }} /></Col>
                   <Col span={8} />
                   <Col span={8} />
                 </Row>

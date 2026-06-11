@@ -796,9 +796,11 @@ export class UdescClient {
     const survey = this.pickString(item, ['survey']);
     const isRated = (s: string) => s?.includes('已评') && !s?.includes('未评');
     const isSatisfied = (s: string) => s?.includes('满意') && !s?.includes('不满');
+    const isNoEval = (s: string) => s?.includes('无需评价') || s?.includes('未评价');
     let satisfaction: string | undefined;
     if (survey) {
-      if (isRated(survey)) satisfaction = isSatisfied(survey) ? '满意' : '不满意';
+      if (isNoEval(survey)) satisfaction = '无需评价';
+      else if (isRated(survey)) satisfaction = isSatisfied(survey) ? '满意' : '不满意';
       else satisfaction = '未评';
     }
     const startTime = this.pickString(item, ['call_start_at', 'start_time', 'startTime']);
