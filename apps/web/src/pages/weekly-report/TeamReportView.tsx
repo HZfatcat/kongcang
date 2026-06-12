@@ -565,7 +565,7 @@ export function TeamReportView({ metrics, dateRange, sections, teamEditable, onU
           <DoneCard category="咨询承接" label="回访次数" value={metrics.returnVisitCount ?? 0} unit="次" />
         </div>
         <div style={styles.doneRow}>
-          <DoneCard category="专项业务" label="申请解绑华为云" value={105} unit="个" />
+          <DoneCard category="专项业务" label="申请解绑华为云" value={metrics.huaweiCloudUnbind ?? 0} unit="个" />
         </div>
         <div style={styles.doneRow}>
           <DoneCard category="问题转化" label="新增需求数" value={metrics.newDemands} unit="个" />

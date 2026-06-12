@@ -48,4 +48,9 @@ export class KpiController {
       query.issueType as '0' | '1' | undefined,
     );
   }
+
+  @Get('consultation-count')
+  async getConsultationCount(@Query() query: DateRangeQueryDto) {
+    return this.kpiService.getConsultationCount(query.startDate, query.endDate);
+  }
 }

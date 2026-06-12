@@ -57,6 +57,12 @@ export async function fetchMonthlySatisfaction(params: { startDate?: string; end
   return resp.data;
 }
 
+/** 咨询量：在线+工单+通话-回访 */
+export async function fetchConsultationCount(params: { startDate?: string; endDate?: string }) {
+  const resp = await apiClient.get<{ total: number; huifangCount: number }>('/kpi/consultation-count', { params });
+  return resp.data;
+}
+
 export async function runSync() {
   const resp = await apiClient.post('/sync/run');
   return resp.data;

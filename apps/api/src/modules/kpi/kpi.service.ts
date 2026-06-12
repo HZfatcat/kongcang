@@ -34,11 +34,16 @@ export class KpiService {
       },
       select: {
         rating: true,
+        rawPayload: true,
       },
     });
 
     const rated = sessions.filter((session) => session.rating !== null);
     const positive = rated.filter((session) => (session.rating ?? 0) >= 4).length;
+    const resolved = rated.filter((s) => {
+      const rp = s.rawPayload as Record<string, unknown> | null;
+      return rp?.resolved_state_name === '已解决';
+    }).length;
 
     // 使用与 getDemandOverview 相同的逻辑查询需求数据
     const baseWhere = {
@@ -83,6 +88,7 @@ export class KpiService {
     ]);
 
     const satisfactionRate = rated.length > 0 ? positive / rated.length : 0;
+    const problemResolutionRate = rated.length > 0 ? resolved / rated.length : 0;
     const demandCompletionRate =
       consultToDemandCount > 0 ? (completedDemandCount + rejectedDemandCount) / consultToDemandCount : 0;
 
@@ -92,7 +98,9 @@ export class KpiService {
         endDate: end.toISOString(),
       },
       satisfactionRate,
+      problemResolutionRate,
       ratedSessions: rated.length,
+      resolvedSessions: resolved,
       consultToDemandCount,
       completedDemandCount,
       demandCompletionRate,
@@ -1083,6 +1091,42 @@ export class KpiService {
         count: Number(row.count),
         percentage: total > 0 ? Number(row.count) / total : 0,
       })),
+    };
+  }
+
+  /** 咨询量统计：在线会话 + 工单 + 通话 - 回访标签 */
+  async getConsultationCount(startDate?: string, endDate?: string) {
+    const { start, end } = this.resolveRange(startDate, endDate);
+
+    const [onlineCount, ticketCount, callCount, huifangCount] = await Promise.all([
+      this.prisma.udescSession.count({
+        where: { startedAt: { gte: start, lte: end } },
+      }),
+      this.prisma.udescTicket.count({
+        where: { createdAt: { gte: start, lte: end } },
+      }),
+      this.prisma.udescCallLog.count({
+        where: { startTime: { gte: start, lte: end } },
+      }),
+      this.prisma.udescBusinessNote.count({
+        where: {
+          createdAt: { gte: start, lte: end },
+          OR: [
+            { problemType1: { contains: '回访' } },
+            { problemType2: { contains: '回访' } },
+            { problemType3: { contains: '回访' } },
+          ],
+        },
+      }),
+    ]);
+
+    return {
+      dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
+      onlineCount,
+      ticketCount,
+      callCount,
+      huifangCount,
+      total: onlineCount + ticketCount + callCount - huifangCount,
     };
   }
 }

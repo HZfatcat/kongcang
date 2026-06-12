@@ -970,16 +970,18 @@ export function WeeklyReportPage() {
     const annualBugCloseRateClamped = clampRate(annualBugCloseRate);
     const annualTotalCloseRateClamped = clampRate(annualTotalCloseRate);
 
-    // 满意度 & 问题解决率：使用年度累计 KPI 数据
+    // 满意度 & 问题解决率：使用年度累计 KPI 数据（同一数据源，口径一致）
     const annualSatisfactionRate = clampRate(ak?.satisfactionRate ?? 0);
     const annualRatedSessions = ak?.ratedSessions ?? 0;
 
-    // 问题解决率：从月度投票统计数据计算累计值（已解决数 / 总投票数）
+    // 问题解决率：优先从年度KPI直接获取（与满意度同源），其次月度投票统计，最后降级
     const mvsTotalVotes = mvs?.reduce((sum, m) => sum + m.totalVotes, 0) ?? 0;
     const mvsTotalResolved = mvs?.reduce((sum, m) => sum + m.resolvedCount, 0) ?? 0;
-    const annualProblemResolutionRate = mvsTotalVotes > 0
-      ? clampRate(mvsTotalResolved / mvsTotalVotes)
-      : clampRate(ak?.satisfactionRate ?? 0); // 降级：使用满意度近似
+    const annualProblemResolutionRate = ak?.problemResolutionRate != null
+      ? clampRate(ak.problemResolutionRate)
+      : mvsTotalVotes > 0
+        ? clampRate(mvsTotalResolved / mvsTotalVotes)
+        : clampRate(ak?.satisfactionRate ?? 0); // 降级：使用满意度近似
 
     // 月度趋势（按月独立统计，1-3月无数据时显示为0保持x轴连续）
     const satMonthly: { month: string; value: number }[] = [];

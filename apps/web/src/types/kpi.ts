@@ -4,7 +4,9 @@ export interface KpiOverview {
     endDate: string;
   };
   satisfactionRate: number;
+  problemResolutionRate: number;
   ratedSessions: number;
+  resolvedSessions: number;
   consultToDemandCount: number;
   completedDemandCount: number;
   demandCompletionRate: number;
