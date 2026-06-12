@@ -1170,35 +1170,19 @@ export function WeeklyReportPage() {
       ? (agentOverview?.rows ?? []).find(r => r.agentName === agentProfile.displayName)
       : undefined;
 
-    // 个人需求/Bug 数据（优先从 agentOverview 获取，其次按团队均分）
+    // 个人需求/Bug 数据（优先从 agentOverview 获取本周绝对值，其次按团队均分）
     const personalReqCreated = issueRow?.reqCreated ?? Math.round(team.newDemands / agentCnt);
     const personalReqCompleted = issueRow?.reqCompleted ?? 0;
     const personalReqRejected = issueRow?.reqRejected ?? 0;
-    const personalReqLongTerm = issueRow?.reqLongTerm ?? 0;
     const personalBugCreated = issueRow?.bugCreated ?? Math.round(team.newBugs / agentCnt);
     const personalBugCompleted = issueRow?.bugCompleted ?? 0;
     const personalBugRejected = issueRow?.bugRejected ?? 0;
-    const personalBugLongTerm = issueRow?.bugLongTerm ?? 0;
 
-    // 个人关单率：从 per-agent agentOverview 数据计算
-    const reqEffectiveTotal = personalReqCreated - personalReqLongTerm;
-    const bugEffectiveTotal = personalBugCreated - personalBugLongTerm;
-    const reqClosed = personalReqCompleted + personalReqRejected;
-    const bugClosed = personalBugCompleted + personalBugRejected;
-
-    const personalDemandCloseRate = reqEffectiveTotal > 0
-      ? clampRate(reqClosed / reqEffectiveTotal)
-      : team.demandCloseRate;
-
-    const personalBugCloseRate = bugEffectiveTotal > 0
-      ? clampRate(bugClosed / bugEffectiveTotal)
-      : team.bugCloseRate;
-
-    const totalDemandAndBug = reqEffectiveTotal + bugEffectiveTotal;
-    const totalClosed = reqClosed + bugClosed;
-    const personalTotalCloseRate = totalDemandAndBug > 0
-      ? clampRate(totalClosed / totalDemandAndBug)
-      : team.totalCloseRate;
+    // 关单率：使用团队年度累计值（与团队视图保持一致）
+    // agentOverview 的 completed 按 completedAtSource 统计，周粒度下不可靠
+    const personalTotalCloseRate = team.totalCloseRate;
+    const personalDemandCloseRate = team.demandCloseRate;
+    const personalBugCloseRate = team.bugCloseRate;
 
     // 个人满意度 — 使用后端计算的 satisfactionRate（满意数/有效评价数），已为0-1区间
     const personalSatisfaction = perf?.satisfactionRate != null ? clampRate(perf.satisfactionRate) : null;
@@ -1227,8 +1211,8 @@ export function WeeklyReportPage() {
       huaweiCloudUnbind: null,
       newDemands: personalReqCreated,
       newBugs: personalBugCreated,
-      closedDemands: reqClosed,
-      closedBugs: bugClosed,
+      closedDemands: personalReqCompleted + personalReqRejected,
+      closedBugs: personalBugCompleted + personalBugRejected,
       agentCount: 1,
       activeAgentCount: 1,
       totalSessions: perf?.totalSessions ?? 0,
