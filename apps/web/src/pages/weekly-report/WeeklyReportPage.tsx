@@ -849,10 +849,10 @@ export function WeeklyReportPage() {
     setLoading(false);
   }, [loadTeamData, loadPersonalData]);
 
-  // 页面打开时自动加载数据（不再需要手动点击"同步刷新"）
+  // 页面打开时自动加载数据，切换人员时重新拉取个人数据
   useEffect(() => {
     handleRefresh();
-  }, [dateRange, reportTab]);
+  }, [dateRange, reportTab, selectedAgentId]);
 
   // 自动加载高频问题TOP5
   useEffect(() => {
@@ -1163,16 +1163,48 @@ export function WeeklyReportPage() {
 
     const agentCnt = Math.max(team.activeAgentCount ?? team.agentCount, 1);
 
+    // 按客服的个人提单数据（从 agentOverview 中匹配）
+    const agentId = perf?.agentId ?? selectedAgentId;
+    const agentProfile = agents.find(a => a.agentId === agentId);
+    const issueRow = agentProfile
+      ? (agentOverview?.rows ?? []).find(r => r.agentName === agentProfile.displayName)
+      : undefined;
+
+    // 个人需求/Bug 数据（优先从 agentOverview 获取，其次按团队均分）
+    const personalReqCreated = issueRow?.reqCreated ?? Math.round(team.newDemands / agentCnt);
+    const personalReqCompleted = issueRow?.reqCompleted ?? 0;
+    const personalReqRejected = issueRow?.reqRejected ?? 0;
+    const personalReqLongTerm = issueRow?.reqLongTerm ?? 0;
+    const personalBugCreated = issueRow?.bugCreated ?? Math.round(team.newBugs / agentCnt);
+    const personalBugCompleted = issueRow?.bugCompleted ?? 0;
+    const personalBugRejected = issueRow?.bugRejected ?? 0;
+    const personalBugLongTerm = issueRow?.bugLongTerm ?? 0;
+
+    // 个人关单率：从 per-agent agentOverview 数据计算
+    const reqEffectiveTotal = personalReqCreated - personalReqLongTerm;
+    const bugEffectiveTotal = personalBugCreated - personalBugLongTerm;
+    const reqClosed = personalReqCompleted + personalReqRejected;
+    const bugClosed = personalBugCompleted + personalBugRejected;
+
+    const personalDemandCloseRate = reqEffectiveTotal > 0
+      ? clampRate(reqClosed / reqEffectiveTotal)
+      : team.demandCloseRate;
+
+    const personalBugCloseRate = bugEffectiveTotal > 0
+      ? clampRate(bugClosed / bugEffectiveTotal)
+      : team.bugCloseRate;
+
+    const totalDemandAndBug = reqEffectiveTotal + bugEffectiveTotal;
+    const totalClosed = reqClosed + bugClosed;
+    const personalTotalCloseRate = totalDemandAndBug > 0
+      ? clampRate(totalClosed / totalDemandAndBug)
+      : team.totalCloseRate;
+
     // 个人满意度 — 使用后端计算的 satisfactionRate（满意数/有效评价数），已为0-1区间
     const personalSatisfaction = perf?.satisfactionRate != null ? clampRate(perf.satisfactionRate) : null;
 
     // 个人咨询量
     const personalConsultCount = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
-
-    // 个人年度累计关单率 — 使用团队年度累计数据（同一数据源）
-    const personalTotalCloseRate = team.totalCloseRate;
-    const personalDemandCloseRate = team.demandCloseRate;
-    const personalBugCloseRate = team.bugCloseRate;
 
     return {
       totalCloseRate: personalTotalCloseRate,
@@ -1193,10 +1225,10 @@ export function WeeklyReportPage() {
       consultationCount: personalConsultCount,
       returnVisitCount: perf?.returnVisitCount ?? Math.round((team.returnVisitCount ?? 0) / agentCnt),
       huaweiCloudUnbind: null,
-      newDemands: Math.round(team.newDemands / agentCnt),
-      newBugs: Math.round(team.newBugs / agentCnt),
-      closedDemands: Math.round(team.closedDemands / agentCnt),
-      closedBugs: Math.round(team.closedBugs / agentCnt),
+      newDemands: personalReqCreated,
+      newBugs: personalBugCreated,
+      closedDemands: reqClosed,
+      closedBugs: bugClosed,
       agentCount: 1,
       activeAgentCount: 1,
       totalSessions: perf?.totalSessions ?? 0,
@@ -1210,22 +1242,16 @@ export function WeeklyReportPage() {
         const sessions = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
         const perAgentReturn = perf?.returnVisitCount ?? 0;
         // 从日评分数据中算出勤天数
-        const agentId = perf?.agentId;
         const ratingSeries = dailyRatingStats?.series ?? [];
         const series = agentId ? ratingSeries.find(s => s.agentId === agentId) : null;
         const workDays = series ? series.ratings.filter(r => r !== null).length : 1;
-        // 找到该客服的提单数
-        const agentProfile = agents.find(a => a.agentId === agentId);
-        const issueRow = agentProfile
-          ? (agentOverview?.rows ?? []).find(r => r.agentName === agentProfile.displayName)
-          : undefined;
         const issueCount = issueRow ? (issueRow.reqCreated + issueRow.bugCreated) : 0;
         const numerator = sessions + issueCount * 2.5 + perAgentReturn * 0.25;
         const denominator = 40 * Math.max(workDays, 1);
         return numerator / denominator;
       })(),
     };
-  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents]);
+  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents, selectedAgentId]);
 
 
 
