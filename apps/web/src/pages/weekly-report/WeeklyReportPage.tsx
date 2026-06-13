@@ -57,12 +57,12 @@ import {
   runSync,
   runZouwuSync,
   fetchSyncProgress,
-} from '../api/udesc';
-import { fetchOpportunitySummary } from '../api/opportunity';
-import { sendReport, previewReport } from '../api/weekly-report';
-import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../types/kpi';
-import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
-import { fetchTopProblems } from '../api/udesc';
+} from '../../api/udesc';
+import { fetchOpportunitySummary } from '../../api/opportunity';
+import { sendReport } from '../../api/weekly-report';
+import type { KpiOverview, DemandOverview, ConsultationFunnelOverview, AgentOverview } from '../../types/kpi';
+import type { AgentProfile, UdescMetricsSummary } from '../../types/udesc';
+import { fetchTopProblems } from '../../api/udesc';
 import { TeamReportView } from './TeamReportView';
 import { PersonalReportView } from './PersonalReportView';
 import { fetchSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../../api/settings';
@@ -619,8 +619,6 @@ export function WeeklyReportPage() {
   const [personalEditing, setPersonalEditing] = useState<Record<string, boolean>>({});
 
   const [htmlPreviewVisible, setHtmlPreviewVisible] = useState(false);
-  const [htmlPreviewContent, setHtmlPreviewContent] = useState('');
-  const [htmlPreviewLoading, setHtmlPreviewLoading] = useState(false);
 
   // 新增编辑字段 — topQuestions 自动从数据源获取
   const [teamEditable, setTeamEditable] = useState({
@@ -1841,38 +1839,14 @@ export function WeeklyReportPage() {
               >
                 {beautifulView ? '数据视图' : '报告视图'}
               </Button>
-              <Tooltip title="预览邮件内容（即报告视图）">
+              <Tooltip title="邮件发送内容预览（同报告视图）">
                 <Button
                   icon={<EyeOutlined />}
-                  onClick={async () => {
-                  setHtmlPreviewLoading(true);
-                  try {
-                    const html = await previewReport({
-                      startDate: formatDate(dateRange![0]),
-                      endDate: formatDate(dateRange![1]),
-                      summary: currentSections.otherWork,
-                      nextPlan: currentSections.nextPlan,
-                      type: reportTab as 'team' | 'personal',
-                      agentName: reportTab === 'personal' && selectedAgentId
-                        ? agents.find((a) => a.agentId === selectedAgentId)?.displayName ?? selectedAgentId
-                        : undefined,
-                      topQuestions: editableState.topQuestions,
-                      risks: editableState.risks,
-                      suggestions: editableState.suggestions,
-                    });
-                    setHtmlPreviewContent(html);
-                    setHtmlPreviewVisible(true);
-                  } catch (e: any) {
-                    message.error('预览生成失败: ' + (e?.response?.data?.message ?? e?.message ?? '未知错误'));
-                  } finally {
-                    setHtmlPreviewLoading(false);
-                  }
-                }}
-                loading={htmlPreviewLoading}
-                size="small"
-              >
-                邮件预览
-              </Button>
+                  onClick={() => setHtmlPreviewVisible(true)}
+                  size="small"
+                >
+                  邮件预览
+                </Button>
               </Tooltip>
               <Input
                 placeholder="收件人邮箱"
@@ -2103,7 +2077,7 @@ export function WeeklyReportPage() {
       </Modal>
 
       <Modal
-        title="📧 周报 HTML 预览（邮件发送内容）"
+        title="📧 周报预览（邮件发送内容）"
         open={htmlPreviewVisible}
         onCancel={() => setHtmlPreviewVisible(false)}
         footer={
@@ -2111,7 +2085,14 @@ export function WeeklyReportPage() {
             icon={<DownloadOutlined />}
             type="primary"
             onClick={() => {
-              const blob = new Blob([htmlPreviewContent], { type: 'text/html;charset=utf-8' });
+              const el = document.getElementById('report-preview-content');
+              if (!el) { message.error('导出失败'); return; }
+              // 内联样式和基础样式
+              const styles = document.querySelectorAll('style, link[rel=stylesheet]');
+              let styleHtml = '';
+              styles.forEach(s => { styleHtml += s.outerHTML; });
+              const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>周报</title>${styleHtml}</head><body>${el.innerHTML}</body></html>`;
+              const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
@@ -2127,11 +2108,28 @@ export function WeeklyReportPage() {
         width={900}
         style={{ top: 20 }}
       >
-        <iframe
-          srcDoc={htmlPreviewContent}
-          style={{ width: '100%', height: '70vh', border: '1px solid #e5e7eb', borderRadius: 8 }}
-          title="周报预览"
-        />
+        <div id="report-preview-content" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+          {reportTab === 'team' ? (
+            <TeamReportView
+              metrics={currentMetrics}
+              dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
+              sections={currentSections}
+              teamEditable={teamEditable}
+              onUpdateRisks={(risks) => setTeamEditable(prev => ({ ...prev, risks }))}
+              onUpdateSuggestions={(suggestions) => setTeamEditable(prev => ({ ...prev, suggestions }))}
+              onUpdateNextPlan={(nextPlan) => setCurrentSections((prev: any) => ({ ...prev, nextPlan }))}
+            />
+          ) : (
+            <PersonalReportView
+              metrics={currentMetrics}
+              dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
+              sections={currentSections}
+              agentName={agents.find(a => a.agentId === selectedAgentId)?.displayName}
+              huaweiCloudUnbindInput={huaweiCloudUnbindInput}
+              manualOpportunityInput={manualOpportunityInput}
+            />
+          )}
+        </div>
       </Modal>
     </div>
   );
