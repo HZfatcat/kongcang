@@ -646,7 +646,7 @@ export function WeeklyReportPage() {
   const [smtpTestLoading, setSmtpTestLoading] = useState(false);
   const [smtpSaveLoading, setSmtpSaveLoading] = useState(false);
 
-  // 视图模式：数据视图 / 精美视图
+  // 视图模式：数据视图 / 报告视图（邮件发送以此为准）
   const [beautifulView, setBeautifulView] = useState(false);
 
   // 环比对比（与上周对比）
@@ -1303,7 +1303,7 @@ export function WeeklyReportPage() {
 
 
 
-  // 通过后端 SMTP 发送精美 HTML 邮件
+  // 通过后端 SMTP 发送报告邮件
   const handleSendSmtp = useCallback(async (type: 'personal' | 'team') => {
     if (!smtpEmail.trim()) {
       message.error('请输入收件人邮箱地址');
@@ -1328,7 +1328,7 @@ export function WeeklyReportPage() {
         risks: editableState.risks,
         suggestions: editableState.suggestions,
       });
-      message.success('✅ 精美周报已发送到 ' + smtpEmail.trim());
+      message.success('✅ 周报已发送到 ' + smtpEmail.trim());
     } catch (e: any) {
       message.error('发送失败: ' + (e?.response?.data?.message ?? e?.message ?? '未知错误'));
     } finally {
@@ -1826,7 +1826,7 @@ export function WeeklyReportPage() {
                 type={beautifulView ? 'primary' : 'default'}
                 size="small"
               >
-                {beautifulView ? '数据视图' : '精美视图'}
+                {beautifulView ? '数据视图' : '报告视图'}
               </Button>
               <Button
                 icon={<EyeOutlined />}
@@ -2010,7 +2010,7 @@ export function WeeklyReportPage() {
         )}
       </div>{/* flex 容器结束 */}
 
-      {/* 精美 HTML 预览弹窗 */}
+      {/* HTML 周报预览弹窗 */}
       {/* SMTP 邮箱配置弹窗 */}
       <Modal
         title="📧 SMTP 邮箱配置"
@@ -2088,7 +2088,7 @@ export function WeeklyReportPage() {
       </Modal>
 
       <Modal
-        title="📧 精美 HTML 周报预览"
+        title="📧 周报 HTML 预览"
         open={htmlPreviewVisible}
         onCancel={() => setHtmlPreviewVisible(false)}
         footer={null}
