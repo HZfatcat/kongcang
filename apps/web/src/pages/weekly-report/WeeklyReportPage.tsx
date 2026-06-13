@@ -608,6 +608,8 @@ export function WeeklyReportPage() {
   const [agentMetricsSummary, setAgentMetricsSummary] = useState<UdescMetricsSummary | null>(null);
   // 个人年度累计需求统计（同团队关单率计算口径）
   const [personalDemandOverview, setPersonalDemandOverview] = useState<DemandOverview | null>(null);
+  // 个人年度累计满意度 & 问题解决率（同团队口径）
+  const [personalKpiOverview, setPersonalKpiOverview] = useState<KpiOverview | null>(null);
 
   // 可编辑模块内容
   const [teamSections, setTeamSections] = useState<Record<string, string>>({ otherWork: '', nextPlan: '' });
@@ -844,17 +846,20 @@ export function WeeklyReportPage() {
     const annualStart = `${new Date().getFullYear()}-01-01`;
     const agentName = agents.find(a => a.agentId === selectedAgentId)?.displayName;
     try {
-      const [perf, metricsSum, personalDemand] = await Promise.all([
+      const [perf, metricsSum, personalDemand, personalKpi] = await Promise.all([
         fetchUdeskAgentPerformance(selectedAgentId, { startDate: start, endDate: end }).catch(() => null),
         fetchUdeskMetricsSummary({ startDate: start, endDate: end, agentId: selectedAgentId }).catch(() => null),
         // 个人年度累计需求统计（同团队关单率计算口径）
         agentName
           ? fetchDemandOverview({ startDate: annualStart, endDate: end, agentName }).catch(() => null)
           : Promise.resolve(null),
+        // 个人年度累计满意度 & 问题解决率（同团队口径）
+        fetchOverview({ startDate: annualStart, endDate: end, agentId: selectedAgentId }).catch(() => null),
       ]);
       setAgentPerformance(perf);
       setAgentMetricsSummary(metricsSum);
       setPersonalDemandOverview(personalDemand);
+      setPersonalKpiOverview(personalKpi);
     } catch (err) {
       console.error('拉取个人数据失败:', err);
     }
@@ -1192,6 +1197,7 @@ export function WeeklyReportPage() {
     const sum = agentMetricsSummary;
     const team = teamMetrics;
     const ad = personalDemandOverview; // 个人年度累计需求统计
+    const pk = personalKpiOverview; // 个人年度累计满意度&解决率
 
     const agentCnt = Math.max(team.activeAgentCount ?? team.agentCount, 1);
 
@@ -1230,8 +1236,16 @@ export function WeeklyReportPage() {
       ? clampRate(totalNumerator / totalDenominator)
       : team.totalCloseRate;
 
-    // 个人满意度 — 使用后端计算的 satisfactionRate（满意数/有效评价数），已为0-1区间
-    const personalSatisfaction = perf?.satisfactionRate != null ? clampRate(perf.satisfactionRate) : null;
+    // 个人满意度 & 问题解决率：从 per-agent 年度累计数据获取（与团队同源同口径）
+    const personalSatisfaction = pk?.satisfactionRate != null
+      ? clampRate(pk.satisfactionRate)
+      : (perf?.satisfactionRate != null ? clampRate(perf.satisfactionRate) : null);
+
+    const personalProblemResolutionRate = pk?.problemResolutionRate != null
+      ? clampRate(pk.problemResolutionRate)
+      : (perf?.problemResolutionRate != null
+          ? clampRate(perf.problemResolutionRate)
+          : team.problemResolutionRate);
 
     // 个人咨询量
     const personalConsultCount = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
@@ -1245,9 +1259,7 @@ export function WeeklyReportPage() {
       bugCloseMonthly: team.bugCloseMonthly,
       satisfactionRate: personalSatisfaction ?? team.satisfactionRate,
       satisfactionRated: team.satisfactionRated,
-      problemResolutionRate: perf?.problemResolutionRate != null 
-        ? clampRate(perf.problemResolutionRate) 
-        : team.problemResolutionRate,
+      problemResolutionRate: personalProblemResolutionRate,
       satMonthly: team.satMonthly,
       resMonthly: team.resMonthly,
       avgFirstResponseTime: perf?.avgFirstResponseTime ?? sum?.avgFirstResponseTime ?? null,
@@ -1283,7 +1295,7 @@ export function WeeklyReportPage() {
         return numerator / denominator;
       })(),
     };
-  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents, selectedAgentId, personalDemandOverview]);
+  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents, selectedAgentId, personalDemandOverview, personalKpiOverview]);
 
 
 

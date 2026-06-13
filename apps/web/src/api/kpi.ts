@@ -10,7 +10,7 @@ import type {
 } from '../types/kpi';
 import dayjs from 'dayjs';
 
-export async function fetchOverview(params: { startDate?: string; endDate?: string }) {
+export async function fetchOverview(params: { startDate?: string; endDate?: string; agentId?: string }) {
   const resp = await apiClient.get<KpiOverview>('/kpi/overview', { params });
   return resp.data;
 }

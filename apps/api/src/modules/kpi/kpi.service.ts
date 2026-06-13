@@ -22,7 +22,7 @@ export class KpiService {
     return { start, end };
   }
 
-  async getOverview(startDate?: string, endDate?: string) {
+  async getOverview(startDate?: string, endDate?: string, agentId?: string) {
     const { start, end } = this.resolveRange(startDate, endDate);
 
     const sessions = await this.prisma.udescSession.findMany({
@@ -31,6 +31,7 @@ export class KpiService {
           gte: start,
           lte: end,
         },
+        ...(agentId ? { agentId } : {}),
       },
       select: {
         rating: true,

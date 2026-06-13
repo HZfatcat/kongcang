@@ -11,6 +11,9 @@ export class DateRangeQueryDto {
 
   @IsOptional()
   agentName?: string;
+
+  @IsOptional()
+  agentId?: string;
 }
 
 export class FunnelQueryDto extends DateRangeQueryDto {

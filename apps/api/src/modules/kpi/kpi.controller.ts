@@ -8,7 +8,7 @@ export class KpiController {
 
   @Get('overview')
   async getOverview(@Query() query: DateRangeQueryDto) {
-    return this.kpiService.getOverview(query.startDate, query.endDate);
+    return this.kpiService.getOverview(query.startDate, query.endDate, query.agentId);
   }
 
   @Get('satisfaction')
