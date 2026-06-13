@@ -803,7 +803,7 @@ export function TeamReportView({ metrics, dateRange, sections, teamEditable, onU
 
       {/* ===== Footer ===== */}
       <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 12 }}>
-        团队周报 · 自动生成
+        团队周报
       </div>
     </div>
   );

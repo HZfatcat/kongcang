@@ -378,7 +378,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
       </div>
 
       <div style={{ textAlign: 'center', padding: '10px 0 4px', fontSize: 10, color: '#94a3b8' }}>
-        个人周报 · 自动生成
+        个人周报
       </div>
     </div>
   );
