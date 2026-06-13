@@ -1831,10 +1831,6 @@ export function WeeklyReportPage() {
               <Button
                 icon={<EyeOutlined />}
                 onClick={async () => {
-                  if (!smtpEmail.trim()) {
-                    message.warning('请先填写收件人邮箱');
-                    return;
-                  }
                   setHtmlPreviewLoading(true);
                   try {
                     const html = await previewReport({
@@ -1963,14 +1959,6 @@ export function WeeklyReportPage() {
               {renderWorkloadSection(currentMetrics, isPersonal)}
               {/* 四、高频问题TOP5（仅团队周报展示） */}
               {!isPersonal && <TopQuestionsSection questions={editableState.topQuestions} />}
-              {/* 五、下周工作计划 */}
-              <EditableSection
-                title={<Text strong id="section-plan">🎯 五、下周工作计划</Text>}
-                content={currentSections.nextPlan}
-                onChange={(val: string) => setCurrentSections((prev: any) => ({ ...prev, nextPlan: val }))}
-                isEditing={currentEditing.nextPlan ?? false}
-                onToggleEdit={() => setCurrentEditing((prev: any) => ({ ...prev, nextPlan: !prev.nextPlan }))}
-              />
             </>
           )}
         </div>{/* 左侧主内容区结束 */}
@@ -1997,7 +1985,6 @@ export function WeeklyReportPage() {
               { key: 'experience', label: '体验与响应', icon: '💡' },
               { key: 'workload', label: '业务承接', icon: '📋' },
               { key: 'topquestions', label: '高频问题', icon: '🔥' },
-              { key: 'plan', label: '下周计划', icon: '🎯' },
             ].filter(({ key }) => !(key === 'topquestions' && isPersonal)).map(({ key, label, icon }) => (
               <div
                 key={key}
