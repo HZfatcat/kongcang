@@ -82,7 +82,7 @@ export class UdescController {
     @Param('id') id: string,
     @Query() query: UdescDateRangeDto
   ) {
-    return this.udescService.getAgentPerformance(id, query.startDate, query.endDate);
+    return this.udescService.getAgentPerformance(id, query.startDate, query.endDate, query.agentName);
   }
 
   // ========== 评价分析 ==========

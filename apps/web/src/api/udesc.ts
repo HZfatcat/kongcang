@@ -227,7 +227,7 @@ export async function fetchUdescAgents(params?: { enabled?: boolean }) {
   return resp.data;
 }
 
-export async function fetchUdescAgentPerformance(agentId: string, params: { startDate?: string; endDate?: string }) {
+export async function fetchUdescAgentPerformance(agentId: string, params: { startDate?: string; endDate?: string; agentName?: string }) {
   const resp = await apiClient.get<UdescAgentPerformance>(`/udesc/agents/${encodeURIComponent(agentId)}/performance`, { params });
   return resp.data;
 }

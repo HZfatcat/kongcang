@@ -9,6 +9,9 @@ export class UdescDateRangeDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  agentName?: string;
 }
 
 export class UdescSessionQueryDto extends UdescDateRangeDto {

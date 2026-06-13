@@ -847,7 +847,7 @@ export function WeeklyReportPage() {
     const agentName = agents.find(a => a.agentId === selectedAgentId)?.displayName;
     try {
       const [perf, metricsSum, personalDemand, personalKpi] = await Promise.all([
-        fetchUdeskAgentPerformance(selectedAgentId, { startDate: start, endDate: end }).catch(() => null),
+        fetchUdeskAgentPerformance(selectedAgentId, { startDate: start, endDate: end, agentName }).catch(() => null),
         fetchUdeskMetricsSummary({ startDate: start, endDate: end, agentId: selectedAgentId }).catch(() => null),
         // 个人年度累计需求统计（同团队关单率计算口径）
         agentName
@@ -1267,7 +1267,7 @@ export function WeeklyReportPage() {
       avgFirstResponseTimeMonthly: team.avgFirstResponseTimeMonthly,
       avgResponseTimeMonthly: team.avgResponseTimeMonthly,
       consultationCount: personalConsultCount,
-      returnVisitCount: perf?.returnVisitCount != null ? Math.round(perf.returnVisitCount / agentCnt) : Math.round((team.returnVisitCount ?? 0) / agentCnt),
+      returnVisitCount: perf?.returnVisitCount ?? Math.round((team.returnVisitCount ?? 0) / agentCnt),
       huaweiCloudUnbind: null,
       newDemands: personalReqCreated,
       newBugs: personalBugCreated,
@@ -1284,7 +1284,7 @@ export function WeeklyReportPage() {
       // 人效评估（个人：与团队相同算法，按出勤天数计算）
       teamEfficiency: (() => {
         const sessions = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
-        const perAgentReturn = perf?.returnVisitCount != null ? Math.round(perf.returnVisitCount / agentCnt) : 0;
+        const perAgentReturn = perf?.returnVisitCount ?? 0;
         // 从日评分数据中算出勤天数（与团队一致）
         const ratingSeries = dailyRatingStats?.series ?? [];
         const series = agentId ? ratingSeries.find(s => s.agentId === agentId) : null;
