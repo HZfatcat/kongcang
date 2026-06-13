@@ -864,7 +864,7 @@ export class UdescService {
     });
     const agentSessionIds = agentSessions.map((s) => s.id);
 
-    const [sessionStats, messageStats, returnVisitVotes, agentSessionsDetailed] = await Promise.all([
+    const [sessionStats, messageStats, returnVisitCount, agentSessionsDetailed] = await Promise.all([
       this.prisma.udescSession.groupBy({
         by: ['agentId'],
         where: {
@@ -879,16 +879,18 @@ export class UdescService {
         },
         _count: { id: true },
       }),
-      // 统计回访：查找该客服会话的评价中 tags 包含"回访"的会话数
-      this.prisma.udescSessionVote
-        .findMany({
-          where: {
-            sessionId: { in: agentSessionIds },
-            tags: { has: '回访' },
-          },
-          select: { sessionId: true },
-        })
-        .then((votes) => new Set(votes.map((v) => v.sessionId)).size),
+      // 统计回访：从业务记录(UdescBusinessNote)中统计该客服会话的问题类型含"回访"的记录数
+      this.prisma.udescBusinessNote.count({
+        where: {
+          createdAt: { gte: start, lte: end },
+          feedbackId: { in: agentSessionIds },
+          OR: [
+            { problemType1: { contains: '回访' } },
+            { problemType2: { contains: '回访' } },
+            { problemType3: { contains: '回访' } },
+          ],
+        },
+      }),
       // 获取会话评级数据（与团队口径一致：使用 UdescSession.rating）
       this.prisma.udescSession.findMany({
         where: { agentId, startedAt: { gte: start, lte: end } },
@@ -957,7 +959,7 @@ export class UdescService {
       avgResolutionTime: null,
       totalMessages: messageStats._count.id,
       avgMessagesPerSession: sessionStats[0]?._count.id ? messageStats._count.id / sessionStats[0]._count.id : 0,
-      returnVisitCount: returnVisitVotes,
+      returnVisitCount: returnVisitCount,
       dailyStats,
     };
   }

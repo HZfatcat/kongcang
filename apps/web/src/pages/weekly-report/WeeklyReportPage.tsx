@@ -1285,10 +1285,9 @@ export function WeeklyReportPage() {
       teamEfficiency: (() => {
         const sessions = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
         const perAgentReturn = perf?.returnVisitCount ?? 0;
-        // 从日评分数据中算出勤天数
-        const ratingSeries = dailyRatingStats?.series ?? [];
-        const series = agentId ? ratingSeries.find(s => s.agentId === agentId) : null;
-        const workDays = series ? series.ratings.filter(r => r !== null).length : 1;
+        // 从个人 dailyStats 中算出勤天数（有会话的天数）
+        const dailyStats = perf?.dailyStats ?? [];
+        const workDays = dailyStats.filter(d => d.sessions > 0).length || 5; // 默认5天
         const issueCount = issueRow ? (issueRow.reqCreated + issueRow.bugCreated) : 0;
         const numerator = sessions + issueCount * 2.5 + perAgentReturn * 0.25;
         const denominator = 40 * Math.max(workDays, 1);
