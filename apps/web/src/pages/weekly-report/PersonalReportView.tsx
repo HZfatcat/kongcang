@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { WeeklyMetrics } from './WeeklyReportPage';
+import { generateNextPlan } from '../../utils/reportAI';
 
 const styles = {
   wrap: {
@@ -54,6 +55,8 @@ interface Props {
   agentName?: string;
   huaweiCloudUnbindInput: number | null;
   manualOpportunityInput: number | null;
+  onUpdateOtherWork?: (text: string) => void;
+  onUpdateNextPlan?: (text: string) => void;
 }
 
 function statusBadge(label: string, pass: boolean): React.ReactNode {
@@ -72,8 +75,34 @@ function statusBadge(label: string, pass: boolean): React.ReactNode {
   );
 }
 
-export function PersonalReportView({ metrics, dateRange, sections, agentName, huaweiCloudUnbindInput, manualOpportunityInput }: Props) {
+export function PersonalReportView({ metrics, dateRange, sections, agentName, huaweiCloudUnbindInput, manualOpportunityInput, onUpdateOtherWork, onUpdateNextPlan }: Props) {
   const [start, end] = dateRange;
+
+  // 编辑状态
+  const [editOtherWorkText, setEditOtherWorkText] = useState('');
+  const [editNextPlanText, setEditNextPlanText] = useState('');
+  const [editingOtherWork, setEditingOtherWork] = useState(false);
+  const [editingNextPlan, setEditingNextPlan] = useState(false);
+  const [generatingNextPlan, setGeneratingNextPlan] = useState(false);
+
+  const btnGhost: React.CSSProperties = {
+    background: 'none', border: '1px solid #d1d5db', borderRadius: 6,
+    padding: '2px 10px', fontSize: 11, cursor: 'pointer', color: '#6b7280',
+  };
+
+  // AI 生成下周计划
+  const handleAiNextPlan = async () => {
+    setGeneratingNextPlan(true);
+    try {
+      const result = await generateNextPlan(metrics);
+      setEditNextPlanText(result);
+      onUpdateNextPlan?.(result);
+    } catch (err) {
+      console.error('AI 生成下周计划失败:', err);
+    } finally {
+      setGeneratingNextPlan(false);
+    }
+  };
 
   // 计算人效：人效 = (咨询量 + (新增需求+新增BUG)×2.5 + 回访×0.25) / (40 × 出勤人数)
   const efficiency = useMemo(() => {
@@ -332,8 +361,33 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
 
       {/* ===== 三、其他工作事项 ===== */}
       <div style={{ background: '#fff', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 10 }}>📝 三、其他工作事项</div>
-        {sections.otherWork ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>📝 三、其他工作事项</div>
+          {onUpdateOtherWork && (
+            <button
+              onClick={() => {
+                if (editingOtherWork) {
+                  onUpdateOtherWork(editOtherWorkText);
+                  setEditingOtherWork(false);
+                } else {
+                  setEditOtherWorkText(sections.otherWork || '');
+                  setEditingOtherWork(true);
+                }
+              }}
+              style={btnGhost}
+            >
+              {editingOtherWork ? '💾 保存' : '✏️ 编辑'}
+            </button>
+          )}
+        </div>
+        {editingOtherWork ? (
+          <textarea
+            value={editOtherWorkText}
+            onChange={e => setEditOtherWorkText(e.target.value)}
+            placeholder="请输入本周其他工作事项..."
+            style={{ width: '100%', minHeight: 80, padding: 8, fontSize: 12, borderRadius: 6, border: '1px solid #d1d5db', resize: 'vertical' }}
+          />
+        ) : sections.otherWork ? (
           sections.otherWork.split('\n').filter(Boolean).map((item, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0', fontSize: 12 }}>
               <span style={{ color: '#64748b' }}>•</span>
@@ -353,8 +407,38 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
         marginBottom: 16,
         border: '1px solid #bae6fd',
       }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#0369a1', marginBottom: 8 }}>📅 四、下周工作计划</div>
-        {sections.nextPlan ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#0369a1' }}>📅 四、下周工作计划</div>
+          {onUpdateNextPlan && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={handleAiNextPlan} style={btnGhost} disabled={generatingNextPlan}>
+                {generatingNextPlan ? '⏳ 生成中...' : '🤖 AI 生成'}
+              </button>
+              <button
+                onClick={() => {
+                  if (editingNextPlan) {
+                    onUpdateNextPlan(editNextPlanText);
+                    setEditingNextPlan(false);
+                  } else {
+                    setEditNextPlanText(sections.nextPlan || '');
+                    setEditingNextPlan(true);
+                  }
+                }}
+                style={btnGhost}
+              >
+                {editingNextPlan ? '💾 保存' : '✏️ 编辑'}
+              </button>
+            </div>
+          )}
+        </div>
+        {editingNextPlan ? (
+          <textarea
+            value={editNextPlanText}
+            onChange={e => setEditNextPlanText(e.target.value)}
+            placeholder="请输入下周工作计划..."
+            style={{ width: '100%', minHeight: 80, padding: 8, fontSize: 12, borderRadius: 6, border: '1px solid #d1d5db', resize: 'vertical' }}
+          />
+        ) : sections.nextPlan ? (
           sections.nextPlan.split('\n').filter(Boolean).map((plan, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '4px 0', fontSize: 12 }}>
               <span style={{

@@ -618,8 +618,6 @@ export function WeeklyReportPage() {
   const [personalSections, setPersonalSections] = useState<Record<string, string>>({ otherWork: '', nextPlan: '' });
   const [personalEditing, setPersonalEditing] = useState<Record<string, boolean>>({});
 
-  const [htmlPreviewVisible, setHtmlPreviewVisible] = useState(false);
-
   // 新增编辑字段 — topQuestions 自动从数据源获取
   const [teamEditable, setTeamEditable] = useState({
     topQuestions: [] as { name: string; count: number; pct: number }[],
@@ -1839,15 +1837,30 @@ export function WeeklyReportPage() {
               >
                 {beautifulView ? '数据视图' : '报告视图'}
               </Button>
-              <Tooltip title="邮件发送内容预览（同报告视图）">
-                <Button
-                  icon={<EyeOutlined />}
-                  onClick={() => setHtmlPreviewVisible(true)}
-                  size="small"
-                >
-                  邮件预览
-                </Button>
-              </Tooltip>
+              {beautifulView && (
+                <Tooltip title="导出报告为 HTML 文件">
+                  <Button
+                    icon={<DownloadOutlined />}
+                    size="small"
+                    onClick={() => {
+                      const el = document.querySelector('.beautiful-view-wrap');
+                      if (!el) { message.error('导出失败'); return; }
+                      const styles = document.querySelectorAll('style, link[rel=stylesheet]');
+                      let styleHtml = '';
+                      styles.forEach(s => { styleHtml += s.outerHTML; });
+                      const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>周报</title>' + styleHtml + '</head><body>' + el.innerHTML + '</body></html>';
+                      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `周报_${formatDate(dateRange![0])}_${formatDate(dateRange![1])}.html`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      message.success('HTML 已导出到本地');
+                    }}
+                  />
+                </Tooltip>
+              )}
               <Input
                 placeholder="收件人邮箱"
                 value={smtpEmail}
@@ -1920,7 +1933,8 @@ export function WeeklyReportPage() {
               <Skeleton active paragraph={{ rows: 6 }} />
             </div>
           ) : beautifulView ? (
-            reportTab === 'team' ? (
+            <div className="beautiful-view-wrap">
+            {reportTab === 'team' ? (
               <TeamReportView
                 metrics={currentMetrics}
                 dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
@@ -1938,8 +1952,11 @@ export function WeeklyReportPage() {
                 agentName={agents.find(a => a.agentId === selectedAgentId)?.displayName}
                 huaweiCloudUnbindInput={huaweiCloudUnbindInput}
                 manualOpportunityInput={manualOpportunityInput}
+                onUpdateOtherWork={(text) => setCurrentSections((prev: any) => ({ ...prev, otherWork: text }))}
+                onUpdateNextPlan={(text) => setCurrentSections((prev: any) => ({ ...prev, nextPlan: text }))}
               />
-            )
+            )}
+            </div>
           ) : (
             <>
               {/* 闭环质量 */}
@@ -2073,62 +2090,6 @@ export function WeeklyReportPage() {
           >
             保存配置
           </Button>
-        </div>
-      </Modal>
-
-      <Modal
-        title="📧 周报预览（邮件发送内容）"
-        open={htmlPreviewVisible}
-        onCancel={() => setHtmlPreviewVisible(false)}
-        footer={
-          <Button
-            icon={<DownloadOutlined />}
-            type="primary"
-            onClick={() => {
-              const el = document.getElementById('report-preview-content');
-              if (!el) { message.error('导出失败'); return; }
-              // 内联样式和基础样式
-              const styles = document.querySelectorAll('style, link[rel=stylesheet]');
-              let styleHtml = '';
-              styles.forEach(s => { styleHtml += s.outerHTML; });
-              const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>周报</title>${styleHtml}</head><body>${el.innerHTML}</body></html>`;
-              const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `周报_${formatDate(dateRange![0])}_${formatDate(dateRange![1])}.html`;
-              a.click();
-              URL.revokeObjectURL(url);
-              message.success('HTML 已导出到本地');
-            }}
-          >
-            导出 HTML
-          </Button>
-        }
-        width={900}
-        style={{ top: 20 }}
-      >
-        <div id="report-preview-content" style={{ maxHeight: '70vh', overflow: 'auto' }}>
-          {reportTab === 'team' ? (
-            <TeamReportView
-              metrics={currentMetrics}
-              dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
-              sections={currentSections}
-              teamEditable={teamEditable}
-              onUpdateRisks={(risks) => setTeamEditable(prev => ({ ...prev, risks }))}
-              onUpdateSuggestions={(suggestions) => setTeamEditable(prev => ({ ...prev, suggestions }))}
-              onUpdateNextPlan={(nextPlan) => setCurrentSections((prev: any) => ({ ...prev, nextPlan }))}
-            />
-          ) : (
-            <PersonalReportView
-              metrics={currentMetrics}
-              dateRange={[formatDate(dateRange![0]), formatDate(dateRange![1])]}
-              sections={currentSections}
-              agentName={agents.find(a => a.agentId === selectedAgentId)?.displayName}
-              huaweiCloudUnbindInput={huaweiCloudUnbindInput}
-              manualOpportunityInput={manualOpportunityInput}
-            />
-          )}
         </div>
       </Modal>
     </div>
