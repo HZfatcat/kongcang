@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, RequirementStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { cache, clearCache } from '../../common/cache.util';
 
 @Injectable()
 export class KpiService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** 手动清除缓存（同步刷新时调用） */
+  clearCache() { clearCache(); }
 
   resolveRange(startDate?: string, endDate?: string, lookbackDays = 90) {
     let end: Date;
@@ -23,6 +27,7 @@ export class KpiService {
   }
 
   async getOverview(startDate?: string, endDate?: string, agentId?: string) {
+    return cache(`kpi:overview:${startDate}:${endDate}:${agentId}`, async () => {
     const { start, end } = this.resolveRange(startDate, endDate);
 
     const sessions = await this.prisma.udescSession.findMany({
@@ -106,9 +111,11 @@ export class KpiService {
       completedDemandCount,
       demandCompletionRate,
     };
+    });
   }
 
   async getDemandOverview(startDate?: string, endDate?: string, agentName?: string) {
+    return cache(`kpi:demand:${startDate}:${endDate}:${agentName}`, async () => {
     const { start, end } = this.resolveRange(startDate, endDate);
     const baseWhere: any = {
       createdAtSource: {
@@ -559,6 +566,7 @@ export class KpiService {
         updatedAtSource: item.updatedAtSource?.toISOString(),
       })),
     };
+    });
   }
 
   // ===== 按客服汇总 =====

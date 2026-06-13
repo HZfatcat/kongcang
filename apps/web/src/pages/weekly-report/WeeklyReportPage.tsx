@@ -42,8 +42,8 @@ import {
   DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchReportData } from '../api/report';
-import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview, fetchOverview } from '../api/kpi';
+import { fetchReportData } from '../../api/report';
+import { fetchDemandOverview, fetchMonthlySatisfaction, fetchAgentOverview, fetchOverview, clearKpiCache } from '../../api/kpi';
 import {
   fetchUdescOverview as fetchUdeskOverview,
   fetchUdescDailyRatingStats as fetchUdeskDailyRatingStats,
@@ -904,6 +904,8 @@ export function WeeklyReportPage() {
     }
     setSyncLoading(true);
     try {
+      // 清除缓存确保下次加载最新数据
+      clearKpiCache().catch(() => {});
       // 1. 触发同步（后台运行）
       const udescResp = await runSync();
       if (udescResp.accepted) {

@@ -114,3 +114,8 @@ export function useKpi() {
     refresh: loadDemandOverview,
   };
 }
+
+/** 清除后端 KPI 缓存 */
+export async function clearKpiCache() {
+  await apiClient.get('/kpi/clear-cache');
+}

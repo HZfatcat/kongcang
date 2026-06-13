@@ -53,4 +53,11 @@ export class KpiController {
   async getConsultationCount(@Query() query: DateRangeQueryDto) {
     return this.kpiService.getConsultationCount(query.startDate, query.endDate);
   }
+
+  /** 清除缓存（同步刷新时前端调用） */
+  @Get('clear-cache')
+  clearCache() {
+    this.kpiService.clearCache();
+    return { ok: true };
+  }
 }
