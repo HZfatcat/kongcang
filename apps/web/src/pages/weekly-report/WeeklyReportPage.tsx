@@ -39,6 +39,7 @@ import {
   LeftOutlined,
   RightOutlined,
   SettingOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchReportData } from '../api/report';
@@ -1838,9 +1839,10 @@ export function WeeklyReportPage() {
               >
                 {beautifulView ? '数据视图' : '报告视图'}
               </Button>
-              <Button
-                icon={<EyeOutlined />}
-                onClick={async () => {
+              <Tooltip title="预览邮件内容（即报告视图）">
+                <Button
+                  icon={<EyeOutlined />}
+                  onClick={async () => {
                   setHtmlPreviewLoading(true);
                   try {
                     const html = await previewReport({
@@ -1867,7 +1869,7 @@ export function WeeklyReportPage() {
                 loading={htmlPreviewLoading}
                 size="small"
               >
-                预览 HTML
+                邮件预览
               </Button>
               <Input
                 placeholder="收件人邮箱"
@@ -2098,10 +2100,27 @@ export function WeeklyReportPage() {
       </Modal>
 
       <Modal
-        title="📧 周报 HTML 预览"
+        title="📧 周报 HTML 预览（邮件发送内容）"
         open={htmlPreviewVisible}
         onCancel={() => setHtmlPreviewVisible(false)}
-        footer={null}
+        footer={
+          <Button
+            icon={<DownloadOutlined />}
+            type="primary"
+            onClick={() => {
+              const blob = new Blob([htmlPreviewContent], { type: 'text/html;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `周报_${formatDate(dateRange![0])}_${formatDate(dateRange![1])}.html`;
+              a.click();
+              URL.revokeObjectURL(url);
+              message.success('HTML 已导出到本地');
+            }}
+          >
+            导出 HTML
+          </Button>
+        }
         width={900}
         style={{ top: 20 }}
       >
