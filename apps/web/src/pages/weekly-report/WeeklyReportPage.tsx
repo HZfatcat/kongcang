@@ -38,6 +38,7 @@ import {
   InfoCircleOutlined,
   LeftOutlined,
   RightOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchReportData } from '../api/report';
@@ -63,6 +64,7 @@ import type { AgentProfile, UdescMetricsSummary } from '../types/udesc';
 import { fetchTopProblems } from '../api/udesc';
 import { TeamReportView } from './TeamReportView';
 import { PersonalReportView } from './PersonalReportView';
+import { fetchSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../../api/settings';
 
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -604,6 +606,8 @@ export function WeeklyReportPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
   const [agentPerformance, setAgentPerformance] = useState<Awaited<ReturnType<typeof fetchUdeskAgentPerformance>> | null>(null);
   const [agentMetricsSummary, setAgentMetricsSummary] = useState<UdescMetricsSummary | null>(null);
+  // 个人年度累计需求统计（同团队关单率计算口径）
+  const [personalDemandOverview, setPersonalDemandOverview] = useState<DemandOverview | null>(null);
 
   // 可编辑模块内容
   const [teamSections, setTeamSections] = useState<Record<string, string>>({ otherWork: '', nextPlan: '' });
@@ -632,6 +636,13 @@ export function WeeklyReportPage() {
   // 服务器端 SMTP 发送
   const [smtpSending, setSmtpSending] = useState(false);
   const [smtpEmail, setSmtpEmail] = useState('');
+  
+  // SMTP 配置弹窗
+  const [smtpModalOpen, setSmtpModalOpen] = useState(false);
+  const [smtpConfig, setSmtpConfig] = useState({ host: '', port: 465, user: '', pass: '', from: '' });
+  const [smtpTestTo, setSmtpTestTo] = useState('');
+  const [smtpTestLoading, setSmtpTestLoading] = useState(false);
+  const [smtpSaveLoading, setSmtpSaveLoading] = useState(false);
 
   // 视图模式：数据视图 / 精美视图
   const [beautifulView, setBeautifulView] = useState(false);
@@ -830,17 +841,24 @@ export function WeeklyReportPage() {
     if (!selectedAgentId || !dateRange || !dateRange[0] || !dateRange[1]) return;
     const start = formatDate(dateRange[0]);
     const end = formatDate(dateRange[1]);
+    const annualStart = `${new Date().getFullYear()}-01-01`;
+    const agentName = agents.find(a => a.agentId === selectedAgentId)?.displayName;
     try {
-      const [perf, metricsSum] = await Promise.all([
+      const [perf, metricsSum, personalDemand] = await Promise.all([
         fetchUdeskAgentPerformance(selectedAgentId, { startDate: start, endDate: end }).catch(() => null),
         fetchUdeskMetricsSummary({ startDate: start, endDate: end, agentId: selectedAgentId }).catch(() => null),
+        // 个人年度累计需求统计（同团队关单率计算口径）
+        agentName
+          ? fetchDemandOverview({ startDate: annualStart, endDate: end, agentName }).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setAgentPerformance(perf);
       setAgentMetricsSummary(metricsSum);
+      setPersonalDemandOverview(personalDemand);
     } catch (err) {
       console.error('拉取个人数据失败:', err);
     }
-  }, [selectedAgentId, dateRange]);
+  }, [selectedAgentId, dateRange, agents]);
 
   // 全量刷新
   const handleRefresh = useCallback(async () => {
@@ -849,10 +867,17 @@ export function WeeklyReportPage() {
     setLoading(false);
   }, [loadTeamData, loadPersonalData]);
 
-  // 页面打开时自动加载数据，切换人员时重新拉取个人数据
+  // 加载团队数据（日期或Tab变更时触发）
   useEffect(() => {
-    handleRefresh();
-  }, [dateRange, reportTab, selectedAgentId]);
+    setLoading(true);
+    loadTeamData().finally(() => setLoading(false));
+  }, [dateRange, reportTab]);
+
+  // 切换人员时只重新拉取个人数据，不重刷团队数据
+  useEffect(() => {
+    if (!selectedAgentId || !dateRange || agents.length === 0) return;
+    loadPersonalData();
+  }, [selectedAgentId, agents]);
 
   // 自动加载高频问题TOP5
   useEffect(() => {
@@ -1074,25 +1099,30 @@ export function WeeklyReportPage() {
       return top.filter(a => a.sessions >= 5).length || Math.max(u?.agentCount ?? 0, 1);
     })();
 
+    // 趋势图中排除当前未过完的月份
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const excludeCurrentMonth = (arr: { month: string; value: number }[]) =>
+      arr.filter(m => m.month !== currentMonth);
+
     return {
       // 修改点4：本周完成值统一使用年度累计值
       totalCloseRate: annualTotalCloseRateClamped,
       demandCloseRate: annualDemandCloseRateClamped,
       bugCloseRate: annualBugCloseRateClamped,
-      totalCloseMonthly,
-      demandCloseMonthly,
-      bugCloseMonthly,
-      // 满意度 & 问题解决率：使用年度累计值
+      totalCloseMonthly: excludeCurrentMonth(totalCloseMonthly),
+      demandCloseMonthly: excludeCurrentMonth(demandCloseMonthly),
+      bugCloseMonthly: excludeCurrentMonth(bugCloseMonthly),
+      // 修改点2：满意度 & 问题解决率使用修正后逻辑
       satisfactionRate: annualSatisfactionRate,
       satisfactionRated: annualRatedSessions,
       problemResolutionRate: annualProblemResolutionRate,
-      satMonthly,
-      resMonthly,
+      satMonthly: excludeCurrentMonth(satMonthly),
+      resMonthly: excludeCurrentMonth(resMonthly),
       // 修改点1：添加响应效率月度数据
       avgFirstResponseTime,
       avgResponseTime,
-      avgFirstResponseTimeMonthly,
-      avgResponseTimeMonthly,
+      avgFirstResponseTimeMonthly: excludeCurrentMonth(avgFirstResponseTimeMonthly),
+      avgResponseTimeMonthly: excludeCurrentMonth(avgResponseTimeMonthly),
       consultationCount,
       returnVisitCount: u?.returnVisitCount ?? null,
       huaweiCloudUnbind: null,
@@ -1161,6 +1191,7 @@ export function WeeklyReportPage() {
     const perf = agentPerformance;
     const sum = agentMetricsSummary;
     const team = teamMetrics;
+    const ad = personalDemandOverview; // 个人年度累计需求统计
 
     const agentCnt = Math.max(team.activeAgentCount ?? team.agentCount, 1);
 
@@ -1179,11 +1210,25 @@ export function WeeklyReportPage() {
     const personalBugCompleted = issueRow?.bugCompleted ?? 0;
     const personalBugRejected = issueRow?.bugRejected ?? 0;
 
-    // 关单率：使用团队年度累计值（与团队视图保持一致）
-    // agentOverview 的 completed 按 completedAtSource 统计，周粒度下不可靠
-    const personalTotalCloseRate = team.totalCloseRate;
-    const personalDemandCloseRate = team.demandCloseRate;
-    const personalBugCloseRate = team.bugCloseRate;
+    // 个人关单率：与团队完全相同的计算方式，但筛选该客服的数据
+    // 优先使用 personalDemandOverview（按客服的年度累计），降级到团队值
+    const demandNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0);
+    const demandDenominator = (ad?.totalIdentifiedCount ?? 0);
+    const personalDemandCloseRate = demandDenominator > 0
+      ? clampRate(demandNumerator / demandDenominator)
+      : team.demandCloseRate;
+
+    const bugNumerator = (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
+    const bugDenominator = (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
+    const personalBugCloseRate = bugDenominator > 0
+      ? clampRate(bugNumerator / bugDenominator)
+      : team.bugCloseRate;
+
+    const totalNumerator = demandNumerator + bugNumerator;
+    const totalDenominator = demandDenominator + bugDenominator;
+    const personalTotalCloseRate = totalDenominator > 0
+      ? clampRate(totalNumerator / totalDenominator)
+      : team.totalCloseRate;
 
     // 个人满意度 — 使用后端计算的 satisfactionRate（满意数/有效评价数），已为0-1区间
     const personalSatisfaction = perf?.satisfactionRate != null ? clampRate(perf.satisfactionRate) : null;
@@ -1200,7 +1245,9 @@ export function WeeklyReportPage() {
       bugCloseMonthly: team.bugCloseMonthly,
       satisfactionRate: personalSatisfaction ?? team.satisfactionRate,
       satisfactionRated: team.satisfactionRated,
-      problemResolutionRate: team.problemResolutionRate,
+      problemResolutionRate: perf?.problemResolutionRate != null 
+        ? clampRate(perf.problemResolutionRate) 
+        : team.problemResolutionRate,
       satMonthly: team.satMonthly,
       resMonthly: team.resMonthly,
       avgFirstResponseTime: perf?.avgFirstResponseTime ?? sum?.avgFirstResponseTime ?? null,
@@ -1236,7 +1283,7 @@ export function WeeklyReportPage() {
         return numerator / denominator;
       })(),
     };
-  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents, selectedAgentId]);
+  }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents, selectedAgentId, personalDemandOverview]);
 
 
 
@@ -1821,6 +1868,17 @@ export function WeeklyReportPage() {
               >
                 发送服务器邮件
               </Button>
+              <Tooltip title="邮箱配置">
+                <Button
+                  icon={<SettingOutlined />}
+                  size="small"
+                  onClick={() => {
+                    fetchSmtpConfig().then(c => setSmtpConfig({ host: c.host || '', port: c.port || 465, user: c.user || '', pass: c.pass || '', from: c.from || '' })).catch(() => {});
+                    setSmtpTestTo(smtpEmail);
+                    setSmtpModalOpen(true);
+                  }}
+                />
+              </Tooltip>
 
             </Space>
           </Col>
@@ -1954,6 +2012,82 @@ export function WeeklyReportPage() {
       </div>{/* flex 容器结束 */}
 
       {/* 精美 HTML 预览弹窗 */}
+      {/* SMTP 邮箱配置弹窗 */}
+      <Modal
+        title="📧 SMTP 邮箱配置"
+        open={smtpModalOpen}
+        onCancel={() => setSmtpModalOpen(false)}
+        footer={null}
+        width={480}
+        destroyOnClose
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontSize: 12 }}>Host</span>
+            <Input size="small" value={smtpConfig.host} placeholder="smtp.qq.com"
+              onChange={e => setSmtpConfig({ ...smtpConfig, host: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontSize: 12 }}>端口</span>
+            <InputNumber size="small" value={smtpConfig.port} style={{ width: 100 }}
+              onChange={v => setSmtpConfig({ ...smtpConfig, port: v ?? 465 })} />
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>QQ邮箱用465</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontSize: 12 }}>账号</span>
+            <Input size="small" value={smtpConfig.user} placeholder="xxx@qq.com"
+              onChange={e => setSmtpConfig({ ...smtpConfig, user: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontSize: 12 }}>授权码</span>
+            <Input.Password size="small" value={smtpConfig.pass} placeholder="QQ邮箱授权码（非登录密码）"
+              onChange={e => setSmtpConfig({ ...smtpConfig, pass: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontSize: 12 }}>发件人</span>
+            <Input size="small" value={smtpConfig.from} placeholder="xxx@qq.com"
+              onChange={e => setSmtpConfig({ ...smtpConfig, from: e.target.value })} />
+          </div>
+          
+          <Divider style={{ margin: '4px 0' }} />
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontSize: 12 }}>测试收件</span>
+            <Input size="small" value={smtpTestTo} placeholder="测试邮件接收地址"
+              onChange={e => setSmtpTestTo(e.target.value)} style={{ flex: 1 }} />
+            <Button size="small" loading={smtpTestLoading}
+              onClick={async () => {
+                setSmtpTestLoading(true);
+                try {
+                  const res = await testSmtpConfig({ ...smtpConfig, to: smtpTestTo });
+                  if (res.ok) message.success(res.message);
+                  else message.error(res.message);
+                } catch (e: any) {
+                  message.error('测试失败: ' + (e?.response?.data?.message ?? e?.message ?? '连接错误'));
+                } finally { setSmtpTestLoading(false); }
+              }}
+            >
+              测试发送
+            </Button>
+          </div>
+          
+          <Button type="primary" block loading={smtpSaveLoading}
+            onClick={async () => {
+              setSmtpSaveLoading(true);
+              try {
+                await saveSmtpConfig(smtpConfig);
+                message.success('SMTP 配置已保存');
+                setSmtpModalOpen(false);
+              } catch (e: any) {
+                message.error('保存失败: ' + (e?.response?.data?.message ?? e?.message ?? ''));
+              } finally { setSmtpSaveLoading(false); }
+            }}
+          >
+            保存配置
+          </Button>
+        </div>
+      </Modal>
+
       <Modal
         title="📧 精美 HTML 周报预览"
         open={htmlPreviewVisible}

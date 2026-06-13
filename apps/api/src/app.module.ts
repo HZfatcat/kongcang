@@ -19,6 +19,7 @@ import { QueueModule } from './modules/queue/queue.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { WeeklyReportModule } from './modules/weekly-report/weekly-report.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 // 尝试多个可能的 .env 路径，确保找到项目根目录的文件
 const possibleEnvPaths = [
@@ -36,6 +37,7 @@ console.log('[AppModule] envFilePath:', envPath, 'exists:', existsSync(envPath))
       isGlobal: true,
       envFilePath: envPath,
       ignoreEnvFile: false,
+      expandVariables: true,
       validate: (config: Record<string, any>) => {
         // SMTP optional env vars
         return config;
@@ -57,6 +59,7 @@ console.log('[AppModule] envFilePath:', envPath, 'exists:', existsSync(envPath))
     LogsModule,
     PermissionModule,
     WeeklyReportModule,
+    SettingsModule,
   ],
   providers: [PrismaService],
 })

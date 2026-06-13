@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { KpiService } from '../kpi/kpi.service';
+import { SettingsService } from '../settings/settings.service';
 import * as nodemailer from 'nodemailer';
 import * as dns from 'dns';
 import * as net from 'net';
@@ -34,6 +35,7 @@ export class WeeklyReportService {
   constructor(
     private readonly kpiService: KpiService,
     private readonly configService: ConfigService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   /**
@@ -653,15 +655,27 @@ export class WeeklyReportService {
    * 通过 SMTP 发送邮件（nodemailer）
    */
   async sendEmail(opts: EmailOptions): Promise<void> {
-    const host = this.configService.get<string>('SMTP_HOST');
-    const port = this.configService.get<number>('SMTP_PORT');
-    const user = this.configService.get<string>('SMTP_USER');
-    const pass = this.configService.get<string>('SMTP_PASS');
-    const from = this.configService.get<string>('SMTP_FROM');
+    // DB 配置优先，env 降级
+    const smtp = this.configService.get<Record<string, string>>('_smtp_override')
+      || {
+          host: this.configService.get<string>('SMTP_HOST') || '',
+          user: this.configService.get<string>('SMTP_USER') || '',
+          pass: this.configService.get<string>('SMTP_PASS') || '',
+          from: this.configService.get<string>('SMTP_FROM') || '',
+          port: String(this.configService.get<number>('SMTP_PORT') || 465),
+        };
+
+    // 尝试从 SettingsService 读取 DB 配置
+    const dbConfig = await this.settingsService.getSmtpConfig();
+    const host = dbConfig?.host || smtp.host || '';
+    const port = Number(dbConfig?.port || smtp.port || 465);
+    const user = dbConfig?.user || smtp.user || '';
+    const pass = dbConfig?.pass || smtp.pass || '';
+    const from = dbConfig?.from || smtp.from || user;
 
     if (!host || !user || !pass) {
       throw new Error(
-        'SMTP 未配置，请在 .env 中设置 SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM',
+        'SMTP 未配置，请在设置页面配置邮箱或检查 .env 中的 SMTP_HOST / SMTP_USER / SMTP_PASS',
       );
     }
 

@@ -163,6 +163,16 @@ model SyncConfig {
   updatedAt     DateTime @updatedAt
 }
 
+model SmtpConfig {
+  key   String @id @default("default")
+  host  String @default("")
+  port  Int    @default(465)
+  user  String @default("")
+  pass  String @default("")
+  from  String @default("")
+  updatedAt DateTime @updatedAt
+}
+
 model SysRole {
   roleId     BigInt        @id @default(autoincrement())
   roleName   String        @map("role_name")

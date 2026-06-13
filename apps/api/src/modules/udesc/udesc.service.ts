@@ -864,7 +864,7 @@ export class UdescService {
     });
     const agentSessionIds = agentSessions.map((s) => s.id);
 
-    const [sessionStats, messageStats, returnVisitVotes, agentVotes] = await Promise.all([
+    const [sessionStats, messageStats, returnVisitVotes, agentSessionsDetailed] = await Promise.all([
       this.prisma.udescSession.groupBy({
         by: ['agentId'],
         where: {
@@ -889,29 +889,27 @@ export class UdescService {
           select: { sessionId: true },
         })
         .then((votes) => new Set(votes.map((v) => v.sessionId)).size),
-      // 获取所有评价数据，用于统计满意度
-      this.prisma.udescSessionVote.findMany({
-        where: { sessionId: { in: agentSessionIds } },
+      // 获取会话评级数据（与团队口径一致：使用 UdescSession.rating）
+      this.prisma.udescSession.findMany({
+        where: { agentId, startedAt: { gte: start, lte: end } },
         select: { rating: true, rawPayload: true },
       }),
     ]);
 
-    // 满意度统计：1=不满意, 5=满意，只统计有明确 1 或 5 的评价
-    let count1 = 0, count5 = 0;
-    for (const vote of agentVotes) {
-      let r = vote.rating;
-      if (r === null && vote.rawPayload) {
-        r = this.inferRatingFromRawPayload(vote.rawPayload as Record<string, unknown>) ?? undefined;
-      }
-      if (r === 1) count1++;
-      else if (r === 5) count5++;
-    }
-    const totalVotes = count1 + count5;
-    const satisfactionRate = totalVotes > 0 ? count5 / totalVotes : null;
-    // ratedCount = count1 + count5 → 有效评价总数
-    const ratedCount = totalVotes;
-    // avgRating 改为基于 vote 的评分（1或5的均值）
-    const avgRatingVote = totalVotes > 0 ? (count1 * 1 + count5 * 5) / totalVotes : null;
+    // 满意度 & 问题解决率：与团队口径一致，使用 UdescSession.rating
+    const ratedSessions = agentSessionsDetailed.filter(s => s.rating !== null);
+    const positiveCount = ratedSessions.filter(s => (s.rating ?? 0) >= 4).length;
+    const resolvedCount = ratedSessions.filter(s => {
+      const rp = s.rawPayload as Record<string, unknown> | null;
+      return rp?.resolved_state_name === '已解决';
+    }).length;
+    const satisfactionRate = ratedSessions.length > 0 ? positiveCount / ratedSessions.length : null;
+    const problemResolutionRate = ratedSessions.length > 0 ? resolvedCount / ratedSessions.length : null;
+    const ratedCount = ratedSessions.length;
+    // avgRating: 直接使用 UdescSession.rating 平均值
+    const avgRatingValue = ratedSessions.length > 0
+      ? ratedSessions.reduce((sum, s) => sum + (s.rating ?? 0), 0) / ratedSessions.length
+      : null;
 
     // 按天统计
     const dailySessions = await this.prisma.udescSession.groupBy({
@@ -950,9 +948,11 @@ export class UdescService {
       agentId,
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
       totalSessions: sessionStats[0]?._count.id ?? 0,
-      avgRating: avgRatingVote,
+      avgRating: avgRatingValue,
       satisfactionRate,
+      problemResolutionRate,
       ratedSessions: ratedCount,
+      resolvedSessions: resolvedCount,
       avgFirstResponseTime: null,
       avgResolutionTime: null,
       totalMessages: messageStats._count.id,

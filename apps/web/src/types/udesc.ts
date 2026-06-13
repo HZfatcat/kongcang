@@ -236,7 +236,9 @@ export interface UdescAgentPerformance {
   totalSessions: number;
   avgRating: number | null;
   satisfactionRate: number | null;
+  problemResolutionRate: number | null;
   ratedSessions: number;
+  resolvedSessions: number;
   avgFirstResponseTime: number | null;
   avgResolutionTime: number | null;
   totalMessages: number;
