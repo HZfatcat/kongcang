@@ -35,7 +35,7 @@ export class SettingsService {
     if (!host || !user || !pass) return null;
     return {
       host,
-      port: dbConfig?.port ?? Number(env['SMTP_PORT']) || 465,
+      port: dbConfig?.port ?? (Number(env['SMTP_PORT']) || 465),
       user,
       pass,
       from: dbConfig?.from || env['SMTP_FROM'] || user,

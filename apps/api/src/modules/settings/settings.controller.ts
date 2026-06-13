@@ -54,9 +54,8 @@ export class SettingsController {
       });
 
       const transporter = nodemailer.createTransport({
-        // @ts-expect-error custom socket
         connection: socket,
-      });
+      } as any);
 
       await transporter.verify();
       
