@@ -1287,7 +1287,8 @@ export function WeeklyReportPage() {
         const perAgentReturn = perf?.returnVisitCount ?? 0;
         // 从个人 dailyStats 中算出勤天数（有会话的天数）
         const dailyStats = perf?.dailyStats ?? [];
-        const workDays = dailyStats.filter(d => d.sessions > 0).length || 5; // 默认5天
+        const workDays = dailyStats.filter(d => d.sessions > 0).length;
+        if (workDays === 0) return 0;
         const issueCount = issueRow ? (issueRow.reqCreated + issueRow.bugCreated) : 0;
         const numerator = sessions + issueCount * 2.5 + perAgentReturn * 0.25;
         const denominator = 40 * Math.max(workDays, 1);
