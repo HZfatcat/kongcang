@@ -1620,7 +1620,6 @@ export function WeeklyReportPage() {
       { category: '商务转化', item: '商机转化', value: manualOpportunityInput ?? 0, hours: '—', status: manualOpportunityInput !== null && manualOpportunityInput > 0 ? '已完成' : '待接入', calcMethod: '商机转化（无工时）', isInput: true, inputKey: 'manualOpportunity' },
       { category: '人效', item: '人效评估', value: metrics.teamEfficiency > 0 ? metrics.teamEfficiency.toFixed(2) : '—', hours: '—', status: metrics.teamEfficiency > 0 ? '已完成' : '—', calcMethod: '(咨询量+新增提单×2.5+回访×0.25)/(40×出勤人数)' },
     );
-    ];
     const statusColor: Record<string, string> = {
       '已完成': 'success', '已闭环': 'success', '已录入': 'processing',
       '进行中': 'processing', '待接入': 'default', '—': 'default',
