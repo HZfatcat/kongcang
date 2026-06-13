@@ -879,11 +879,11 @@ export class UdescService {
         },
         _count: { id: true },
       }),
-      // 统计回访：从业务记录(UdescBusinessNote)中统计该客服会话的问题类型含"回访"的记录数
+      // 统计回访：从业务记录(UdescBusinessNote)中统计问题类型含"回访"的记录数
+      // BusinessNote 无 session 关联，按时间范围统计全量，个人按团队均摊
       this.prisma.udescBusinessNote.count({
         where: {
           createdAt: { gte: start, lte: end },
-          feedbackId: { in: agentSessionIds },
           OR: [
             { problemType1: { contains: '回访' } },
             { problemType2: { contains: '回访' } },

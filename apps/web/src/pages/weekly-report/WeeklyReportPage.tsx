@@ -1267,7 +1267,7 @@ export function WeeklyReportPage() {
       avgFirstResponseTimeMonthly: team.avgFirstResponseTimeMonthly,
       avgResponseTimeMonthly: team.avgResponseTimeMonthly,
       consultationCount: personalConsultCount,
-      returnVisitCount: perf?.returnVisitCount ?? Math.round((team.returnVisitCount ?? 0) / agentCnt),
+      returnVisitCount: perf?.returnVisitCount != null ? Math.round(perf.returnVisitCount / agentCnt) : Math.round((team.returnVisitCount ?? 0) / agentCnt),
       huaweiCloudUnbind: null,
       newDemands: personalReqCreated,
       newBugs: personalBugCreated,
@@ -1284,13 +1284,15 @@ export function WeeklyReportPage() {
       // 人效评估（个人：与团队相同算法，按出勤天数计算）
       teamEfficiency: (() => {
         const sessions = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
-        const perAgentReturn = perf?.returnVisitCount ?? 0;
+        const perAgentReturn = perf?.returnVisitCount != null ? Math.round(perf.returnVisitCount / agentCnt) : 0;
         // 从日评分数据中算出勤天数（与团队一致）
         const ratingSeries = dailyRatingStats?.series ?? [];
         const series = agentId ? ratingSeries.find(s => s.agentId === agentId) : null;
         const workDays = series ? series.ratings.filter(r => r !== null).length : 0;
         if (workDays === 0) return 0;
-        const numerator = sessions + issueRow.reqCreated * 2.5 + issueRow.bugCreated * 2.5 + perAgentReturn * 0.25;
+        const reqIssues = issueRow?.reqCreated ?? 0;
+        const bugIssues = issueRow?.bugCreated ?? 0;
+        const numerator = sessions + reqIssues * 2.5 + bugIssues * 2.5 + perAgentReturn * 0.25;
         const denominator = 40 * Math.max(workDays, 1);
         return numerator / denominator;
       })(),
