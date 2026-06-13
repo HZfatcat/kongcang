@@ -960,8 +960,9 @@ export function WeeklyReportPage() {
     const bugDenominator = (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
     const annualBugCloseRate = bugDenominator > 0 ? bugNumerator / bugDenominator : 0;
 
-    // 总关单率（年度累计）= 需求分母 + BUG分母
-    const totalNumerator = demandNumerator + bugNumerator;
+    // 总关单率（年度累计）
+    // totalIdentifiedCount 后台已排除长期演进，只需加上 bug 有效总数
+    const totalNumerator = (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0) + (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0);
     const totalDenominator = (ad?.totalIdentifiedCount ?? 0) + (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0);
     const annualTotalCloseRate = totalDenominator > 0 ? totalNumerator / totalDenominator : 0;
 
