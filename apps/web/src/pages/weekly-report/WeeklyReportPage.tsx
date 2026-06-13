@@ -1281,16 +1281,16 @@ export function WeeklyReportPage() {
       // 商务转化（个人按团队平均）
       opportunityCount: Math.round(team.opportunityCount / agentCnt),
       opportunityWon: Math.round(team.opportunityWon / agentCnt),
-      // 人效评估（个人按自己的出勤天数和咨询量算）
+      // 人效评估（个人：与团队相同算法，按出勤天数计算）
       teamEfficiency: (() => {
         const sessions = perf?.totalSessions ?? Math.round(team.consultationCount / agentCnt);
         const perAgentReturn = perf?.returnVisitCount ?? 0;
-        // 从个人 dailyStats 中算出勤天数（有会话的天数）
-        const dailyStats = perf?.dailyStats ?? [];
-        const workDays = dailyStats.filter(d => d.sessions > 0).length;
+        // 从日评分数据中算出勤天数（与团队一致）
+        const ratingSeries = dailyRatingStats?.series ?? [];
+        const series = agentId ? ratingSeries.find(s => s.agentId === agentId) : null;
+        const workDays = series ? series.ratings.filter(r => r !== null).length : 0;
         if (workDays === 0) return 0;
-        const issueCount = issueRow ? (issueRow.reqCreated + issueRow.bugCreated) : 0;
-        const numerator = sessions + issueCount * 2.5 + perAgentReturn * 0.25;
+        const numerator = sessions + issueRow.reqCreated * 2.5 + issueRow.bugCreated * 2.5 + perAgentReturn * 0.25;
         const denominator = 40 * Math.max(workDays, 1);
         return numerator / denominator;
       })(),
@@ -1600,17 +1600,26 @@ export function WeeklyReportPage() {
   };
 
   const renderWorkloadSection = (metrics: WeeklyMetrics, isPersonal: boolean) => {
+    // 是否显示华为云解绑（团队视图或段嘉雯个人）
+    const personalAgentName = agents.find(a => a.agentId === selectedAgentId)?.displayName;
+    const showHuaweiCloud = !isPersonal || personalAgentName === '段嘉雯';
+
     // 工时汇总统计
     const detailRows = [
       { category: '咨询承接', item: '用户主动咨询量/次', value: fmt(metrics.consultationCount), hours: calcConsultHours(metrics.consultationCount, metrics.avgSessionDuration), status: '已完成', calcMethod: '咨询量×(平均对话时长−10min)' },
       { category: '咨询承接', item: '回访次数/次', value: fmt(metrics.returnVisitCount), hours: calcHours(metrics.returnVisitCount, 5), status: '已完成', calcMethod: '回访总次数×5min' },
-      { category: '专项业务', item: '申请解绑华为云数量', value: huaweiCloudUnbindInput ?? 0, hours: calcHours(huaweiCloudUnbindInput, 1), status: huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? '已完成' : '待接入', calcMethod: '解绑申请总数×1min', isInput: true },
+    ];
+    if (showHuaweiCloud) {
+      detailRows.push({ category: '专项业务', item: '申请解绑华为云数量', value: huaweiCloudUnbindInput ?? 0, hours: calcHours(huaweiCloudUnbindInput, 1), status: huaweiCloudUnbindInput !== null && huaweiCloudUnbindInput > 0 ? '已完成' : '待接入', calcMethod: '解绑申请总数×1min', isInput: true });
+    }
+    detailRows.push(
       { category: '问题转化', item: '新增需求数/个', value: fmt(metrics.newDemands), hours: calcHours(metrics.newDemands, 30), status: '已录入', calcMethod: '新增需求总数×30min' },
       { category: '问题转化', item: '新增BUG数/个', value: fmt(metrics.newBugs), hours: calcHours(metrics.newBugs, 30), status: '已录入', calcMethod: '新增BUG总数×30min' },
       { category: '问题闭环', item: '已闭环需求数/个', value: fmt(metrics.closedDemands), hours: calcHours(metrics.closedDemands, 15), status: '已闭环', calcMethod: '已关单需求数×15min' },
       { category: '问题闭环', item: '已闭环BUG数/个', value: fmt(metrics.closedBugs), hours: calcHours(metrics.closedBugs, 15), status: '已闭环', calcMethod: '已关单BUG数×15min' },
       { category: '商务转化', item: '商机转化', value: manualOpportunityInput ?? 0, hours: '—', status: manualOpportunityInput !== null && manualOpportunityInput > 0 ? '已完成' : '待接入', calcMethod: '商机转化（无工时）', isInput: true, inputKey: 'manualOpportunity' },
       { category: '人效', item: '人效评估', value: metrics.teamEfficiency > 0 ? metrics.teamEfficiency.toFixed(2) : '—', hours: '—', status: metrics.teamEfficiency > 0 ? '已完成' : '—', calcMethod: '(咨询量+新增提单×2.5+回访×0.25)/(40×出勤人数)' },
+    );
     ];
     const statusColor: Record<string, string> = {
       '已完成': 'success', '已闭环': 'success', '已录入': 'processing',
