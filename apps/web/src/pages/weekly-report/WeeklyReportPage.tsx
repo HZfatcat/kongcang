@@ -1607,8 +1607,10 @@ export function WeeklyReportPage() {
     const personalAgentName = agents.find(a => a.agentId === selectedAgentId)?.displayName;
     const showHuaweiCloud = !isPersonal || personalAgentName === '段嘉雯';
 
+    type DetailRow = { category: string; item: string; value: string | number; hours: string; status: string; calcMethod: string; isInput?: boolean; inputKey?: string };
+
     // 工时汇总统计
-    const detailRows = [
+    const detailRows: DetailRow[] = [
       { category: '咨询承接', item: '用户主动咨询量/次', value: fmt(metrics.consultationCount), hours: calcConsultHours(metrics.consultationCount, metrics.avgSessionDuration), status: '已完成', calcMethod: '咨询量×(平均对话时长−10min)' },
       { category: '咨询承接', item: '回访次数/次', value: fmt(metrics.returnVisitCount), hours: calcHours(metrics.returnVisitCount, 5), status: '已完成', calcMethod: '回访总次数×5min' },
     ];
@@ -1871,6 +1873,7 @@ export function WeeklyReportPage() {
               >
                 邮件预览
               </Button>
+              </Tooltip>
               <Input
                 placeholder="收件人邮箱"
                 value={smtpEmail}
