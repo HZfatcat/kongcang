@@ -9,6 +9,8 @@ export interface SendReportParams {
   subject?: string;
   type?: 'team' | 'personal';
   agentName?: string;
+  html?: string;
+  ccEmail?: string;
   topQuestions?: { name: string; count: number; pct: number }[];
   risks?: string[];
   suggestions?: string[];

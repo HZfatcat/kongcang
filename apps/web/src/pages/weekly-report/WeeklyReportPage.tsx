@@ -1315,6 +1315,35 @@ export function WeeklyReportPage() {
       message.error('请输入收件人邮箱地址');
       return;
     }
+    // 切到报告视图捕获 HTML
+    if (!beautifulView) {
+      message.info('正在切换为报告视图...');
+      setBeautifulView(true);
+      await new Promise(r => setTimeout(r, 200));
+    }
+    const el = document.querySelector('.beautiful-view-wrap');
+    if (!el) { message.error('请先切换到报告视图再发送'); return; }
+
+    const styles = document.querySelectorAll('style, link[rel=stylesheet]');
+    let styleHtml = '';
+    styles.forEach(s => { styleHtml += s.outerHTML; });
+
+    const cleanHtml = el.innerHTML
+      .replace(/<button[\s\S]*?<\/button>/g, '')
+      .replace(/<textarea[\s\S]*?<\/textarea>/g, '')
+      .replace(/<input[^>]*>/g, '');
+
+    const emailCss = `
+      body{font-family:-apple-system,BlinkMacSystemFont,'Microsoft YaHei',sans-serif;background:#f1f5f9;color:#334155;margin:0;padding:0}
+      .beautiful-view-wrap{max-width:680px;margin:0 auto;padding:10px}
+      @media only screen and (max-width:480px){
+        .beautiful-view-wrap{padding:6px}
+        .beautiful-view-wrap td,.beautiful-view-wrap th{font-size:12px!important;padding:4px 2px!important}
+      }
+    `;
+
+    const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>周报</title><style>${emailCss}</style>${styleHtml}</head><body>${cleanHtml}</body></html>`;
+
     const sections = type === 'team' ? teamSections : personalSections;
     const agentName = type === 'personal' && selectedAgentId
       ? agents.find((a) => a.agentId === selectedAgentId)?.displayName ?? selectedAgentId
@@ -1330,6 +1359,7 @@ export function WeeklyReportPage() {
         subject: `GitCode 客服${type === 'team' ? '团队' : '个人'}周报（${formatDate(dateRange![0])} ~ ${formatDate(dateRange![1])}）`,
         type,
         agentName,
+        html,
         topQuestions: editableState.topQuestions,
         risks: editableState.risks,
         suggestions: editableState.suggestions,
@@ -1340,7 +1370,7 @@ export function WeeklyReportPage() {
     } finally {
       setSmtpSending(false);
     }
-  }, [dateRange, teamSections, personalSections, selectedAgentId, agents, smtpEmail]);
+  }, [dateRange, teamSections, personalSections, selectedAgentId, agents, smtpEmail, beautifulView, editableState]);
 
 
 
