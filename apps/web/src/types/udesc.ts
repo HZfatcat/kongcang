@@ -244,6 +244,8 @@ export interface UdescAgentPerformance {
   totalMessages: number;
   avgMessagesPerSession: number;
   returnVisitCount: number;
+  backlogCreated: number;
+  backlogAccepted: number;
   dailyStats: Array<{
     date: string;
     sessions: number;

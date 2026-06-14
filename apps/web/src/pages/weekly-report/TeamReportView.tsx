@@ -15,7 +15,8 @@ const styles = {
   } as React.CSSProperties,
   // Header
   header: {
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+    background: '#0f172a',
+    backgroundImage: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
     color: '#fff',
     padding: '28px 30px',
     borderRadius: 16,
@@ -108,12 +109,13 @@ const styles = {
     color: '#475569',
   } as React.CSSProperties,
   metricStatus: (pass: boolean): React.CSSProperties => ({
-    fontSize: 11,
+    fontSize: 12,
     padding: '2px 10px',
     borderRadius: 10,
     fontWeight: 500,
     background: pass ? '#f0fdf4' : '#fef2f2',
     color: pass ? '#16a34a' : '#dc2626',
+    whiteSpace: 'nowrap',
   }),
   metricCardBody: {
     display: 'flex',
@@ -147,10 +149,7 @@ const styles = {
     height: '100%',
     borderRadius: 3,
     width: `${Math.min(width, 100)}%`,
-    background: color === 'amber'
-      ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
-      : 'linear-gradient(90deg, #10b981, #34d399)',
-    transition: 'width 0.3s',
+    background: color === 'amber' ? '#f59e0b' : '#10b981',
   }),
   // Rel metric
   relGrid: {
@@ -445,8 +444,7 @@ export function TeamReportView({ metrics, dateRange, sections, teamEditable, onU
               </span>
             </div>
             <div style={styles.metricCardBody}>
-              <span style={styles.metricCardValue}>{(metrics.totalCloseRate * 100).toFixed(2)}</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>%</span>
+              <span style={{ ...styles.metricCardValue, whiteSpace: 'nowrap' }}>{(metrics.totalCloseRate * 100).toFixed(2)}%</span>
               <span style={styles.metricCardTarget}>目标 ≥95%</span>
             </div>
             <div style={styles.metricBarLabel}>
@@ -466,8 +464,7 @@ export function TeamReportView({ metrics, dateRange, sections, teamEditable, onU
               </span>
             </div>
             <div style={styles.metricCardBody}>
-              <span style={styles.metricCardValue}>{(metrics.satisfactionRate * 100).toFixed(2)}</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>%</span>
+              <span style={{ ...styles.metricCardValue, whiteSpace: 'nowrap' }}>{(metrics.satisfactionRate * 100).toFixed(2)}%</span>
               <span style={styles.metricCardTarget}>目标 ≥95%</span>
             </div>
             <div style={styles.metricBarLabel}>

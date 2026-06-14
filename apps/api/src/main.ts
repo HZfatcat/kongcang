@@ -10,6 +10,7 @@ dotenv.config({ path: envLocalPath, override: true });
 
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { LoggerService } from './common/logger/logger.service';
 import { HttpLoggingInterceptor } from './common/interceptors';
@@ -65,6 +66,8 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api/v1');
+  // 增大请求体限制，支持发送完整 HTML 周报
+  app.use(express.json({ limit: '10mb' }));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

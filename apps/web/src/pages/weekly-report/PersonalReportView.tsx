@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import type { WeeklyMetrics } from './WeeklyReportPage';
 import { generateNextPlan } from '../../utils/reportAI';
 
@@ -13,7 +13,8 @@ const styles = {
     lineHeight: 1.6,
   } as React.CSSProperties,
   header: {
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2563eb 100%)',
+    background: '#0f172a',
+    backgroundImage: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2563eb 100%)',
     borderRadius: 14,
     padding: '28px 24px 24px',
     color: '#fff',
@@ -62,13 +63,14 @@ interface Props {
 function statusBadge(label: string, pass: boolean): React.ReactNode {
   return (
     <span style={{
-      fontSize: 10,
-      padding: '1px 8px',
+      fontSize: 12,
+      padding: '2px 8px',
       borderRadius: 8,
       fontWeight: 500,
       background: pass ? '#f0fdf4' : '#fef2f2',
       color: pass ? '#16a34a' : '#dc2626',
       whiteSpace: 'nowrap',
+      display: 'inline-block',
     }}>
       {pass ? '✅' : '❌'} {label}
     </span>
@@ -104,16 +106,8 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
     }
   };
 
-  // 计算人效：人效 = (咨询量 + (新增需求+新增BUG)×2.5 + 回访×0.25) / (40 × 出勤人数)
-  const efficiency = useMemo(() => {
-    if (metrics.agentCount <= 0) return '—';
-    const numerator = metrics.consultationCount
-      + (metrics.newDemands + metrics.newBugs) * 2.5
-      + (metrics.returnVisitCount ?? 0) * 0.25;
-    const denominator = 40 * metrics.agentCount;
-    if (denominator <= 0) return '—';
-    return (numerator / denominator).toFixed(2);
-  }, [metrics]);
+  // 人效：直接使用 metrics 中已计算的值（与数据视图一致）
+  const efficiency = metrics.teamEfficiency > 0 ? (metrics.teamEfficiency * 100).toFixed(1) + '%' : '—';
 
   return (
     <div style={styles.wrap}>
@@ -121,7 +115,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
       <div style={styles.header}>
         <div style={styles.headerRow}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>🧑 个人周报</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>📋 个人周报</div>
             <div style={{ marginTop: 4, fontSize: 13, opacity: 0.7 }}>{start} ~ {end}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -135,17 +129,17 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <div style={styles.sumCard}>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>总工时</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#1e293b' }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
             {calcTotalHours(metrics, huaweiCloudUnbindInput)}<span style={{ fontSize: 14, fontWeight: 400, color: '#94a3b8', marginLeft: 2 }}>h</span>
           </div>
         </div>
         <div style={styles.sumCard}>
-          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>人效</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#10b981' }}>{efficiency}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>总关单率</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: '#3b82f6', whiteSpace: 'nowrap' }}>{(metrics.totalCloseRate * 100).toFixed(1)}%</div>
         </div>
         <div style={styles.sumCard}>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>满意度</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#3b82f6' }}>{(metrics.satisfactionRate * 100).toFixed(1)}%</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: '#3b82f6', whiteSpace: 'nowrap' }}>{(metrics.satisfactionRate * 100).toFixed(1)}%</div>
         </div>
       </div>
 
@@ -167,7 +161,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
               <td rowSpan={3} style={{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 4px', color: '#475569', fontWeight: 500 }}>闭环质量</td>
               <td style={{ padding: '6px 4px', color: '#334155' }}>总关单率</td>
               <td style={{ textAlign: 'center', padding: '6px 4px', color: '#94a3b8' }}>≥95%</td>
-              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{(metrics.totalCloseRate * 100).toFixed(2)}%</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600, whiteSpace: 'nowrap' }}>{(metrics.totalCloseRate * 100).toFixed(2)}%</td>
               <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                 {statusBadge('达标', metrics.totalCloseRate >= 0.95)}
               </td>
@@ -175,7 +169,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
             <tr style={{ borderTop: '1px solid #e2e8f0' }}>
               <td style={{ padding: '6px 4px', color: '#334155' }}>需求关单率</td>
               <td style={{ textAlign: 'center', padding: '6px 4px', color: '#94a3b8' }}>≥95%</td>
-              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{(metrics.demandCloseRate * 100).toFixed(2)}%</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600, whiteSpace: 'nowrap' }}>{(metrics.demandCloseRate * 100).toFixed(2)}%</td>
               <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                 {statusBadge('达标', metrics.demandCloseRate >= 0.95)}
               </td>
@@ -183,7 +177,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
             <tr style={{ borderTop: '1px solid #e2e8f0' }}>
               <td style={{ padding: '6px 4px', color: '#334155' }}>BUG 关单率</td>
               <td style={{ textAlign: 'center', padding: '6px 4px', color: '#94a3b8' }}>≥95%</td>
-              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{(metrics.bugCloseRate * 100).toFixed(2)}%</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600, whiteSpace: 'nowrap' }}>{(metrics.bugCloseRate * 100).toFixed(2)}%</td>
               <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                 {statusBadge('达标', metrics.bugCloseRate >= 0.95)}
               </td>
@@ -193,7 +187,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
               <td rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 4px', color: '#475569', fontWeight: 500 }}>体验指标</td>
               <td style={{ padding: '6px 4px', color: '#334155' }}>满意度</td>
               <td style={{ textAlign: 'center', padding: '6px 4px', color: '#94a3b8' }}>≥95%</td>
-              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{(metrics.satisfactionRate * 100).toFixed(2)}%</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600, whiteSpace: 'nowrap' }}>{(metrics.satisfactionRate * 100).toFixed(2)}%</td>
               <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                 {statusBadge('达标', metrics.satisfactionRate >= 0.95)}
               </td>
@@ -201,7 +195,7 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
             <tr style={{ borderTop: '1px solid #e2e8f0' }}>
               <td style={{ padding: '6px 4px', color: '#334155' }}>问题解决率</td>
               <td style={{ textAlign: 'center', padding: '6px 4px', color: '#94a3b8' }}>≥90%</td>
-              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>{(metrics.problemResolutionRate * 100).toFixed(2)}%</td>
+              <td style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600, whiteSpace: 'nowrap' }}>{(metrics.problemResolutionRate * 100).toFixed(2)}%</td>
               <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                 {statusBadge('达标', metrics.problemResolutionRate >= 0.90)}
               </td>
@@ -355,7 +349,13 @@ export function PersonalReportView({ metrics, dateRange, sections, agentName, hu
       }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#9a3412', marginBottom: 8 }}>📌 积压备注</div>
         <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.6 }}>
-          需求闭环进度滞后，当前仍有{metrics.newDemands - metrics.closedDemands}个需求、{metrics.newBugs - metrics.closedBugs}个BUG待跟进处理，需加快闭环节奏。
+          {metrics.backlogCreated > 0 && (
+            <div style={{ marginBottom: 4 }}>⚠️ 创建超7天未采纳：<strong>{metrics.backlogCreated}</strong> 个需求/Bug</div>
+          )}
+          {metrics.backlogAccepted > 0 && (
+            <div style={{ marginBottom: 4 }}>⏳ 已采纳超30天未闭环：<strong>{metrics.backlogAccepted}</strong> 个需求/Bug</div>
+          )}
+          {metrics.backlogCreated === 0 && metrics.backlogAccepted === 0 && '✅ 当前无积压，所有事项正常推进。'}
         </div>
       </div>
 

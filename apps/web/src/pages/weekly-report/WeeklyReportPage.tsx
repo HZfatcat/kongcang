@@ -544,7 +544,9 @@ export interface WeeklyMetrics {
   opportunityCount: number;
   opportunityWon: number;
   // 4. 人效评估
-  teamEfficiency: number; // 团队人效 = (咨询量 + 新增提单*2.5 + 回访*0.25) / (40*出勤人数)
+  teamEfficiency: number;
+  backlogCreated: number;
+  backlogAccepted: number;
 }
 
 // ====== 环比对比缓存 ======
@@ -1130,10 +1132,10 @@ export function WeeklyReportPage() {
       consultationCount,
       returnVisitCount: u?.returnVisitCount ?? null,
       huaweiCloudUnbind: null,
-      newDemands: (ad?.totalIdentifiedCount ?? 0),
-      newBugs: (ad?.bugCount ?? 0) - (ad?.bugLongTermCount ?? 0),
-      closedDemands: (ad?.completedCount ?? 0) + (ad?.rejectedCount ?? 0),
-      closedBugs: (ad?.bugCompletedCount ?? 0) + (ad?.bugRejectedCount ?? 0),
+      newDemands: (w?.totalIdentifiedCount ?? 0),
+      newBugs: (w?.bugCount ?? 0) - (w?.bugLongTermCount ?? 0),
+      closedDemands: (w?.completedCount ?? 0) + (w?.rejectedCount ?? 0),
+      closedBugs: (w?.bugCompletedCount ?? 0) + (w?.bugRejectedCount ?? 0),
       activeAgentCount,
       agentCount: u?.agentCount ?? 0,
       totalSessions: u?.totalSessions ?? consultationCount,
@@ -1180,6 +1182,8 @@ export function WeeklyReportPage() {
 
         return efficiencies.reduce((sum, e) => sum + e, 0) / efficiencies.length;
       })(),
+      backlogCreated: 0,
+      backlogAccepted: 0,
     };
   }, [kpiOverview, demandOverview, annualDemandOverview, annualKpiOverview, funnel, udescOverview, dailyRatingStats, teamMetricsSummary, opportunitySummary, monthlyVoteStats, monthlyMetrics, monthlySatisfaction, agentOverview, agents]);
 
@@ -1294,6 +1298,8 @@ export function WeeklyReportPage() {
         const denominator = 40 * Math.max(workDays, 1);
         return numerator / denominator;
       })(),
+      backlogCreated: perf?.backlogCreated ?? 0,
+      backlogAccepted: perf?.backlogAccepted ?? 0,
     };
   }, [agentPerformance, agentMetricsSummary, teamMetrics, dailyRatingStats, agentOverview, agents, selectedAgentId, personalDemandOverview, personalKpiOverview]);
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { RequirementStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { UdescClient } from '../sync/udesc.client';
 
@@ -188,17 +189,18 @@ export class UdescService {
       }),
       voteTagStatsPromise,
       this.prisma.udescCustomer.count(),
-      // 统计回访会话数：查找 UdescSessionVote 中 tags 包含"回访"的会话
-      this.prisma.udescSessionVote
-        .findMany({
-          where: {
-            sessionId: { in: sessionIds },
-            tags: { has: '回访' },
-          },
-          select: { sessionId: true },
-        })
-        .then((votes) => new Set(votes.map((v) => v.sessionId)).size),
-      ]);
+      // 统计回访：从业务记录(UdescBusinessNote)中统计问题类型含"回访"的记录数
+      this.prisma.udescBusinessNote.count({
+        where: {
+          createdAt: { gte: start, lte: end },
+          OR: [
+            { problemType1: { contains: '回访' } },
+            { problemType2: { contains: '回访' } },
+            { problemType3: { contains: '回访' } },
+          ],
+        },
+      }),
+    ]);
 
     return {
       dateRange: { startDate: start.toISOString(), endDate: end.toISOString() },
@@ -864,7 +866,7 @@ export class UdescService {
     });
     const agentSessionIds = agentSessions.map((s) => s.id);
 
-    const [sessionStats, messageStats, returnVisitCount, agentSessionsDetailed] = await Promise.all([
+    const [sessionStats, messageStats, returnVisitCount, agentSessionsDetailed, backlogCreated, backlogAccepted] = await Promise.all([
       this.prisma.udescSession.groupBy({
         by: ['agentId'],
         where: {
@@ -896,6 +898,24 @@ export class UdescService {
         where: { agentId, startedAt: { gte: start, lte: end } },
         select: { rating: true, rawPayload: true },
       }),
+      // 积压统计：创建超过7天未采纳（状态=OPEN，仅2026年，排除长期演进）
+      agentName ? this.prisma.zouwuRequirement.count({
+        where: {
+          createdByName: agentName,
+          createdAtSource: { gte: new Date('2026-01-01'), lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+          status: 'OPEN',
+          isLongTerm: false,
+        },
+      }) : Promise.resolve(0),
+      // 积压统计：已采纳超过30天未闭环（状态=IN_PROGRESS，仅2026年，排除长期演进）
+      agentName ? this.prisma.zouwuRequirement.count({
+        where: {
+          createdByName: agentName,
+          createdAtSource: { gte: new Date('2026-01-01'), lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          status: 'IN_PROGRESS',
+          isLongTerm: false,
+        },
+      }) : Promise.resolve(0),
     ]);
 
     // 满意度 & 问题解决率：与团队口径一致，使用 UdescSession.rating
@@ -960,6 +980,8 @@ export class UdescService {
       totalMessages: messageStats._count.id,
       avgMessagesPerSession: sessionStats[0]?._count.id ? messageStats._count.id / sessionStats[0]._count.id : 0,
       returnVisitCount: returnVisitCount,
+      backlogCreated: backlogCreated,
+      backlogAccepted: backlogAccepted,
       dailyStats,
     };
   }
